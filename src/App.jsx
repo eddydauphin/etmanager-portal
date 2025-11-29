@@ -15,6 +15,7 @@ import TraineeDetailPage from './pages/TraineeDetailPage';
 import CompetenciesPage from './pages/CompetenciesPage';
 import TrainingPage from './pages/TrainingPage';
 import ReportsPage from './pages/ReportsPage';
+import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 
