@@ -176,7 +176,7 @@ function AppRoutes() {
 // Main App component
 function App() {
   return (
-    <BrowserRouter basename="/trainer">
+    <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
