@@ -23,10 +23,6 @@ import MyProgressPage from './pages/MyProgressPage';
 import MyPlanPage from './pages/MyPlanPage';
 import MyTrainingPage from './pages/MyTrainingPage';
 
-// Admin Pages (Super admin only)
-import ClientsPage from './pages/admin/ClientsPage';
-import UsersPage from './pages/admin/UsersPage';
-
 // Layout
 import Layout from './components/shared/Layout';
 
