@@ -11,50 +11,71 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkUser();
+    let mounted = true;
     
+    async function init() {
+      try {
+        console.log('Checking auth session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Session error:', error);
+        }
+        
+        if (session?.user && mounted) {
+          console.log('User found:', session.user.email);
+          setUser(session.user);
+          
+          // Load profile
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profileError) {
+            console.error('Profile error:', profileError);
+          } else {
+            console.log('Profile loaded:', profileData);
+            setProfile(profileData);
+          }
+        } else {
+          console.log('No session found');
+        }
+      } catch (err) {
+        console.error('Init error:', err);
+      } finally {
+        if (mounted) {
+          console.log('Setting loading to false');
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
+
+    // Set up auth listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      console.log('Auth state changed:', event);
+      if (session?.user && mounted) {
         setUser(session.user);
-        await loadProfile(session.user.id);
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        if (data) setProfile(data);
       } else {
         setUser(null);
         setProfile(null);
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
-
-  async function checkUser() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        await loadProfile(session.user.id);
-      }
-    } catch (error) {
-      console.error('Auth check error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadProfile(userId) {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) throw error;
-      setProfile(data);
-    } catch (error) {
-      console.error('Profile load error:', error);
-    }
-  }
 
   async function signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -80,7 +101,7 @@ export function AuthProvider({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
