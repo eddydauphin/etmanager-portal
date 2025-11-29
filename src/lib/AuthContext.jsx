@@ -1,134 +1,95 @@
-// ============================================================================
-// E&T MANAGER - AUTHENTICATION CONTEXT
-// Provides auth state and user profile throughout the app
-// ============================================================================
-
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, getUserProfile, markPasswordChanged, updatePassword } from './supabase';
+import { supabase } from './supabase';
 
 const AuthContext = createContext({});
+
+export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    checkUser();
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setUser(session.user);
-        loadProfile(session.user.id);
+        await loadProfile(session.user.id);
       } else {
-        setLoading(false);
+        setUser(null);
+        setProfile(null);
       }
+      setLoading(false);
     });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          await loadProfile(session.user.id);
-        } else {
-          setUser(null);
-          setProfile(null);
-          setMustChangePassword(false);
-        }
-        setLoading(false);
-      }
-    );
 
     return () => subscription.unsubscribe();
   }, []);
 
-  async function loadProfile(userId) {
+  async function checkUser() {
     try {
-      const profileData = await getUserProfile(userId);
-      setProfile(profileData);
-      setMustChangePassword(profileData.must_change_password);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        await loadProfile(session.user.id);
+      }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('Auth check error:', error);
     } finally {
       setLoading(false);
     }
   }
 
-  async function changePassword(newPassword) {
+  async function loadProfile(userId) {
     try {
-      await updatePassword(newPassword);
-      await markPasswordChanged(user.id);
-      setMustChangePassword(false);
-      // Reload profile
-      await loadProfile(user.id);
-      return { success: true };
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) throw error;
+      setProfile(data);
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Profile load error:', error);
     }
   }
 
   async function signIn(email, password) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      if (error) throw error;
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
   }
 
   async function signOut() {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setProfile(null);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
   }
-
-  // Role-based helpers
-  const isSuperAdmin = profile?.role === 'super_admin';
-  const isClientAdmin = profile?.role === 'client_admin';
-  const isTrainee = profile?.role === 'trainee';
-  const clientId = profile?.client_id;
-  const clientName = profile?.client?.name;
 
   const value = {
     user,
     profile,
     loading,
-    mustChangePassword,
     signIn,
     signOut,
-    changePassword,
-    loadProfile,
-    // Role helpers
-    isSuperAdmin,
-    isClientAdmin,
-    isTrainee,
-    clientId,
-    clientName
+    isAuthenticated: !!user,
+    role: profile?.role || null,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
-  return context;
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export default AuthContext;
