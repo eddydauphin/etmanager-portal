@@ -114,7 +114,16 @@ function AppRoutes() {
    	 <ClientsPage />
   	</ProtectedRoute>
 	} />
-        
+        <Route path="clients" element={
+        <ProtectedRoute allowedRoles={['super_admin']}>
+        <ClientsPage />
+        </ProtectedRoute>
+        } />
+        <Route path="users" element={
+        <ProtectedRoute allowedRoles={['super_admin']}>
+        <UsersPage />
+        </ProtectedRoute>
+        } />
         {/* Client Admin & Super Admin routes */}
         <Route path="trainees" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
@@ -165,11 +174,7 @@ function AppRoutes() {
             <ClientsPage />
           </ProtectedRoute>
         } />
-        <Route path="users" element={
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <UsersPage />
-          </ProtectedRoute>
-        } />
+     
       </Route>
       
       {/* Catch all - redirect to dashboard or login */}
