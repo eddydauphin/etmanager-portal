@@ -165,7 +165,7 @@ function AppRoutes() {
             <ClientsPage />
           </ProtectedRoute>
         } />
-        <Route path="admin/users" element={
+        <Route path="users" element={
           <ProtectedRoute allowedRoles={['super_admin']}>
             <UsersPage />
           </ProtectedRoute>
