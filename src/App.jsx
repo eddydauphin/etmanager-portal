@@ -16,6 +16,7 @@ import CompetenciesPage from './pages/CompetenciesPage';
 import TrainingPage from './pages/TrainingPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import ClientsPage from './pages/ClientsPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -109,6 +110,13 @@ function AppRoutes() {
         {/* Common routes */}
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="settings" element={<SettingsPage />} />
+
+	{/* Super Admin only routes */}
+	<Route path="clients" element={
+  	<ProtectedRoute allowedRoles={['super_admin']}>
+   	 <ClientsPage />
+  	</ProtectedRoute>
+	} />
         
         {/* Client Admin & Super Admin routes */}
         <Route path="trainees" element={
