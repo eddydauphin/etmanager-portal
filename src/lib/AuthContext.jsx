@@ -13,40 +13,41 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
     
+    // Timeout after 5 seconds
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.log('Auth timeout - forcing load');
+        setLoading(false);
+      }
+    }, 5000);
+
     async function init() {
       try {
-        console.log('Checking auth session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Session error:', error);
-        }
+        console.log('1. Getting session...');
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('2. Session result:', session ? 'found' : 'none');
         
         if (session?.user && mounted) {
-          console.log('User found:', session.user.email);
           setUser(session.user);
+          console.log('3. Loading profile for:', session.user.id);
           
-          // Load profile
-          const { data: profileData, error: profileError } = await supabase
+          const { data, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
           
-          if (profileError) {
-            console.error('Profile error:', profileError);
-          } else {
-            console.log('Profile loaded:', profileData);
-            setProfile(profileData);
+          console.log('4. Profile result:', data, error);
+          
+          if (data && mounted) {
+            setProfile(data);
           }
-        } else {
-          console.log('No session found');
         }
       } catch (err) {
         console.error('Init error:', err);
       } finally {
         if (mounted) {
-          console.log('Setting loading to false');
+          console.log('5. Done loading');
           setLoading(false);
         }
       }
@@ -54,18 +55,9 @@ export function AuthProvider({ children }) {
 
     init();
 
-    // Set up auth listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      if (session?.user && mounted) {
-        setUser(session.user);
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        if (data) setProfile(data);
-      } else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth event:', event);
+      if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
       }
@@ -73,6 +65,7 @@ export function AuthProvider({ children }) {
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -80,6 +73,18 @@ export function AuthProvider({ children }) {
   async function signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    
+    // Load profile after sign in
+    if (data.user) {
+      setUser(data.user);
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      if (profileData) setProfile(profileData);
+    }
+    
     return data;
   }
 
