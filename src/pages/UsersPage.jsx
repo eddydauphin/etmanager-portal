@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
-
+import Layout from '../components/shared/Layout';
 import {
   Users,
   Plus,
@@ -428,7 +428,7 @@ export default function UsersPage() {
   };
 
   return (
-    
+    <Layout>
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -993,7 +993,6 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-    
+    </Layout>
   );
 }
-
