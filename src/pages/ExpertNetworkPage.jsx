@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import { dbFetch } from '../lib/db';
 import {
   Network,
   Plus,
@@ -113,21 +114,13 @@ export default function ExpertNetworkPage() {
 
   const loadNetworks = async () => {
     try {
-      let query = supabase
-        .from('expert_networks')
-        .select(`
-          *,
-          clients:client_id (id, name, code)
-        `)
-        .eq('is_active', true)
-        .order('name');
+      let url = 'expert_networks?select=*&is_active=eq.true&order=name.asc';
 
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
-        query = query.eq('client_id', currentProfile.client_id);
+        url += `&client_id=eq.${currentProfile.client_id}`;
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const data = await dbFetch(url);
       setNetworks(data || []);
 
       // Load members for all networks
@@ -143,17 +136,22 @@ export default function ExpertNetworkPage() {
 
   const loadMembers = async (networkIds) => {
     try {
-      const { data, error } = await supabase
-        .from('expert_network_members')
-        .select(`
-          *,
-          user:user_id (id, full_name, email, department),
-          reports_to:reports_to_id (id, full_name)
-        `)
-        .in('network_id', networkIds);
-
-      if (error) throw error;
-      setMembers(data || []);
+      // Load members for each network
+      const allMembers = [];
+      for (const networkId of networkIds) {
+        const data = await dbFetch(`expert_network_members?select=*&network_id=eq.${networkId}`);
+        if (data) {
+          // Fetch user info for each member
+          for (const member of data) {
+            if (member.user_id) {
+              const userData = await dbFetch(`profiles?select=id,full_name,email,department&id=eq.${member.user_id}`);
+              member.user = userData?.[0] || null;
+            }
+          }
+          allMembers.push(...data);
+        }
+      }
+      setMembers(allMembers);
     } catch (error) {
       console.error('Error loading members:', error);
     }
@@ -161,17 +159,14 @@ export default function ExpertNetworkPage() {
 
   const loadActionPlans = async (networkIds) => {
     try {
-      const { data, error } = await supabase
-        .from('network_action_plans')
-        .select(`
-          *,
-          assigned_user:assigned_to (id, full_name)
-        `)
-        .in('network_id', networkIds)
-        .order('due_date');
-
-      if (error) throw error;
-      setActionPlans(data || []);
+      const allActions = [];
+      for (const networkId of networkIds) {
+        const data = await dbFetch(`network_action_plans?select=*&network_id=eq.${networkId}&order=due_date.asc`);
+        if (data) {
+          allActions.push(...data);
+        }
+      }
+      setActionPlans(allActions);
     } catch (error) {
       console.error('Error loading action plans:', error);
     }
@@ -179,13 +174,7 @@ export default function ExpertNetworkPage() {
 
   const loadClients = async () => {
     try {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, code')
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
+      const data = await dbFetch('clients?select=id,name,code&is_active=eq.true&order=name.asc');
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
@@ -194,18 +183,13 @@ export default function ExpertNetworkPage() {
 
   const loadUsers = async () => {
     try {
-      let query = supabase
-        .from('profiles')
-        .select('id, full_name, email, client_id, department')
-        .eq('is_active', true)
-        .order('full_name');
+      let url = 'profiles?select=id,full_name,email,client_id,department&is_active=eq.true&order=full_name.asc';
 
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
-        query = query.eq('client_id', currentProfile.client_id);
+        url += `&client_id=eq.${currentProfile.client_id}`;
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const data = await dbFetch(url);
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -353,12 +337,11 @@ export default function ExpertNetworkPage() {
     
     try {
       // Soft delete - mark as inactive
-      const { error } = await supabase
-        .from('expert_networks')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('id', network.id);
+      await dbFetch(`expert_networks?id=eq.${network.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: false, updated_at: new Date().toISOString() })
+      });
       
-      if (error) throw error;
       loadNetworks();
     } catch (error) {
       console.error('Error deleting network:', error);
@@ -387,16 +370,15 @@ export default function ExpertNetworkPage() {
       };
 
       if (editingNetwork) {
-        const { error } = await supabase
-          .from('expert_networks')
-          .update(data)
-          .eq('id', editingNetwork.id);
-        if (error) throw error;
+        await dbFetch(`expert_networks?id=eq.${editingNetwork.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(data)
+        });
       } else {
-        const { error } = await supabase
-          .from('expert_networks')
-          .insert(data);
-        if (error) throw error;
+        await dbFetch('expert_networks', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
       }
 
       setShowNetworkModal(false);
@@ -458,16 +440,15 @@ export default function ExpertNetworkPage() {
       };
 
       if (editingMember) {
-        const { error } = await supabase
-          .from('expert_network_members')
-          .update(data)
-          .eq('id', editingMember.id);
-        if (error) throw error;
+        await dbFetch(`expert_network_members?id=eq.${editingMember.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(data)
+        });
       } else {
-        const { error } = await supabase
-          .from('expert_network_members')
-          .insert(data);
-        if (error) throw error;
+        await dbFetch('expert_network_members', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
       }
 
       setShowMemberModal(false);
@@ -483,11 +464,9 @@ export default function ExpertNetworkPage() {
     if (!confirm('Remove this member from the network?')) return;
     
     try {
-      const { error } = await supabase
-        .from('expert_network_members')
-        .delete()
-        .eq('id', memberId);
-      if (error) throw error;
+      await dbFetch(`expert_network_members?id=eq.${memberId}`, {
+        method: 'DELETE'
+      });
       loadNetworks();
     } catch (error) {
       console.error('Error deleting member:', error);
@@ -548,17 +527,16 @@ export default function ExpertNetworkPage() {
       };
 
       if (editingAction) {
-        const { error } = await supabase
-          .from('network_action_plans')
-          .update(data)
-          .eq('id', editingAction.id);
-        if (error) throw error;
+        await dbFetch(`network_action_plans?id=eq.${editingAction.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(data)
+        });
       } else {
         data.created_by = currentProfile?.id;
-        const { error } = await supabase
-          .from('network_action_plans')
-          .insert(data);
-        if (error) throw error;
+        await dbFetch('network_action_plans', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
       }
 
       setShowActionModal(false);

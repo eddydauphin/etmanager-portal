@@ -6,11 +6,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
+import { dbFetch } from '../lib/db';
 import {
   Users,
   Target,
-  TrendingUp,
   AlertCircle,
   CheckCircle,
   Clock,
@@ -126,25 +125,16 @@ function SuperAdminDashboard() {
   async function loadData() {
     try {
       // Load clients
-      const { data: clientsData } = await supabase
-        .from('clients')
-        .select('*')
-        .order('name');
+      const clientsData = await dbFetch('clients?select=*&order=name.asc');
       setClients(clientsData || []);
 
       // Count users (trainees)
-      const { count: users } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'trainee');
-      setUserCount(users || 0);
+      const users = await dbFetch('profiles?select=id&role=eq.trainee');
+      setUserCount(users?.length || 0);
 
       // Count networks
-      const { count: networks } = await supabase
-        .from('expert_networks')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
-      setNetworkCount(networks || 0);
+      const networks = await dbFetch('expert_networks?select=id&is_active=eq.true');
+      setNetworkCount(networks?.length || 0);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -293,27 +283,20 @@ function ClientAdminDashboard() {
   useEffect(() => {
     if (clientId) {
       loadData();
+    } else {
+      setLoading(false);
     }
   }, [clientId]);
 
   async function loadData() {
     try {
-      // Load team members (users with role=trainee for this client)
-      const { data: usersData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('is_active', true)
-        .order('full_name');
+      // Load team members
+      const usersData = await dbFetch(`profiles?select=*&client_id=eq.${clientId}&is_active=eq.true&order=full_name.asc`);
       setUsers(usersData || []);
 
-      // Count networks for this client
-      const { count } = await supabase
-        .from('expert_networks')
-        .select('*', { count: 'exact', head: true })
-        .eq('client_id', clientId)
-        .eq('is_active', true);
-      setNetworkCount(count || 0);
+      // Count networks
+      const networks = await dbFetch(`expert_networks?select=id&client_id=eq.${clientId}&is_active=eq.true`);
+      setNetworkCount(networks?.length || 0);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -453,7 +436,6 @@ function ClientAdminDashboard() {
 function TraineeDashboard() {
   const { profile } = useAuth();
 
-  // Placeholder data - would come from actual trainee data
   const overallProgress = 67;
   const competenciesOnTrack = 8;
   const competenciesTotal = 12;
@@ -469,7 +451,6 @@ function TraineeDashboard() {
 
       {/* Progress Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Progress Ring */}
         <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
           <h3 className="text-sm font-medium text-gray-500 mb-4">Overall Progress</h3>
           <ProgressRing percentage={overallProgress} />
@@ -478,7 +459,6 @@ function TraineeDashboard() {
           </p>
         </div>
 
-        {/* Stats */}
         <div className="lg:col-span-2 grid grid-cols-2 gap-4">
           <StatCard 
             title="Competencies" 
@@ -587,11 +567,10 @@ function DashboardSkeleton() {
   );
 }
 
-// Main Dashboard component - routes to role-specific dashboard
+// Main Dashboard component
 function DashboardPage() {
   const { profile, isSuperAdmin, isClientAdmin, isTrainee, loading } = useAuth();
 
-  // Show skeleton while loading
   if (loading || !profile) {
     return <DashboardSkeleton />;
   }
@@ -608,7 +587,6 @@ function DashboardPage() {
     return <TraineeDashboard />;
   }
 
-  // Fallback - show skeleton
   return <DashboardSkeleton />;
 }
 

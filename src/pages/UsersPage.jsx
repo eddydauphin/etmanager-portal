@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import { dbFetch } from '../lib/db';
 import {
   Users,
   Plus,
@@ -96,26 +97,14 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     try {
-      let query = supabase
-        .from('profiles')
-        .select(`
-          *,
-          clients:client_id (
-            id,
-            name,
-            code
-          )
-        `)
-        .order('created_at', { ascending: false });
-
+      let url = 'profiles?select=*&order=created_at.desc';
+      
       // If client admin, only show users from their client
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
-        query = query.eq('client_id', currentProfile.client_id);
+        url += `&client_id=eq.${currentProfile.client_id}`;
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
+      const data = await dbFetch(url);
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -124,13 +113,7 @@ export default function UsersPage() {
 
   const loadClients = async () => {
     try {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, code')
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
+      const data = await dbFetch('clients?select=id,name,code&is_active=eq.true&order=name.asc');
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
@@ -210,13 +193,16 @@ export default function UsersPage() {
   // Log credentials to email_log table for reference
   const logCredentials = async (email, password, fullName, createdBy) => {
     try {
-      await supabase.from('email_log').insert({
-        recipient_email: email,
-        subject: 'New User Account Created',
-        body: `Account created for ${fullName}\nEmail: ${email}\nTemporary Password: ${password}\nUser must change password on first login.`,
-        status: 'logged',
-        sent_at: new Date().toISOString(),
-        created_by: createdBy
+      await dbFetch('email_log', {
+        method: 'POST',
+        body: JSON.stringify({
+          recipient_email: email,
+          subject: 'New User Account Created',
+          body: `Account created for ${fullName}\nEmail: ${email}\nTemporary Password: ${password}\nUser must change password on first login.`,
+          status: 'logged',
+          sent_at: new Date().toISOString(),
+          created_by: createdBy
+        })
       });
     } catch (error) {
       console.error('Error logging credentials:', error);
@@ -259,12 +245,11 @@ export default function UsersPage() {
           updated_at: new Date().toISOString()
         };
 
-        const { error } = await supabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', editingUser.id);
+        await dbFetch(`profiles?id=eq.${editingUser.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updateData)
+        });
 
-        if (error) throw error;
         setFormSuccess('User updated successfully!');
         
         // Reload and close modal after delay
@@ -296,9 +281,9 @@ export default function UsersPage() {
 
         if (authData.user) {
           // Update the profile with all fields
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
+          await dbFetch(`profiles?id=eq.${authData.user.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
               full_name: formData.full_name,
               role: formData.role,
               client_id: formData.role === 'super_admin' ? null : formData.client_id,
@@ -309,9 +294,7 @@ export default function UsersPage() {
               must_change_password: true,
               is_active: true
             })
-            .eq('id', authData.user.id);
-
-          if (profileError) throw profileError;
+          });
           
           // Log credentials for reference
           await logCredentials(
@@ -368,15 +351,13 @@ export default function UsersPage() {
     if (!userToDelete) return;
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
+      await dbFetch(`profiles?id=eq.${userToDelete.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ 
           is_active: false,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userToDelete.id);
-
-      if (error) throw error;
+      });
 
       await loadUsers();
       setShowDeleteModal(false);
