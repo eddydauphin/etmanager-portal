@@ -21,7 +21,10 @@ import {
   Filter,
   RefreshCw,
   Copy,
-  CheckCircle2
+  CheckCircle2,
+  Hash,
+  Briefcase,
+  Calendar
 } from 'lucide-react';
 
 export default function UsersPage() {
@@ -49,12 +52,16 @@ export default function UsersPage() {
   const [newUserCredentials, setNewUserCredentials] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   
-  // Form state
+  // Form state - now includes employee fields
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
     role: 'trainee',
     client_id: '',
+    employee_number: '',
+    department: '',
+    line: '',
+    hire_date: '',
     is_active: true
   });
   const [formError, setFormError] = useState('');
@@ -130,11 +137,15 @@ export default function UsersPage() {
     }
   };
 
+  // Get unique departments for filter
+  const departments = [...new Set(users.map(u => u.department).filter(Boolean))].sort();
+
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
       user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.employee_number?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesClient = clientFilter === 'all' || user.client_id === clientFilter;
@@ -153,6 +164,10 @@ export default function UsersPage() {
       full_name: '',
       role: currentProfile?.role === 'client_admin' ? 'trainee' : 'trainee',
       client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+      employee_number: '',
+      department: '',
+      line: '',
+      hire_date: '',
       is_active: true
     });
     setFormError('');
@@ -168,6 +183,10 @@ export default function UsersPage() {
       full_name: user.full_name || '',
       role: user.role || 'trainee',
       client_id: user.client_id || '',
+      employee_number: user.employee_number || '',
+      department: user.department || '',
+      line: user.line || '',
+      hire_date: user.hire_date || '',
       is_active: user.is_active !== false
     });
     setFormError('');
@@ -201,7 +220,6 @@ export default function UsersPage() {
       });
     } catch (error) {
       console.error('Error logging credentials:', error);
-      // Don't throw - this is non-critical
     }
   };
 
@@ -233,6 +251,10 @@ export default function UsersPage() {
           full_name: formData.full_name,
           role: formData.role,
           client_id: formData.role === 'super_admin' ? null : formData.client_id,
+          employee_number: formData.employee_number || null,
+          department: formData.department || null,
+          line: formData.line || null,
+          hire_date: formData.hire_date || null,
           is_active: formData.is_active,
           updated_at: new Date().toISOString()
         };
@@ -273,13 +295,17 @@ export default function UsersPage() {
         }
 
         if (authData.user) {
-          // Update the profile with role and client
+          // Update the profile with all fields
           const { error: profileError } = await supabase
             .from('profiles')
             .update({
               full_name: formData.full_name,
               role: formData.role,
               client_id: formData.role === 'super_admin' ? null : formData.client_id,
+              employee_number: formData.employee_number || null,
+              department: formData.department || null,
+              line: formData.line || null,
+              hire_date: formData.hire_date || null,
               must_change_password: true,
               is_active: true
             })
@@ -342,7 +368,6 @@ export default function UsersPage() {
     if (!userToDelete) return;
 
     try {
-      // Soft delete - mark as inactive
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -490,7 +515,7 @@ export default function UsersPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name or email..."
+                placeholder="Search by name, email, or employee #..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -586,6 +611,9 @@ export default function UsersPage() {
                       Organization
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Department / Line
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -608,6 +636,12 @@ export default function UsersPage() {
                             <div>
                               <div className="font-medium text-gray-900">{user.full_name || 'No name'}</div>
                               <div className="text-sm text-gray-500">{user.email}</div>
+                              {user.employee_number && (
+                                <div className="text-xs text-gray-400 flex items-center gap-1">
+                                  <Hash className="w-3 h-3" />
+                                  {user.employee_number}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -623,6 +657,16 @@ export default function UsersPage() {
                               <Building2 className="w-3.5 h-3.5" />
                               {user.clients.name}
                             </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {user.department || user.line ? (
+                            <div>
+                              {user.department && <div className="text-gray-900">{user.department}</div>}
+                              {user.line && <div className="text-sm text-gray-500">{user.line}</div>}
+                            </div>
                           ) : (
                             <span className="text-gray-400">—</span>
                           )}
@@ -829,7 +873,7 @@ export default function UsersPage() {
                     <UserCheck className={`w-5 h-5 ${formData.role === 'trainee' ? 'text-green-600' : 'text-gray-400'}`} />
                     <div>
                       <div className="font-medium text-gray-900">Trainee</div>
-                      <div className="text-xs text-gray-500">View own progress & training</div>
+                      <div className="text-xs text-gray-500">Access training & track progress</div>
                     </div>
                   </label>
                 </div>
@@ -861,6 +905,83 @@ export default function UsersPage() {
                 </div>
               )}
 
+              {/* Employee Fields - Only for Trainees */}
+              {formData.role === 'trainee' && (
+                <>
+                  <div className="border-t border-gray-200 pt-4 mt-4">
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Employee Details</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Employee Number */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Employee #
+                        </label>
+                        <div className="relative">
+                          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={formData.employee_number}
+                            onChange={(e) => setFormData({ ...formData, employee_number: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="EMP-001"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Hire Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Hire Date
+                        </label>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="date"
+                            value={formData.hire_date}
+                            onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      {/* Department */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Department
+                        </label>
+                        <div className="relative">
+                          <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={formData.department}
+                            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Production"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Line */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                          Line / Area
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.line}
+                          onChange={(e) => setFormData({ ...formData, line: e.target.value })}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Line 1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Active Status - Only for editing */}
               {editingUser && (
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -886,7 +1007,7 @@ export default function UsersPage() {
                     <Key className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-700">
                       <p className="font-medium">Temporary Password</p>
-                      <p className="mt-0.5">A secure temporary password will be generated. You'll be shown the credentials after creation - make sure to copy them!</p>
+                      <p className="mt-0.5">A secure temporary password will be generated. You'll be shown the credentials after creation.</p>
                     </div>
                   </div>
                 </div>
@@ -924,12 +1045,11 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* NEW: Credentials Modal - Shows after user creation */}
+      {/* Credentials Modal */}
       {showCredentialsModal && newUserCredentials && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6">
-              {/* Success Icon */}
               <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
               </div>
@@ -941,15 +1061,12 @@ export default function UsersPage() {
                 Save these credentials - they won't be shown again.
               </p>
 
-              {/* Credentials Box */}
               <div className="space-y-3 mb-6">
-                {/* User Name */}
                 <div className="p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Name</div>
                   <div className="font-medium text-gray-900">{newUserCredentials.fullName}</div>
                 </div>
 
-                {/* Email with Copy */}
                 <div className="p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Email</div>
                   <div className="flex items-center justify-between gap-2">
@@ -957,18 +1074,12 @@ export default function UsersPage() {
                     <button
                       onClick={() => copyToClipboard(newUserCredentials.email, 'email')}
                       className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
-                      title="Copy email"
                     >
-                      {copiedField === 'email' ? (
-                        <Check className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                      {copiedField === 'email' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* Password with Copy - Highlighted */}
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="text-xs text-amber-700 mb-1 font-medium">Temporary Password</div>
                   <div className="flex items-center justify-between gap-2">
@@ -976,44 +1087,30 @@ export default function UsersPage() {
                     <button
                       onClick={() => copyToClipboard(newUserCredentials.password, 'password')}
                       className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded transition-colors flex-shrink-0"
-                      title="Copy password"
                     >
-                      {copiedField === 'password' ? (
-                        <Check className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                      {copiedField === 'password' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* Copy Both Button */}
                 <button
                   onClick={() => copyToClipboard(`Email: ${newUserCredentials.email}\nPassword: ${newUserCredentials.password}`, 'both')}
                   className="w-full py-2.5 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 flex items-center justify-center gap-2"
                 >
                   {copiedField === 'both' ? (
-                    <>
-                      <Check className="w-4 h-4 text-green-600" />
-                      Copied!
-                    </>
+                    <><Check className="w-4 h-4 text-green-600" /> Copied!</>
                   ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Copy Both
-                    </>
+                    <><Copy className="w-4 h-4" /> Copy Both</>
                   )}
                 </button>
               </div>
 
-              {/* Note about password change */}
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-6">
                 <p className="text-sm text-blue-700">
                   <strong>Note:</strong> The user will be required to change their password on first login.
                 </p>
               </div>
 
-              {/* Close Button */}
               <button
                 onClick={() => {
                   setShowCredentialsModal(false);
@@ -1065,7 +1162,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Reset Password Confirmation Modal */}
+      {/* Reset Password Modal */}
       {showResetPasswordModal && userToResetPassword && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">

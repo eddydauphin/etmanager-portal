@@ -1,244 +1,128 @@
 // src/lib/AuthContext.jsx
-// E&T Manager - Updated AuthContext with clientId, clientName, role helpers
-// Date: November 30, 2025
-// Fixed: Added signIn function that was missing
+// E&T Manager - ORIGINAL WORKING VERSION from Nov 29
+// This version was confirmed working - Dashboard, Clients, Users all loaded
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
 const AuthContext = createContext({});
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [clientName, setClientName] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [mustChangePassword, setMustChangePassword] = useState(false);
 
-  // Fetch user profile from profiles table
-  const fetchProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return null;
-      }
-
-      return data;
-    } catch (err) {
-      console.error('Exception fetching profile:', err);
-      return null;
-    }
-  };
-
-  // Fetch client name from clients table
-  const fetchClientName = async (clientId) => {
-    if (!clientId) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('name')
-        .eq('id', clientId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching client:', error);
-        return null;
-      }
-
-      return data?.name || null;
-    } catch (err) {
-      console.error('Exception fetching client:', err);
-      return null;
-    }
-  };
-
-  // Initialize auth state
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
+    
+    // Safety timeout - force loading to false after 5 seconds
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.log('Auth timeout - forcing load complete');
+        setLoading(false);
+      }
+    }, 5000);
 
-    // Get initial session
-    const initAuth = async () => {
+    async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!isMounted) return;
-
-        if (session?.user) {
+        console.log('1. Starting auth check...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        console.log('2. Session result:', session?.user?.email, error);
+        
+        if (session?.user && mounted) {
           setUser(session.user);
-
-          const profileData = await fetchProfile(session.user.id);
-          if (!isMounted) return;
-
-          setProfile(profileData);
-          setMustChangePassword(profileData?.must_change_password || false);
-
-          // Fetch client name if user has a client_id
-          if (profileData?.client_id) {
-            const name = await fetchClientName(profileData.client_id);
-            if (isMounted) setClientName(name);
+          
+          console.log('3. Loading profile for:', session.user.id);
+          
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          console.log('4. Profile result:', data, error);
+          
+          if (data && mounted) {
+            setProfile(data);
           }
         }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
+      } catch (err) {
+        console.error('Init error:', err);
       } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event);
-
-        if (!isMounted) return;
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-
-          try {
-            const profileData = await fetchProfile(session.user.id);
-            if (!isMounted) return;
-
-            setProfile(profileData);
-            setMustChangePassword(profileData?.must_change_password || false);
-
-            // Fetch client name
-            if (profileData?.client_id) {
-              const name = await fetchClientName(profileData.client_id);
-              if (isMounted) setClientName(name);
-            } else {
-              setClientName(null);
-            }
-          } catch (error) {
-            console.error('Error fetching profile after sign in:', error);
-          } finally {
-            if (isMounted) setLoading(false);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
-          setClientName(null);
-          setMustChangePassword(false);
+        if (mounted) {
+          console.log('5. Done loading');
           setLoading(false);
-        } else if (event === 'TOKEN_REFRESHED') {
-          console.log('Token refreshed');
-        } else if (event === 'INITIAL_SESSION') {
-          if (isMounted && !session) {
-            setLoading(false);
-          }
         }
       }
-    );
+    }
+
+    init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth event:', event);
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+      }
+    });
 
     return () => {
-      isMounted = false;
-      subscription?.unsubscribe();
+      mounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
     };
   }, []);
 
-  // Sign in function - THIS WAS MISSING!
-  const signIn = async (email, password) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data };
-    } catch (err) {
-      console.error('Sign in error:', err);
-      return { success: false, error: 'An unexpected error occurred' };
+  async function signIn(email, password) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    
+    // Load profile after sign in
+    if (data.user) {
+      setUser(data.user);
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      if (profileData) setProfile(profileData);
     }
-  };
+    
+    return data;
+  }
 
-  // Sign out function
-  const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setProfile(null);
-      setClientName(null);
-      setMustChangePassword(false);
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
+  async function signOut() {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
+  }
 
-  // Refresh profile function
-  const refreshProfile = async () => {
-    if (user?.id) {
-      const profileData = await fetchProfile(user.id);
-      setProfile(profileData);
-      setMustChangePassword(profileData?.must_change_password || false);
-
-      if (profileData?.client_id) {
-        const name = await fetchClientName(profileData.client_id);
-        setClientName(name);
-      } else {
-        setClientName(null);
-      }
-    }
-  };
-
-  // Compute role helpers
+  // Add the helper properties that TraineesPage needs
   const isSuperAdmin = profile?.role === 'super_admin';
   const isClientAdmin = profile?.role === 'client_admin';
   const isTrainee = profile?.role === 'trainee';
   const clientId = profile?.client_id || null;
 
   const value = {
-    // User and profile data
     user,
     profile,
-
-    // Loading state
     loading,
-
-    // Password change requirement
-    mustChangePassword,
-    setMustChangePassword,
-
-    // Client information
-    clientId,
-    clientName,
-
-    // Role helpers (computed from profile)
+    signIn,
+    signOut,
+    isAuthenticated: !!user,
+    role: profile?.role || null,
+    // Added for TraineesPage
     isSuperAdmin,
     isClientAdmin,
     isTrainee,
-
-    // Functions
-    signIn,      // <-- Added this!
-    signOut,
-    refreshProfile,
+    clientId,
+    clientName: null, // We'll fetch this in the page if needed
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
 export default AuthContext;

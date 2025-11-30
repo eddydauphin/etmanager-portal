@@ -10,14 +10,13 @@ import { AuthProvider, useAuth } from './lib/AuthContext';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
-import TraineesPage from './pages/TraineesPage';
-import TraineeDetailPage from './pages/TraineeDetailPage';
 import CompetenciesPage from './pages/CompetenciesPage';
 import TrainingPage from './pages/TrainingPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
+import ExpertNetworkPage from './pages/ExpertNetworkPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -81,8 +80,6 @@ function PublicRoute({ children }) {
 
 // App routes
 function AppRoutes() {
-  const { profile } = useAuth();
-  
   return (
     <Routes>
       {/* Public routes */}
@@ -101,50 +98,45 @@ function AppRoutes() {
           <Layout />
         </ProtectedRoute>
       }>
-        {/* Default redirect based on role */}
+        {/* Default redirect */}
         <Route index element={<Navigate to="/dashboard" replace />} />
         
         {/* Common routes */}
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="settings" element={<SettingsPage />} />
 
-	{/* Super Admin only routes */}
-	<Route path="clients" element={
-  	<ProtectedRoute allowedRoles={['super_admin']}>
-   	 <ClientsPage />
-  	</ProtectedRoute>
-	} />
+        {/* Super Admin only routes */}
         <Route path="clients" element={
-        <ProtectedRoute allowedRoles={['super_admin']}>
-        <ClientsPage />
-        </ProtectedRoute>
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <ClientsPage />
+          </ProtectedRoute>
         } />
+        
+        {/* Super Admin & Client Admin routes */}
         <Route path="users" element={
-        <ProtectedRoute allowedRoles={['super_admin']}>
-        <UsersPage />
-        </ProtectedRoute>
-        } />
-        {/* Client Admin & Super Admin routes */}
-        <Route path="trainees" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
-            <TraineesPage />
+            <UsersPage />
           </ProtectedRoute>
         } />
-        <Route path="trainees/:id" element={
+        
+        <Route path="expert-network" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
-            <TraineeDetailPage />
+            <ExpertNetworkPage />
           </ProtectedRoute>
         } />
+        
         <Route path="competencies" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
             <CompetenciesPage />
           </ProtectedRoute>
         } />
+        
         <Route path="training" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
             <TrainingPage />
           </ProtectedRoute>
         } />
+        
         <Route path="reports" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
             <ReportsPage />
@@ -167,14 +159,6 @@ function AppRoutes() {
             <MyTrainingPage />
           </ProtectedRoute>
         } />
-        
-        {/* Super Admin only routes */}
-        <Route path="admin/clients" element={
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <ClientsPage />
-          </ProtectedRoute>
-        } />
-     
       </Route>
       
       {/* Catch all - redirect to dashboard or login */}
@@ -195,4 +179,3 @@ function App() {
 }
 
 export default App;
-

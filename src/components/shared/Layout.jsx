@@ -14,7 +14,8 @@ import {
   X,
   TrendingUp,
   FileText,
-  BookOpen
+  BookOpen,
+  Network
 } from 'lucide-react';
 
 function Layout() {
@@ -37,7 +38,9 @@ function Layout() {
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/clients', icon: Building2, label: 'Clients' },
         { to: '/users', icon: Users, label: 'Users' },
+        { to: '/expert-network', icon: Network, label: 'Expert Network' },
         { to: '/competencies', icon: Target, label: 'Competencies' },
+        { to: '/training', icon: GraduationCap, label: 'Training' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ];
@@ -46,7 +49,8 @@ function Layout() {
     if (role === 'client_admin') {
       return [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/trainees', icon: Users, label: 'Trainees' },
+        { to: '/users', icon: Users, label: 'Team' },
+        { to: '/expert-network', icon: Network, label: 'Expert Network' },
         { to: '/competencies', icon: Target, label: 'Competencies' },
         { to: '/training', icon: GraduationCap, label: 'Training' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
