@@ -1,7 +1,7 @@
 // src/lib/AuthContext.jsx
 // E&T Manager - Updated AuthContext with clientId, clientName, role helpers
 // Date: November 30, 2025
-// Fixed: Loading state properly managed in onAuthStateChange
+// Fixed: Added signIn function that was missing
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   // Fetch client name from clients table
   const fetchClientName = async (clientId) => {
     if (!clientId) return null;
-    
+
     try {
       const { data, error } = await supabase
         .from('clients')
@@ -70,23 +70,23 @@ export const AuthProvider = ({ children }) => {
   // Initialize auth state
   useEffect(() => {
     let isMounted = true;
-    
+
     // Get initial session
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (!isMounted) return;
-        
+
         if (session?.user) {
           setUser(session.user);
-          
+
           const profileData = await fetchProfile(session.user.id);
           if (!isMounted) return;
-          
+
           setProfile(profileData);
           setMustChangePassword(profileData?.must_change_password || false);
-          
+
           // Fetch client name if user has a client_id
           if (profileData?.client_id) {
             const name = await fetchClientName(profileData.client_id);
@@ -106,20 +106,19 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
-        
+
         if (!isMounted) return;
-        
+
         if (event === 'SIGNED_IN' && session?.user) {
-          setLoading(true); // Set loading while we fetch profile
           setUser(session.user);
-          
+
           try {
             const profileData = await fetchProfile(session.user.id);
             if (!isMounted) return;
-            
+
             setProfile(profileData);
             setMustChangePassword(profileData?.must_change_password || false);
-            
+
             // Fetch client name
             if (profileData?.client_id) {
               const name = await fetchClientName(profileData.client_id);
@@ -130,7 +129,7 @@ export const AuthProvider = ({ children }) => {
           } catch (error) {
             console.error('Error fetching profile after sign in:', error);
           } finally {
-            if (isMounted) setLoading(false); // IMPORTANT: Set loading false when done
+            if (isMounted) setLoading(false);
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -139,11 +138,8 @@ export const AuthProvider = ({ children }) => {
           setMustChangePassword(false);
           setLoading(false);
         } else if (event === 'TOKEN_REFRESHED') {
-          // Token refreshed, no need to reload profile
           console.log('Token refreshed');
         } else if (event === 'INITIAL_SESSION') {
-          // Initial session is handled by initAuth above
-          // But if we get here and loading is still true, set it to false
           if (isMounted && !session) {
             setLoading(false);
           }
@@ -156,6 +152,25 @@ export const AuthProvider = ({ children }) => {
       subscription?.unsubscribe();
     };
   }, []);
+
+  // Sign in function - THIS WAS MISSING!
+  const signIn = async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      console.error('Sign in error:', err);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  };
 
   // Sign out function
   const signOut = async () => {
@@ -176,7 +191,7 @@ export const AuthProvider = ({ children }) => {
       const profileData = await fetchProfile(user.id);
       setProfile(profileData);
       setMustChangePassword(profileData?.must_change_password || false);
-      
+
       if (profileData?.client_id) {
         const name = await fetchClientName(profileData.client_id);
         setClientName(name);
@@ -196,24 +211,25 @@ export const AuthProvider = ({ children }) => {
     // User and profile data
     user,
     profile,
-    
+
     // Loading state
     loading,
-    
+
     // Password change requirement
     mustChangePassword,
     setMustChangePassword,
-    
+
     // Client information
     clientId,
     clientName,
-    
+
     // Role helpers (computed from profile)
     isSuperAdmin,
     isClientAdmin,
     isTrainee,
-    
+
     // Functions
+    signIn,      // <-- Added this!
     signOut,
     refreshProfile,
   };
