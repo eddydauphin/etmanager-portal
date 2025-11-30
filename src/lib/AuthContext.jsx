@@ -1,5 +1,5 @@
 // src/lib/AuthContext.jsx
-// E&T Manager - Fixed AuthContext with proper profile loading
+// E&T Manager - AuthContext with direct fetch for profile
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
@@ -8,44 +8,60 @@ const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
 
+// Direct fetch profile using REST API (bypasses Supabase JS client issues)
+async function fetchProfileDirect(userId) {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  try {
+    console.log('Fetching profile for:', userId);
+    
+    const response = await fetch(
+      `${url}/rest/v1/profiles?id=eq.${userId}&select=*`,
+      {
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Profile fetch failed:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      console.log('Profile loaded:', data[0].email, data[0].role);
+      return data[0];
+    }
+    
+    console.log('No profile found');
+    return null;
+  } catch (err) {
+    console.error('Profile fetch error:', err);
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch profile from database
-  const fetchProfile = async (userId) => {
-    try {
-      console.log('Fetching profile for:', userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Profile fetch error:', error);
-        return null;
-      }
-      
-      console.log('Profile loaded:', data?.email, data?.role);
-      return data;
-    } catch (err) {
-      console.error('Profile fetch exception:', err);
-      return null;
-    }
-  };
-
   useEffect(() => {
     let mounted = true;
     
-    // Safety timeout - force loading to false after 8 seconds
+    // Safety timeout - force loading to false after 5 seconds
     const timeout = setTimeout(() => {
       if (mounted && loading) {
         console.log('Auth timeout - forcing load complete');
         setLoading(false);
       }
-    }, 8000);
+    }, 5000);
 
     async function init() {
       try {
@@ -60,7 +76,7 @@ export function AuthProvider({ children }) {
         
         if (session?.user && mounted) {
           setUser(session.user);
-          const profileData = await fetchProfile(session.user.id);
+          const profileData = await fetchProfileDirect(session.user.id);
           if (profileData && mounted) {
             setProfile(profileData);
           }
@@ -83,7 +99,7 @@ export function AuthProvider({ children }) {
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        const profileData = await fetchProfile(session.user.id);
+        const profileData = await fetchProfileDirect(session.user.id);
         if (profileData && mounted) {
           setProfile(profileData);
         }
@@ -93,10 +109,9 @@ export function AuthProvider({ children }) {
         setProfile(null);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        // Refresh profile on token refresh
         setUser(session.user);
         if (!profile) {
-          const profileData = await fetchProfile(session.user.id);
+          const profileData = await fetchProfileDirect(session.user.id);
           if (profileData && mounted) {
             setProfile(profileData);
           }
@@ -121,10 +136,9 @@ export function AuthProvider({ children }) {
         throw error;
       }
       
-      // Load profile after sign in
       if (data.user) {
         setUser(data.user);
-        const profileData = await fetchProfile(data.user.id);
+        const profileData = await fetchProfileDirect(data.user.id);
         if (profileData) {
           setProfile(profileData);
         }
