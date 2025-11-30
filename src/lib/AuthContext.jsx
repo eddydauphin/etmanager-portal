@@ -1,6 +1,7 @@
 // src/lib/AuthContext.jsx
 // E&T Manager - Updated AuthContext with clientId, clientName, role helpers
 // Date: November 30, 2025
+// Fixed: Loading state properly managed in onAuthStateChange
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
@@ -68,30 +69,34 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize auth state
   useEffect(() => {
+    let isMounted = true;
+    
     // Get initial session
     const initAuth = async () => {
-      setLoading(true);
-      
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
         
         if (session?.user) {
           setUser(session.user);
           
           const profileData = await fetchProfile(session.user.id);
+          if (!isMounted) return;
+          
           setProfile(profileData);
           setMustChangePassword(profileData?.must_change_password || false);
           
           // Fetch client name if user has a client_id
           if (profileData?.client_id) {
             const name = await fetchClientName(profileData.client_id);
-            setClientName(name);
+            if (isMounted) setClientName(name);
           }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -102,30 +107,52 @@ export const AuthProvider = ({ children }) => {
       async (event, session) => {
         console.log('Auth state changed:', event);
         
+        if (!isMounted) return;
+        
         if (event === 'SIGNED_IN' && session?.user) {
+          setLoading(true); // Set loading while we fetch profile
           setUser(session.user);
           
-          const profileData = await fetchProfile(session.user.id);
-          setProfile(profileData);
-          setMustChangePassword(profileData?.must_change_password || false);
-          
-          // Fetch client name
-          if (profileData?.client_id) {
-            const name = await fetchClientName(profileData.client_id);
-            setClientName(name);
-          } else {
-            setClientName(null);
+          try {
+            const profileData = await fetchProfile(session.user.id);
+            if (!isMounted) return;
+            
+            setProfile(profileData);
+            setMustChangePassword(profileData?.must_change_password || false);
+            
+            // Fetch client name
+            if (profileData?.client_id) {
+              const name = await fetchClientName(profileData.client_id);
+              if (isMounted) setClientName(name);
+            } else {
+              setClientName(null);
+            }
+          } catch (error) {
+            console.error('Error fetching profile after sign in:', error);
+          } finally {
+            if (isMounted) setLoading(false); // IMPORTANT: Set loading false when done
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
           setClientName(null);
           setMustChangePassword(false);
+          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed, no need to reload profile
+          console.log('Token refreshed');
+        } else if (event === 'INITIAL_SESSION') {
+          // Initial session is handled by initAuth above
+          // But if we get here and loading is still true, set it to false
+          if (isMounted && !session) {
+            setLoading(false);
+          }
         }
       }
     );
 
     return () => {
+      isMounted = false;
       subscription?.unsubscribe();
     };
   }, []);
