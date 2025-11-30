@@ -19,7 +19,9 @@ import {
   MoreVertical,
   ChevronDown,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function UsersPage() {
@@ -38,9 +40,14 @@ export default function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
   const [userToResetPassword, setUserToResetPassword] = useState(null);
+  
+  // New user credentials (shown after creation)
+  const [newUserCredentials, setNewUserCredentials] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -169,6 +176,35 @@ export default function UsersPage() {
     setOpenDropdown(null);
   };
 
+  // Generate temporary password
+  const generateTempPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const special = '!@#$%&*';
+    let password = '';
+    for (let i = 0; i < 10; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    password += special.charAt(Math.floor(Math.random() * special.length));
+    return password;
+  };
+
+  // Log credentials to email_log table for reference
+  const logCredentials = async (email, password, fullName, createdBy) => {
+    try {
+      await supabase.from('email_log').insert({
+        recipient_email: email,
+        subject: 'New User Account Created',
+        body: `Account created for ${fullName}\nEmail: ${email}\nTemporary Password: ${password}\nUser must change password on first login.`,
+        status: 'logged',
+        sent_at: new Date().toISOString(),
+        created_by: createdBy
+      });
+    } catch (error) {
+      console.error('Error logging credentials:', error);
+      // Don't throw - this is non-critical
+    }
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -208,13 +244,15 @@ export default function UsersPage() {
 
         if (error) throw error;
         setFormSuccess('User updated successfully!');
+        
+        // Reload and close modal after delay
+        setTimeout(() => {
+          loadUsers();
+          setShowModal(false);
+        }, 1000);
+        
       } else {
         // Create new user via Supabase Auth
-        // Note: In production, you'd use an Edge Function or server-side API
-        // to create users with admin privileges. For now, we'll use signUp
-        // and then update the profile.
-        
-        // Generate a temporary password
         const tempPassword = generateTempPassword();
         
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -248,18 +286,30 @@ export default function UsersPage() {
             .eq('id', authData.user.id);
 
           if (profileError) throw profileError;
-        }
-
-        setFormSuccess(`User created! Temporary password: ${tempPassword}`);
-      }
-
-      // Reload users after a short delay to show success message
-      setTimeout(() => {
-        loadUsers();
-        if (editingUser) {
+          
+          // Log credentials for reference
+          await logCredentials(
+            formData.email, 
+            tempPassword, 
+            formData.full_name,
+            currentUser?.id
+          );
+          
+          // Store credentials and show credentials modal
+          setNewUserCredentials({
+            email: formData.email,
+            password: tempPassword,
+            fullName: formData.full_name
+          });
+          
+          // Close form modal, open credentials modal
           setShowModal(false);
+          setShowCredentialsModal(true);
+          
+          // Reload users
+          loadUsers();
         }
-      }, editingUser ? 1000 : 3000);
+      }
 
     } catch (error) {
       console.error('Error saving user:', error);
@@ -269,30 +319,30 @@ export default function UsersPage() {
     }
   };
 
-  // Generate temporary password
-  const generateTempPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    const special = '!@#$%&*';
-    let password = '';
-    for (let i = 0; i < 10; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+  // Copy to clipboard
+  const copyToClipboard = async (text, field) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
     }
-    password += special.charAt(Math.floor(Math.random() * special.length));
-    return password;
   };
 
-  // Handle delete
+  // Handle delete click
   const handleDeleteClick = (user) => {
     setUserToDelete(user);
     setShowDeleteModal(true);
     setOpenDropdown(null);
   };
 
+  // Confirm delete
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
 
     try {
-      // Soft delete - just mark as inactive
+      // Soft delete - mark as inactive
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -303,27 +353,26 @@ export default function UsersPage() {
 
       if (error) throw error;
 
-      loadUsers();
+      await loadUsers();
       setShowDeleteModal(false);
       setUserToDelete(null);
     } catch (error) {
-      console.error('Error deactivating user:', error);
-      alert('Failed to deactivate user');
+      console.error('Error deleting user:', error);
     }
   };
 
-  // Handle password reset
+  // Handle reset password click
   const handleResetPasswordClick = (user) => {
     setUserToResetPassword(user);
     setShowResetPasswordModal(true);
     setOpenDropdown(null);
   };
 
+  // Confirm reset password
   const handleResetPasswordConfirm = async () => {
     if (!userToResetPassword) return;
 
     try {
-      // Send password reset email via Supabase
       const { error } = await supabase.auth.resetPasswordForEmail(
         userToResetPassword.email,
         { redirectTo: `${window.location.origin}/change-password` }
@@ -331,130 +380,110 @@ export default function UsersPage() {
 
       if (error) throw error;
 
-      // Mark user as must change password
-      await supabase
-        .from('profiles')
-        .update({ must_change_password: true })
-        .eq('id', userToResetPassword.id);
-
-      alert(`Password reset email sent to ${userToResetPassword.email}`);
       setShowResetPasswordModal(false);
       setUserToResetPassword(null);
+      alert('Password reset email sent successfully!');
     } catch (error) {
       console.error('Error resetting password:', error);
-      alert('Failed to send password reset email');
+      alert('Failed to send reset email: ' + error.message);
     }
   };
 
-  // Toggle user active status
-  const handleToggleActive = async (user) => {
-    try {
-      const newStatus = user.is_active === false ? true : false;
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          is_active: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-      loadUsers();
-    } catch (error) {
-      console.error('Error toggling user status:', error);
+  // Get role display info
+  const getRoleInfo = (role) => {
+    switch (role) {
+      case 'super_admin':
+        return { label: 'Super Admin', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck };
+      case 'client_admin':
+        return { label: 'Client Admin', color: 'bg-blue-100 text-blue-700', icon: Shield };
+      default:
+        return { label: 'Trainee', color: 'bg-green-100 text-green-700', icon: UserCheck };
     }
-    setOpenDropdown(null);
   };
 
-  // Get role badge styling
-  const getRoleBadge = (role) => {
-    const styles = {
-      super_admin: 'bg-purple-100 text-purple-800 border-purple-200',
-      client_admin: 'bg-blue-100 text-blue-800 border-blue-200',
-      trainee: 'bg-green-100 text-green-800 border-green-200'
-    };
-    const labels = {
-      super_admin: 'Super Admin',
-      client_admin: 'Client Admin',
-      trainee: 'Trainee'
-    };
-    const icons = {
-      super_admin: ShieldCheck,
-      client_admin: Shield,
-      trainee: UserCheck
-    };
-    const Icon = icons[role] || UserCheck;
-    
+  // Loading state
+  if (loading) {
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${styles[role] || styles.trainee}`}>
-        <Icon className="w-3.5 h-3.5" />
-        {labels[role] || role}
-      </span>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+      </div>
     );
-  };
-
-  // Get status badge
-  const getStatusBadge = (isActive) => {
-    if (isActive !== false) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          Active
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-        <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-        Inactive
-      </span>
-    );
-  };
-
-  // Check if current user can edit this user
-  const canEditUser = (user) => {
-    if (currentProfile?.role === 'super_admin') return true;
-    if (currentProfile?.role === 'client_admin') {
-      // Client admins can edit trainees in their org, but not other admins
-      return user.role === 'trainee' && user.client_id === currentProfile.client_id;
-    }
-    return false;
-  };
-
-  // Check if current user can manage roles
-  const canManageRoles = () => {
-    return currentProfile?.role === 'super_admin';
-  };
+  }
 
   return (
     <>
       <div className="space-y-6">
-        {/* Page Header */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-              User Management
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              {currentProfile?.role === 'super_admin' 
-                ? 'Manage all users across the platform'
-                : 'Manage users in your organization'}
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+            <p className="text-gray-500 mt-1">Manage system users and their access</p>
           </div>
           <button
             onClick={handleCreateUser}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
           >
             <Plus className="w-5 h-5" />
             Add User
           </button>
         </div>
 
-        {/* Filters Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Users className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                <p className="text-sm text-gray-500">Total Users</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <ShieldCheck className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">
+                  {users.filter(u => u.role === 'super_admin').length}
+                </p>
+                <p className="text-sm text-gray-500">Super Admins</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Shield className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">
+                  {users.filter(u => u.role === 'client_admin').length}
+                </p>
+                <p className="text-sm text-gray-500">Client Admins</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <UserCheck className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">
+                  {users.filter(u => u.role === 'trainee').length}
+                </p>
+                <p className="text-sm text-gray-500">Trainees</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex flex-col lg:flex-row gap-4">
             {/* Search */}
             <div className="flex-1 relative">
@@ -464,193 +493,163 @@ export default function UsersPage() {
                 placeholder="Search by name or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-
-            {/* Filters */}
-            <div className="flex flex-wrap gap-3">
-              {/* Role Filter */}
-              <div className="relative">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="appearance-none pl-3 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm font-medium text-gray-700"
-                >
-                  <option value="all">All Roles</option>
-                  {currentProfile?.role === 'super_admin' && (
-                    <option value="super_admin">Super Admin</option>
-                  )}
-                  <option value="client_admin">Client Admin</option>
-                  <option value="trainee">Trainee</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
-
-              {/* Client Filter - Only for Super Admin */}
-              {currentProfile?.role === 'super_admin' && (
-                <div className="relative">
-                  <select
-                    value={clientFilter}
-                    onChange={(e) => setClientFilter(e.target.value)}
-                    className="appearance-none pl-3 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm font-medium text-gray-700"
-                  >
-                    <option value="all">All Clients</option>
-                    {clients.map(client => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
-              )}
-
-              {/* Status Filter */}
-              <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="appearance-none pl-3 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm font-medium text-gray-700"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
-
-              {/* Refresh Button */}
-              <button
-                onClick={loadData}
-                className="p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                title="Refresh"
+            
+            {/* Role Filter */}
+            <div className="relative">
+              <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[150px]"
               >
-                <RefreshCw className={`w-5 h-5 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
-              </button>
+                <option value="all">All Roles</option>
+                <option value="super_admin">Super Admin</option>
+                <option value="client_admin">Client Admin</option>
+                <option value="trainee">Trainee</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+
+            {/* Client Filter - Only for Super Admin */}
+            {currentProfile?.role === 'super_admin' && (
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[180px]"
+                >
+                  <option value="all">All Organizations</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+            )}
+            
+            {/* Status Filter */}
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[140px]"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={loadData}
+              className="p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="w-5 h-5 text-gray-500" />
+            </button>
           </div>
         </div>
 
         {/* Users Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-3 text-gray-500">Loading users...</span>
-            </div>
-          ) : filteredUsers.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {filteredUsers.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-1">No users found</h3>
-              <p className="text-gray-500 mb-4">
+              <p className="text-gray-500">
                 {searchTerm || roleFilter !== 'all' || clientFilter !== 'all' || statusFilter !== 'all'
-                  ? 'Try adjusting your search or filters'
-                  : 'Get started by adding your first user'}
+                  ? 'Try adjusting your filters'
+                  : 'Add your first user to get started'}
               </p>
-              {!searchTerm && roleFilter === 'all' && clientFilter === 'all' && statusFilter === 'all' && (
-                <button
-                  onClick={handleCreateUser}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  Add User
-                </button>
-              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       User
                     </th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Role
                     </th>
-                    {currentProfile?.role === 'super_admin' && (
-                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Organization
-                      </th>
-                    )}
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Organization
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredUsers.map((user) => (
-                    <tr 
-                      key={user.id} 
-                      className={`hover:bg-gray-50 transition-colors ${user.is_active === false ? 'opacity-60' : ''}`}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
-                            {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || '?'}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {user.full_name || 'No name'}
-                              {user.id === currentUser?.id && (
-                                <span className="ml-2 text-xs text-blue-600 font-normal">(You)</span>
-                              )}
+                <tbody className="divide-y divide-gray-200">
+                  {filteredUsers.map((user) => {
+                    const roleInfo = getRoleInfo(user.role);
+                    const RoleIcon = roleInfo.icon;
+                    
+                    return (
+                      <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold">
+                              {user.full_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}
                             </div>
-                            <div className="text-sm text-gray-500 flex items-center gap-1">
-                              <Mail className="w-3.5 h-3.5" />
-                              {user.email}
+                            <div>
+                              <div className="font-medium text-gray-900">{user.full_name || 'No name'}</div>
+                              <div className="text-sm text-gray-500">{user.email}</div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {getRoleBadge(user.role)}
-                      </td>
-                      {currentProfile?.role === 'super_admin' && (
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm ${roleInfo.color}`}>
+                            <RoleIcon className="w-3.5 h-3.5" />
+                            {roleInfo.label}
+                          </span>
+                        </td>
                         <td className="px-6 py-4">
                           {user.clients ? (
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-700">{user.clients.name}</span>
-                              <span className="text-xs text-gray-400">({user.clients.code})</span>
-                            </div>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-700">
+                              <Building2 className="w-3.5 h-3.5" />
+                              {user.clients.name}
+                            </span>
                           ) : (
-                            <span className="text-sm text-gray-400 italic">
-                              {user.role === 'super_admin' ? 'All Access' : 'Not assigned'}
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {user.is_active !== false ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-green-100 text-green-700">
+                              <Check className="w-3.5 h-3.5" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-600">
+                              <X className="w-3.5 h-3.5" />
+                              Inactive
                             </span>
                           )}
                         </td>
-                      )}
-                      <td className="px-6 py-4">
-                        {getStatusBadge(user.is_active)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {user.created_at 
-                          ? new Date(user.created_at).toLocaleDateString('en-GB', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })
-                          : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {canEditUser(user) && user.id !== currentUser?.id ? (
+                        <td className="px-6 py-4 text-right">
                           <div className="relative inline-block">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setOpenDropdown(openDropdown === user.id ? null : user.id);
                               }}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                             >
-                              <MoreVertical className="w-5 h-5 text-gray-500" />
+                              <MoreVertical className="w-5 h-5" />
                             </button>
                             
                             {openDropdown === user.id && (
@@ -669,88 +668,77 @@ export default function UsersPage() {
                                   <Key className="w-4 h-4" />
                                   Reset Password
                                 </button>
-                                <button
-                                  onClick={() => handleToggleActive(user)}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                >
-                                  {user.is_active !== false ? (
-                                    <>
-                                      <X className="w-4 h-4" />
-                                      Deactivate
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Check className="w-4 h-4" />
-                                      Activate
-                                    </>
-                                  )}
-                                </button>
-                                <hr className="my-1 border-gray-200" />
-                                <button
-                                  onClick={() => handleDeleteClick(user)}
-                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Delete User
-                                </button>
+                                {user.id !== currentUser?.id && (
+                                  <button
+                                    onClick={() => handleDeleteClick(user)}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Deactivate
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-gray-400 text-sm">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-
-          {/* Table Footer with Count */}
-          {!loading && filteredUsers.length > 0 && (
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
-              Showing {filteredUsers.length} of {users.length} users
-            </div>
-          )}
         </div>
+
+        {/* Results Count */}
+        {filteredUsers.length > 0 && (
+          <div className="text-sm text-gray-500 text-center">
+            Showing {filteredUsers.length} of {users.length} users
+          </div>
+        )}
       </div>
 
       {/* Create/Edit User Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingUser ? 'Edit User' : 'Add New User'}
-              </h2>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  {editingUser ? <Edit2 className="w-5 h-5 text-blue-600" /> : <Plus className="w-5 h-5 text-blue-600" />}
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {editingUser ? 'Edit User' : 'Create New User'}
+                </h2>
+              </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              {/* Error/Success Messages */}
+              {/* Error Message */}
               {formError && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   {formError}
                 </div>
               )}
+
+              {/* Success Message */}
               {formSuccess && (
                 <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
                   <Check className="w-5 h-5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium">Success!</div>
-                    <div className="text-xs mt-0.5">{formSuccess}</div>
-                  </div>
+                  {formSuccess}
                 </div>
               )}
 
-              {/* Email Field */}
+              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Email Address *
@@ -762,16 +750,17 @@ export default function UsersPage() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     disabled={editingUser}
-                    className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editingUser ? 'bg-gray-50 text-gray-500' : ''}`}
-                    placeholder="user@company.com"
+                    className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${editingUser ? 'bg-gray-50' : ''}`}
+                    placeholder="user@example.com"
+                    required
                   />
                 </div>
                 {editingUser && (
-                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                  <p className="mt-1 text-xs text-gray-500">Email cannot be changed after creation</p>
                 )}
               </div>
 
-              {/* Full Name Field */}
+              {/* Full Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Full Name *
@@ -781,17 +770,19 @@ export default function UsersPage() {
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="John Smith"
+                  placeholder="John Doe"
+                  required
                 />
               </div>
 
               {/* Role Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Role *
                 </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {canManageRoles() && (
+                <div className="space-y-2">
+                  {/* Super Admin - Only visible to Super Admins */}
+                  {currentProfile?.role === 'super_admin' && (
                     <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'super_admin' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
                       <input
                         type="radio"
@@ -888,6 +879,19 @@ export default function UsersPage() {
                 </div>
               )}
 
+              {/* Info about password for new users */}
+              {!editingUser && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Key className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-700">
+                      <p className="font-medium">Temporary Password</p>
+                      <p className="mt-0.5">A secure temporary password will be generated. You'll be shown the credentials after creation - make sure to copy them!</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Submit Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
@@ -905,7 +909,7 @@ export default function UsersPage() {
                   {submitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Saving...
+                      {editingUser ? 'Updating...' : 'Creating...'}
                     </>
                   ) : (
                     <>
@@ -920,6 +924,110 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* NEW: Credentials Modal - Shows after user creation */}
+      {showCredentialsModal && newUserCredentials && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="p-6">
+              {/* Success Icon */}
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              </div>
+              
+              <h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
+                User Created Successfully!
+              </h3>
+              <p className="text-sm text-gray-500 text-center mb-6">
+                Save these credentials - they won't be shown again.
+              </p>
+
+              {/* Credentials Box */}
+              <div className="space-y-3 mb-6">
+                {/* User Name */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Name</div>
+                  <div className="font-medium text-gray-900">{newUserCredentials.fullName}</div>
+                </div>
+
+                {/* Email with Copy */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Email</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="font-mono text-gray-900 break-all">{newUserCredentials.email}</code>
+                    <button
+                      onClick={() => copyToClipboard(newUserCredentials.email, 'email')}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                      title="Copy email"
+                    >
+                      {copiedField === 'email' ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password with Copy - Highlighted */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="text-xs text-amber-700 mb-1 font-medium">Temporary Password</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="font-mono text-lg text-amber-900 font-semibold">{newUserCredentials.password}</code>
+                    <button
+                      onClick={() => copyToClipboard(newUserCredentials.password, 'password')}
+                      className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded transition-colors flex-shrink-0"
+                      title="Copy password"
+                    >
+                      {copiedField === 'password' ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Copy Both Button */}
+                <button
+                  onClick={() => copyToClipboard(`Email: ${newUserCredentials.email}\nPassword: ${newUserCredentials.password}`, 'both')}
+                  className="w-full py-2.5 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 flex items-center justify-center gap-2"
+                >
+                  {copiedField === 'both' ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-600" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy Both
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Note about password change */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-6">
+                <p className="text-sm text-blue-700">
+                  <strong>Note:</strong> The user will be required to change their password on first login.
+                </p>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setNewUserCredentials(null);
+                }}
+                className="w-full py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && userToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -929,11 +1037,11 @@ export default function UsersPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Delete User?
+                Deactivate User?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to delete <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
-                This will deactivate their account.
+                Are you sure you want to deactivate <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
+                They will no longer be able to log in.
               </p>
               <div className="flex gap-3">
                 <button
@@ -949,7 +1057,7 @@ export default function UsersPage() {
                   onClick={handleDeleteConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Delete
+                  Deactivate
                 </button>
               </div>
             </div>

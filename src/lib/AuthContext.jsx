@@ -1,121 +1,201 @@
+// src/lib/AuthContext.jsx
+// E&T Manager - Updated AuthContext with clientId, clientName, role helpers
+// Date: November 30, 2025
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
 const AuthContext = createContext({});
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [clientName, setClientName] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    
-    // Timeout after 5 seconds
-    const timeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.log('Auth timeout - forcing load');
-        setLoading(false);
+  // Fetch user profile from profiles table
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
       }
-    }, 5000);
 
-    async function init() {
+      return data;
+    } catch (err) {
+      console.error('Exception fetching profile:', err);
+      return null;
+    }
+  };
+
+  // Fetch client name from clients table
+  const fetchClientName = async (clientId) => {
+    if (!clientId) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('name')
+        .eq('id', clientId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching client:', error);
+        return null;
+      }
+
+      return data?.name || null;
+    } catch (err) {
+      console.error('Exception fetching client:', err);
+      return null;
+    }
+  };
+
+  // Initialize auth state
+  useEffect(() => {
+    // Get initial session
+    const initAuth = async () => {
+      setLoading(true);
+      
       try {
-        console.log('1. Getting session...');
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('2. Session result:', session ? 'found' : 'none');
         
-        if (session?.user && mounted) {
+        if (session?.user) {
           setUser(session.user);
-          console.log('3. Loading profile for:', session.user.id);
           
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+          const profileData = await fetchProfile(session.user.id);
+          setProfile(profileData);
+          setMustChangePassword(profileData?.must_change_password || false);
           
-          console.log('4. Profile result:', data, error);
-          
-          if (data && mounted) {
-            setProfile(data);
+          // Fetch client name if user has a client_id
+          if (profileData?.client_id) {
+            const name = await fetchClientName(profileData.client_id);
+            setClientName(name);
           }
         }
-      } catch (err) {
-        console.error('Init error:', err);
+      } catch (error) {
+        console.error('Error initializing auth:', error);
       } finally {
-        if (mounted) {
-          console.log('5. Done loading');
-          setLoading(false);
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          
+          const profileData = await fetchProfile(session.user.id);
+          setProfile(profileData);
+          setMustChangePassword(profileData?.must_change_password || false);
+          
+          // Fetch client name
+          if (profileData?.client_id) {
+            const name = await fetchClientName(profileData.client_id);
+            setClientName(name);
+          } else {
+            setClientName(null);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setProfile(null);
+          setClientName(null);
+          setMustChangePassword(false);
         }
       }
-    }
-
-    init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth event:', event);
-      if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-      }
-    });
+    );
 
     return () => {
-      mounted = false;
-      clearTimeout(timeout);
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
-  async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    
-    // Load profile after sign in
-    if (data.user) {
-      setUser(data.user);
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-      if (profileData) setProfile(profileData);
+  // Sign out function
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+      setClientName(null);
+      setMustChangePassword(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
     }
-    
-    return data;
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-  }
-
-  const value = {
-    user,
-    profile,
-    loading,
-    signIn,
-    signOut,
-    isAuthenticated: !!user,
-    role: profile?.role || null,
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  // Refresh profile function
+  const refreshProfile = async () => {
+    if (user?.id) {
+      const profileData = await fetchProfile(user.id);
+      setProfile(profileData);
+      setMustChangePassword(profileData?.must_change_password || false);
+      
+      if (profileData?.client_id) {
+        const name = await fetchClientName(profileData.client_id);
+        setClientName(name);
+      } else {
+        setClientName(null);
+      }
+    }
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+  // Compute role helpers
+  const isSuperAdmin = profile?.role === 'super_admin';
+  const isClientAdmin = profile?.role === 'client_admin';
+  const isTrainee = profile?.role === 'trainee';
+  const clientId = profile?.client_id || null;
+
+  const value = {
+    // User and profile data
+    user,
+    profile,
+    
+    // Loading state
+    loading,
+    
+    // Password change requirement
+    mustChangePassword,
+    setMustChangePassword,
+    
+    // Client information
+    clientId,
+    clientName,
+    
+    // Role helpers (computed from profile)
+    isSuperAdmin,
+    isClientAdmin,
+    isTrainee,
+    
+    // Functions
+    signOut,
+    refreshProfile,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
 export default AuthContext;
