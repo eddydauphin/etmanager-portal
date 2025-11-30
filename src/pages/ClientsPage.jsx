@@ -1,6 +1,30 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { Building2, Plus, Search, Edit, Trash2, Users, X } from 'lucide-react';
+import { Building2, Plus, Search, Edit, Trash2, X } from 'lucide-react';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Direct fetch helper
+async function dbFetch(endpoint, options = {}) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/${endpoint}`, {
+    ...options,
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': options.method === 'POST' ? 'return=representation' : undefined,
+      ...options.headers
+    }
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error);
+  }
+  
+  if (options.method === 'DELETE') return null;
+  return response.json();
+}
 
 function ClientsPage() {
   const [clients, setClients] = useState([]);
@@ -22,15 +46,11 @@ function ClientsPage() {
 
   async function loadClients() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .order('name');
-    
-    if (error) {
-      console.error('Error loading clients:', error);
-    } else {
+    try {
+      const data = await dbFetch('clients?select=*&order=name.asc');
       setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
     }
     setLoading(false);
   }
@@ -38,46 +58,37 @@ function ClientsPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     
-    if (editingClient) {
-      const { error } = await supabase
-        .from('clients')
-        .update(formData)
-        .eq('id', editingClient.id);
-      
-      if (error) {
-        alert('Error updating client: ' + error.message);
-        return;
+    try {
+      if (editingClient) {
+        await dbFetch(`clients?id=eq.${editingClient.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(formData)
+        });
+      } else {
+        await dbFetch('clients', {
+          method: 'POST',
+          body: JSON.stringify(formData)
+        });
       }
-    } else {
-      const { error } = await supabase
-        .from('clients')
-        .insert([formData]);
       
-      if (error) {
-        alert('Error creating client: ' + error.message);
-        return;
-      }
+      setShowModal(false);
+      setEditingClient(null);
+      setFormData({ name: '', code: '', country: '', contact_email: '', description: '' });
+      loadClients();
+    } catch (error) {
+      alert('Error: ' + error.message);
     }
-    
-    setShowModal(false);
-    setEditingClient(null);
-    setFormData({ name: '', code: '', country: '', contact_email: '', description: '' });
-    loadClients();
   }
 
   async function handleDelete(client) {
     if (!confirm(`Delete "${client.name}"?`)) return;
     
-    const { error } = await supabase
-      .from('clients')
-      .delete()
-      .eq('id', client.id);
-    
-    if (error) {
+    try {
+      await dbFetch(`clients?id=eq.${client.id}`, { method: 'DELETE' });
+      loadClients();
+    } catch (error) {
       alert('Error: ' + error.message);
-      return;
     }
-    loadClients();
   }
 
   function openEditModal(client) {
