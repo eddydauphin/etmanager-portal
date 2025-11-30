@@ -3,53 +3,52 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Create client for auth only
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Auth helpers
-export async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
+// Direct fetch helper for database queries
+export async function dbQuery(table, options = {}) {
+  const { select = '*', eq, order, limit } = options;
+  
+  let url = `${supabaseUrl}/rest/v1/${table}?select=${select}`;
+  
+  if (eq) {
+    Object.entries(eq).forEach(([key, value]) => {
+      url += `&${key}=eq.${value}`;
+    });
+  }
+  
+  if (order) {
+    url += `&order=${order}`;
+  }
+  
+  if (limit) {
+    url += `&limit=${limit}`;
+  }
+  
+  const response = await fetch(url, {
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Query failed: ${response.status}`);
+  }
+  
+  return response.json();
 }
 
-export async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+// Helper functions
+export async function getAllClients() {
+  return dbQuery('clients', { order: 'name.asc' });
 }
 
 export async function getUserProfile(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updatePassword(newPassword) {
-  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw error;
-  return data;
-}
-
-export async function markPasswordChanged(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ must_change_password: false })
-    .eq('id', userId);
-  if (error) throw error;
-  return data;
-}
-
-// Client helpers
-export async function getAllClients() {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .order('name');
-  if (error) throw error;
-  return data;
+  const data = await dbQuery('profiles', { eq: { id: userId } });
+  return data[0] || null;
 }
 
 export default supabase;
