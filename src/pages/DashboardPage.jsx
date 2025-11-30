@@ -6,14 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { 
-  getTeamStats, 
-  getAllClients, 
-  getTrainees,
-  getTraineeWithCompetencies,
-  getDevelopmentPlans,
-  getTrainingRecords 
-} from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import {
   Users,
   Target,
@@ -26,7 +19,8 @@ import {
   GraduationCap,
   ClipboardList,
   BarChart3,
-  Plus
+  Plus,
+  Network
 } from 'lucide-react';
 
 // Stat Card Component
@@ -121,6 +115,8 @@ function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#3B82
 // Super Admin Dashboard
 function SuperAdminDashboard() {
   const [clients, setClients] = useState([]);
+  const [userCount, setUserCount] = useState(0);
+  const [networkCount, setNetworkCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -129,8 +125,27 @@ function SuperAdminDashboard() {
 
   async function loadData() {
     try {
-      const clientsData = await getAllClients();
+      // Load clients
+      const { data: clientsData } = await supabase
+        .from('clients')
+        .select('*')
+        .order('name');
       setClients(clientsData || []);
+
+      // Count users (trainees)
+      const { count: users } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'trainee');
+      setUserCount(users || 0);
+
+      // Count networks
+      const { count: networks } = await supabase
+        .from('expert_networks')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+      setNetworkCount(networks || 0);
+
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -163,16 +178,16 @@ function SuperAdminDashboard() {
         />
         <StatCard 
           title="Total Trainees" 
-          value="-"
+          value={userCount}
           subtitle="Across all clients"
           icon={Users}
           color="green"
         />
         <StatCard 
-          title="Active Plans" 
-          value="-"
-          subtitle="Development plans"
-          icon={ClipboardList}
+          title="Expert Networks" 
+          value={networkCount}
+          subtitle="Active networks"
+          icon={Network}
           color="purple"
         />
         <StatCard 
@@ -191,26 +206,26 @@ function SuperAdminDashboard() {
           <QuickAction
             title="Add New Client"
             description="Create a new organization"
-            href="/admin/clients"
+            href="/clients"
             icon={Plus}
           />
           <QuickAction
             title="Manage Users"
             description="Add admins and trainees"
-            href="/admin/users"
+            href="/users"
             icon={Users}
+          />
+          <QuickAction
+            title="Expert Networks"
+            description="Manage knowledge networks"
+            href="/expert-network"
+            icon={Network}
           />
           <QuickAction
             title="View Reports"
             description="Cross-client analytics"
             href="/reports"
             icon={BarChart3}
-          />
-          <QuickAction
-            title="System Settings"
-            description="Configure system options"
-            href="/settings"
-            icon={Target}
           />
         </div>
       </div>
@@ -219,7 +234,7 @@ function SuperAdminDashboard() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Clients</h2>
-          <Link to="/admin/clients" className="text-sm text-blue-600 hover:text-blue-700">
+          <Link to="/clients" className="text-sm text-blue-600 hover:text-blue-700">
             View all →
           </Link>
         </div>
@@ -237,7 +252,7 @@ function SuperAdminDashboard() {
               {clients.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    No clients yet. <Link to="/admin/clients" className="text-blue-600">Add your first client</Link>
+                    No clients yet. <Link to="/clients" className="text-blue-600">Add your first client</Link>
                   </td>
                 </tr>
               ) : (
@@ -270,25 +285,36 @@ function SuperAdminDashboard() {
 
 // Client Admin Dashboard
 function ClientAdminDashboard() {
-  const { clientId, clientName } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [trainees, setTrainees] = useState([]);
+  const { profile, clientId } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [networkCount, setNetworkCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    if (clientId) {
+      loadData();
+    }
   }, [clientId]);
 
   async function loadData() {
-    if (!clientId) return;
-    
     try {
-      const [statsData, traineesData] = await Promise.all([
-        getTeamStats(clientId),
-        getTrainees(clientId)
-      ]);
-      setStats(statsData);
-      setTrainees(traineesData || []);
+      // Load team members (users with role=trainee for this client)
+      const { data: usersData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('is_active', true)
+        .order('full_name');
+      setUsers(usersData || []);
+
+      // Count networks for this client
+      const { count } = await supabase
+        .from('expert_networks')
+        .select('*', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('is_active', true);
+      setNetworkCount(count || 0);
+
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -300,43 +326,45 @@ function ClientAdminDashboard() {
     return <DashboardSkeleton />;
   }
 
+  const traineeCount = users.filter(u => u.role === 'trainee').length;
+
   return (
     <div className="space-y-8">
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Welcome back! Here's an overview of {clientName}</p>
+        <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Team Members" 
-          value={stats?.traineeCount || 0}
+          value={traineeCount}
           subtitle="Active trainees"
           icon={Users}
           color="blue"
         />
         <StatCard 
-          title="On Track" 
-          value={`${stats?.onTrackPercentage || 0}%`}
-          subtitle={`${stats?.onTrack || 0} competencies`}
-          icon={CheckCircle}
+          title="Expert Networks" 
+          value={networkCount}
+          subtitle="Active networks"
+          icon={Network}
+          color="purple"
+        />
+        <StatCard 
+          title="Competencies" 
+          value="-"
+          subtitle="Assigned"
+          icon={Target}
           color="green"
         />
         <StatCard 
-          title="Gaps Identified" 
-          value={stats?.totalGaps || 0}
-          subtitle="Need attention"
-          icon={Target}
+          title="Training Due" 
+          value="-"
+          subtitle="This month"
+          icon={Clock}
           color="yellow"
-        />
-        <StatCard 
-          title="Critical Gaps" 
-          value={stats?.criticalGaps || 0}
-          subtitle="High priority"
-          icon={AlertCircle}
-          color="red"
         />
       </div>
 
@@ -347,11 +375,17 @@ function ClientAdminDashboard() {
           <QuickAction
             title="Add Team Member"
             description="Register a new trainee"
-            href="/trainees"
+            href="/users"
             icon={Plus}
           />
           <QuickAction
-            title="View Team Matrix"
+            title="Expert Networks"
+            description="Manage knowledge networks"
+            href="/expert-network"
+            icon={Network}
+          />
+          <QuickAction
+            title="View Competencies"
             description="See competency overview"
             href="/competencies"
             icon={Target}
@@ -362,20 +396,14 @@ function ClientAdminDashboard() {
             href="/training"
             icon={GraduationCap}
           />
-          <QuickAction
-            title="Generate Report"
-            description="Export team analytics"
-            href="/reports"
-            icon={BarChart3}
-          />
         </div>
       </div>
 
-      {/* Recent Team Members */}
+      {/* Team Members */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Team Members</h2>
-          <Link to="/trainees" className="text-sm text-blue-600 hover:text-blue-700">
+          <Link to="/users" className="text-sm text-blue-600 hover:text-blue-700">
             View all →
           </Link>
         </div>
@@ -390,22 +418,21 @@ function ClientAdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {trainees.length === 0 ? (
+              {users.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    No team members yet. <Link to="/trainees" className="text-blue-600">Add your first trainee</Link>
+                    No team members yet. <Link to="/users" className="text-blue-600">Add your first team member</Link>
                   </td>
                 </tr>
               ) : (
-                trainees.slice(0, 5).map((trainee) => (
-                  <tr key={trainee.id} className="hover:bg-gray-50">
+                users.filter(u => u.role === 'trainee').slice(0, 5).map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
-                      <Link to={`/trainees/${trainee.id}`} className="font-medium text-gray-900 hover:text-blue-600">
-                        {trainee.first_name} {trainee.last_name}
-                      </Link>
+                      <p className="font-medium text-gray-900">{user.full_name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
                     </td>
-                    <td className="px-6 py-4 text-gray-500">{trainee.job_title || '-'}</td>
-                    <td className="px-6 py-4 text-gray-500">{trainee.department || '-'}</td>
+                    <td className="px-6 py-4 text-gray-500 capitalize">{user.role?.replace('_', ' ')}</td>
+                    <td className="px-6 py-4 text-gray-500">{user.department || '-'}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         Active
@@ -424,23 +451,7 @@ function ClientAdminDashboard() {
 
 // Trainee Dashboard
 function TraineeDashboard() {
-  const { user, profile } = useAuth();
-  const [traineeData, setTraineeData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadData();
-  }, [user]);
-
-  async function loadData() {
-    // In a real app, we'd get the trainee ID from the profile
-    // For now, showing placeholder data
-    setLoading(false);
-  }
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
+  const { profile } = useAuth();
 
   // Placeholder data - would come from actual trainee data
   const overallProgress = 67;
@@ -452,7 +463,7 @@ function TraineeDashboard() {
     <div className="space-y-8">
       {/* Welcome */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name?.split(' ')[0]}!</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name?.split(' ')[0] || 'Trainee'}!</h1>
         <p className="text-gray-600 mt-1">Track your progress and development</p>
       </div>
 
@@ -578,7 +589,12 @@ function DashboardSkeleton() {
 
 // Main Dashboard component - routes to role-specific dashboard
 function DashboardPage() {
-  const { isSuperAdmin, isClientAdmin, isTrainee } = useAuth();
+  const { profile, isSuperAdmin, isClientAdmin, isTrainee, loading } = useAuth();
+
+  // Show skeleton while loading
+  if (loading || !profile) {
+    return <DashboardSkeleton />;
+  }
 
   if (isSuperAdmin) {
     return <SuperAdminDashboard />;
@@ -592,6 +608,7 @@ function DashboardPage() {
     return <TraineeDashboard />;
   }
 
+  // Fallback - show skeleton
   return <DashboardSkeleton />;
 }
 
