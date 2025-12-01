@@ -1,5 +1,6 @@
 // src/lib/AuthContext.jsx
 // E&T Manager - AuthContext with direct fetch for profile
+// FIXED: Uses session access_token for RLS compatibility
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
@@ -8,8 +9,8 @@ const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
 
-// Direct fetch profile using REST API (bypasses Supabase JS client issues)
-async function fetchProfileDirect(userId) {
+// Direct fetch profile using REST API with user's access token
+async function fetchProfileDirect(userId, accessToken) {
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
@@ -21,7 +22,7 @@ async function fetchProfileDirect(userId) {
       {
         headers: {
           'apikey': key,
-          'Authorization': `Bearer ${key}`,
+          'Authorization': `Bearer ${accessToken}`,  // Use session token, not anon key
           'Content-Type': 'application/json'
         }
       }
@@ -51,6 +52,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessToken, setAccessToken] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -76,7 +78,8 @@ export function AuthProvider({ children }) {
         
         if (session?.user && mounted) {
           setUser(session.user);
-          const profileData = await fetchProfileDirect(session.user.id);
+          setAccessToken(session.access_token);
+          const profileData = await fetchProfileDirect(session.user.id, session.access_token);
           if (profileData && mounted) {
             setProfile(profileData);
           }
@@ -99,7 +102,8 @@ export function AuthProvider({ children }) {
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        const profileData = await fetchProfileDirect(session.user.id);
+        setAccessToken(session.access_token);
+        const profileData = await fetchProfileDirect(session.user.id, session.access_token);
         if (profileData && mounted) {
           setProfile(profileData);
         }
@@ -107,11 +111,13 @@ export function AuthProvider({ children }) {
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
+        setAccessToken(null);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         setUser(session.user);
+        setAccessToken(session.access_token);
         if (!profile) {
-          const profileData = await fetchProfileDirect(session.user.id);
+          const profileData = await fetchProfileDirect(session.user.id, session.access_token);
           if (profileData && mounted) {
             setProfile(profileData);
           }
@@ -136,9 +142,10 @@ export function AuthProvider({ children }) {
         throw error;
       }
       
-      if (data.user) {
+      if (data.user && data.session) {
         setUser(data.user);
-        const profileData = await fetchProfileDirect(data.user.id);
+        setAccessToken(data.session.access_token);
+        const profileData = await fetchProfileDirect(data.user.id, data.session.access_token);
         if (profileData) {
           setProfile(profileData);
         }
@@ -157,11 +164,16 @@ export function AuthProvider({ children }) {
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
+      setAccessToken(null);
+      // Redirect to login page
+      window.location.href = '/login';
     } catch (err) {
       console.error('Sign out error:', err);
       // Force clear state even if API fails
       setUser(null);
       setProfile(null);
+      setAccessToken(null);
+      window.location.href = '/login';
     }
   }
 
@@ -184,6 +196,7 @@ export function AuthProvider({ children }) {
     isTrainee,
     clientId,
     clientName: null,
+    accessToken,  // Expose token for other components
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

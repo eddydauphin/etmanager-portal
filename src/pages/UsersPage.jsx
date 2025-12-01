@@ -75,6 +75,20 @@ export default function UsersPage() {
   // Load users and clients on mount
   useEffect(() => {
     loadData();
+    
+    // Check for pending credentials from user creation
+    const pendingCreds = localStorage.getItem('pendingCredentials');
+    if (pendingCreds) {
+      try {
+        const creds = JSON.parse(pendingCreds);
+        setNewUserCredentials(creds);
+        setShowCredentialsModal(true);
+        localStorage.removeItem('pendingCredentials');
+      } catch (e) {
+        console.error('Error parsing pending credentials:', e);
+        localStorage.removeItem('pendingCredentials');
+      }
+    }
   }, [currentProfile]);
 
   // Close dropdown when clicking outside
@@ -259,65 +273,58 @@ export default function UsersPage() {
         }, 1000);
         
       } else {
-        // Create new user via Supabase Auth
+        // Create new user via Edge Function (keeps admin session intact)
         const tempPassword = generateTempPassword();
         
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: tempPassword,
-          options: {
-            data: {
-              full_name: formData.full_name
-            }
-          }
-        });
-
-        if (authError) {
-          if (authError.message.includes('already registered')) {
-            throw new Error('A user with this email already exists');
-          }
-          throw authError;
+        // Get current session token
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        
+        if (!accessToken) {
+          throw new Error('Not authenticated');
         }
 
-        if (authData.user) {
-          // Update the profile with all fields
-          await dbFetch(`profiles?id=eq.${authData.user.id}`, {
-            method: 'PATCH',
+        // Call Edge Function to create user
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
             body: JSON.stringify({
+              email: formData.email,
+              password: tempPassword,
               full_name: formData.full_name,
               role: formData.role,
               client_id: formData.role === 'super_admin' ? null : formData.client_id,
               employee_number: formData.employee_number || null,
               department: formData.department || null,
               line: formData.line || null,
-              hire_date: formData.hire_date || null,
-              must_change_password: true,
-              is_active: true
+              hire_date: formData.hire_date || null
             })
-          });
-          
-          // Log credentials for reference
-          await logCredentials(
-            formData.email, 
-            tempPassword, 
-            formData.full_name,
-            currentUser?.id
-          );
-          
-          // Store credentials and show credentials modal
-          setNewUserCredentials({
-            email: formData.email,
-            password: tempPassword,
-            fullName: formData.full_name
-          });
-          
-          // Close form modal, open credentials modal
-          setShowModal(false);
-          setShowCredentialsModal(true);
-          
-          // Reload users
-          loadUsers();
+          }
+        );
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create user');
         }
+
+        // Show credentials modal
+        setNewUserCredentials({
+          email: formData.email,
+          password: tempPassword,
+          fullName: formData.full_name
+        });
+        
+        setShowModal(false);
+        setShowCredentialsModal(true);
+        
+        // Reload users list
+        await loadUsers();
       }
 
     } catch (error) {
@@ -346,24 +353,25 @@ export default function UsersPage() {
     setOpenDropdown(null);
   };
 
-  // Confirm delete
+  // Confirm delete (permanent)
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
 
     try {
+      // Delete the profile record
       await dbFetch(`profiles?id=eq.${userToDelete.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ 
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
+        method: 'DELETE'
       });
+
+      // Note: This only deletes the profile, not the auth user
+      // To fully delete auth user, you need a Supabase Edge Function with service role
 
       await loadUsers();
       setShowDeleteModal(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
+      alert('Failed to delete user: ' + error.message);
     }
   };
 
@@ -699,7 +707,7 @@ export default function UsersPage() {
                                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                                   >
                                     <Trash2 className="w-4 h-4" />
-                                    Deactivate
+                                    Delete
                                   </button>
                                 )}
                               </div>
@@ -1115,11 +1123,11 @@ export default function UsersPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Deactivate User?
+                Delete User?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to deactivate <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
-                They will no longer be able to log in.
+                Are you sure you want to permanently delete <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
+                This action cannot be undone.
               </p>
               <div className="flex gap-3">
                 <button
@@ -1135,7 +1143,7 @@ export default function UsersPage() {
                   onClick={handleDeleteConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Deactivate
+                  Delete
                 </button>
               </div>
             </div>
