@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { dbFetch } from '../lib/db';
+import UserCompetenciesModal from './UserCompetenciesModal';
 import {
   Users,
   Plus,
@@ -25,7 +26,8 @@ import {
   CheckCircle2,
   Hash,
   Briefcase,
-  Calendar
+  Calendar,
+  Target
 } from 'lucide-react';
 
 export default function UsersPage() {
@@ -45,9 +47,11 @@ export default function UsersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [showCompetenciesModal, setShowCompetenciesModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
   const [userToResetPassword, setUserToResetPassword] = useState(null);
+  const [selectedUserForCompetencies, setSelectedUserForCompetencies] = useState(null);
   
   // New user credentials (shown after creation)
   const [newUserCredentials, setNewUserCredentials] = useState(null);
@@ -695,6 +699,17 @@ export default function UsersPage() {
                                   Edit User
                                 </button>
                                 <button
+                                  onClick={() => {
+                                    setSelectedUserForCompetencies(user);
+                                    setShowCompetenciesModal(true);
+                                    setOpenDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <Target className="w-4 h-4" />
+                                  Competencies
+                                </button>
+                                <button
                                   onClick={() => handleResetPasswordClick(user)}
                                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                                 >
@@ -1186,6 +1201,16 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {/* User Competencies Modal */}
+      <UserCompetenciesModal
+        user={selectedUserForCompetencies}
+        isOpen={showCompetenciesModal}
+        onClose={() => {
+          setShowCompetenciesModal(false);
+          setSelectedUserForCompetencies(null);
+        }}
+      />
     </>
   );
 }
