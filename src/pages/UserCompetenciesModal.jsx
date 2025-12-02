@@ -11,7 +11,8 @@ import {
   TrendingUp,
   Award,
   ChevronDown,
-  Search
+  Search,
+  Briefcase
 } from 'lucide-react';
 
 // Spider Chart Component
@@ -170,10 +171,12 @@ const SpiderChart = ({ data, size = 280 }) => {
 export default function UserCompetenciesModal({ user, isOpen, onClose }) {
   const [userCompetencies, setUserCompetencies] = useState([]);
   const [availableCompetencies, setAvailableCompetencies] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showProfileSelect, setShowProfileSelect] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // New assignment form
@@ -193,7 +196,7 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
     setLoading(true);
     setError('');
     try {
-      await Promise.all([loadUserCompetencies(), loadAvailableCompetencies()]);
+      await Promise.all([loadUserCompetencies(), loadAvailableCompetencies(), loadProfiles()]);
     } catch (err) {
       console.error('Error loading data:', err);
       setError('Failed to load data');
@@ -219,13 +222,76 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
   };
 
   const loadAvailableCompetencies = async () => {
-    // Load competencies for the user's client
-    let url = 'competencies?select=*,competency_categories(name,color)&is_active=eq.true&order=name.asc';
-    if (user.client_id) {
-      url += `&client_id=eq.${user.client_id}`;
-    }
+    // Load competencies for the user's client via junction table
+    let url = 'competencies?select=*,competency_categories(name,color),competency_clients(client_id)&is_active=eq.true&order=name.asc';
     const data = await dbFetch(url);
-    setAvailableCompetencies(data || []);
+    
+    // Filter competencies that belong to user's client
+    const filtered = (data || []).filter(comp => {
+      if (!user.client_id) return true;
+      return comp.competency_clients?.some(cc => cc.client_id === user.client_id);
+    });
+    
+    setAvailableCompetencies(filtered);
+  };
+
+  const loadProfiles = async () => {
+    // Load profiles for the user's client
+    if (!user.client_id) {
+      setProfiles([]);
+      return;
+    }
+    
+    const data = await dbFetch(
+      `competency_profiles?select=*,profile_competencies(competency_id,default_target_level,competencies(name))&client_id=eq.${user.client_id}&is_active=eq.true&order=name.asc`
+    );
+    setProfiles(data || []);
+  };
+
+  const handleApplyProfile = async (profile) => {
+    if (!profile.profile_competencies || profile.profile_competencies.length === 0) {
+      setError('This profile has no competencies');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      // Get competencies not already assigned
+      const existingIds = userCompetencies.map(uc => uc.competency_id);
+      const newCompetencies = profile.profile_competencies.filter(
+        pc => !existingIds.includes(pc.competency_id)
+      );
+
+      if (newCompetencies.length === 0) {
+        setError('All competencies from this profile are already assigned');
+        setSaving(false);
+        return;
+      }
+
+      // Create assignments for each new competency
+      const assignments = newCompetencies.map(pc => ({
+        user_id: user.id,
+        competency_id: pc.competency_id,
+        current_level: 1,
+        target_level: pc.default_target_level,
+        status: 'not_started'
+      }));
+
+      await dbFetch('user_competencies', {
+        method: 'POST',
+        body: JSON.stringify(assignments)
+      });
+
+      await loadUserCompetencies();
+      setShowProfileSelect(false);
+    } catch (err) {
+      console.error('Error applying profile:', err);
+      setError('Failed to apply profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAssign = async () => {
@@ -385,16 +451,33 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
 
               {/* Right: Competency List */}
               <div className="space-y-4">
-                {/* Add Button */}
+                {/* Add Buttons */}
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-semibold text-gray-700">Assigned Competencies</h3>
-                  <button
-                    onClick={() => setShowAddForm(!showAddForm)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Assign
-                  </button>
+                  <div className="flex gap-2">
+                    {profiles.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setShowProfileSelect(!showProfileSelect);
+                          setShowAddForm(false);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-blue-600 text-blue-600 text-sm rounded-lg hover:bg-blue-50"
+                      >
+                        <Briefcase className="w-4 h-4" />
+                        Apply Profile
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowAddForm(!showAddForm);
+                        setShowProfileSelect(false);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Assign
+                    </button>
+                  </div>
                 </div>
 
                 {/* Error */}
@@ -402,6 +485,44 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
                   <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                     <AlertCircle className="w-4 h-4" />
                     {error}
+                  </div>
+                )}
+
+                {/* Profile Selection */}
+                {showProfileSelect && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-medium text-purple-900">Apply Competency Profile</h4>
+                    <p className="text-xs text-purple-700">Select a profile to quickly assign multiple competencies</p>
+                    
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {profiles.map(profile => (
+                        <div
+                          key={profile.id}
+                          className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-100 hover:border-purple-300 transition-colors"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{profile.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {profile.profile_competencies?.length || 0} competencies
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleApplyProfile(profile)}
+                            disabled={saving}
+                            className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                          >
+                            {saving ? '...' : 'Apply'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <button
+                      onClick={() => setShowProfileSelect(false)}
+                      className="w-full text-center text-xs text-purple-600 hover:underline"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 )}
 
