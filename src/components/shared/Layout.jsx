@@ -15,7 +15,8 @@ import {
   TrendingUp,
   FileText,
   BookOpen,
-  Network
+  Network,
+  Briefcase
 } from 'lucide-react';
 
 function Layout() {
@@ -40,6 +41,7 @@ function Layout() {
         { to: '/users', icon: Users, label: 'Users' },
         { to: '/expert-network', icon: Network, label: 'Expert Network' },
         { to: '/competencies', icon: Target, label: 'Competencies' },
+        { to: '/profiles', icon: Briefcase, label: 'Profiles' },
         { to: '/training', icon: GraduationCap, label: 'Training' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
         { to: '/settings', icon: Settings, label: 'Settings' },
@@ -52,6 +54,7 @@ function Layout() {
         { to: '/users', icon: Users, label: 'Team' },
         { to: '/expert-network', icon: Network, label: 'Expert Network' },
         { to: '/competencies', icon: Target, label: 'Competencies' },
+        { to: '/profiles', icon: Briefcase, label: 'Profiles' },
         { to: '/training', icon: GraduationCap, label: 'Training' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
         { to: '/settings', icon: Settings, label: 'Settings' },
