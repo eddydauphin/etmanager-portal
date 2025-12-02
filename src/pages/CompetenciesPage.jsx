@@ -441,7 +441,8 @@ export default function CompetenciesPage() {
         name: category.name || '',
         description: category.description || '',
         color: category.color || '#3B82F6',
-        client_id: category.client_id || ''
+        client_id: category.client_id || '',
+        isCustom: true
       });
     } else {
       setEditingCategory(null);
@@ -449,7 +450,8 @@ export default function CompetenciesPage() {
         name: '',
         description: '',
         color: '#3B82F6',
-        client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : ''
+        client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+        isCustom: false
       });
     }
     setShowCategoryModal(true);
@@ -608,6 +610,58 @@ export default function CompetenciesPage() {
           </div>
         </div>
       </div>
+
+      {/* Categories Management */}
+      {categories.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700">Categories</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {categories.map(cat => (
+              <div
+                key={cat.id}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg group"
+              >
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: cat.color }}
+                />
+                <span className="text-sm text-gray-700">{cat.name}</span>
+                <span className="text-xs text-gray-400">
+                  ({competencies.filter(c => c.category_id === cat.id).length})
+                </span>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleOpenCategoryModal(cat)}
+                    className="p-1 hover:bg-gray-200 rounded"
+                    title="Edit"
+                  >
+                    <Edit2 className="w-3 h-3 text-gray-500" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm(`Delete category "${cat.name}"? Competencies in this category will become uncategorized.`)) {
+                        try {
+                          await dbFetch(`competency_categories?id=eq.${cat.id}`, { method: 'DELETE' });
+                          await loadCategories();
+                        } catch (err) {
+                          console.error('Error deleting category:', err);
+                          alert('Failed to delete category');
+                        }
+                      }
+                    }}
+                    className="p-1 hover:bg-red-100 rounded"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-500" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Spider Chart Demo */}
       {competencies.length > 0 && (
@@ -1007,7 +1061,7 @@ export default function CompetenciesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingCategory ? 'Edit Category' : 'Create Category'}
+                {editingCategory ? 'Edit Category' : 'Add Category'}
               </h2>
               <button
                 onClick={() => setShowCategoryModal(false)}
@@ -1018,28 +1072,78 @@ export default function CompetenciesPage() {
             </div>
 
             <form onSubmit={handleCategorySubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category Name *
-                </label>
-                <input
-                  type="text"
-                  value={categoryFormData.name}
-                  onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Technical Skills"
-                />
-              </div>
+              {/* Predefined Categories or Custom */}
+              {!editingCategory && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Category
+                  </label>
+                  <select
+                    value={categoryFormData.name}
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      if (selected === 'custom') {
+                        setCategoryFormData({ ...categoryFormData, name: '', isCustom: true });
+                      } else {
+                        // Set predefined color based on selection
+                        const colorMap = {
+                          'Safety': '#EF4444',
+                          'Quality': '#8B5CF6',
+                          'Cost': '#F59E0B',
+                          'Supply': '#06B6D4',
+                          'Technical': '#3B82F6',
+                          'Sustainability': '#10B981',
+                          'Soft Skills': '#EC4899'
+                        };
+                        setCategoryFormData({ 
+                          ...categoryFormData, 
+                          name: selected, 
+                          color: colorMap[selected] || '#3B82F6',
+                          isCustom: false 
+                        });
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select a category...</option>
+                    <option value="Safety">🛡️ Safety</option>
+                    <option value="Quality">✨ Quality</option>
+                    <option value="Cost">💰 Cost</option>
+                    <option value="Supply">📦 Supply</option>
+                    <option value="Technical">⚙️ Technical</option>
+                    <option value="Sustainability">🌱 Sustainability</option>
+                    <option value="Soft Skills">💬 Soft Skills</option>
+                    <option value="custom">➕ Add Custom...</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Custom Name Input (shown when editing or custom selected) */}
+              {(editingCategory || categoryFormData.isCustom) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryFormData.name}
+                    onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Digital Skills"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  Description (optional)
                 </label>
                 <textarea
                   value={categoryFormData.description}
                   onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Brief description..."
                 />
               </div>
 
@@ -1047,13 +1151,26 @@ export default function CompetenciesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Color
                 </label>
-                <div className="flex gap-2">
-                  {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'].map(color => (
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { color: '#EF4444', name: 'Red' },
+                    { color: '#F59E0B', name: 'Amber' },
+                    { color: '#10B981', name: 'Green' },
+                    { color: '#06B6D4', name: 'Cyan' },
+                    { color: '#3B82F6', name: 'Blue' },
+                    { color: '#8B5CF6', name: 'Purple' },
+                    { color: '#EC4899', name: 'Pink' },
+                    { color: '#84CC16', name: 'Lime' }
+                  ].map(({ color }) => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => setCategoryFormData({ ...categoryFormData, color })}
-                      className={`w-8 h-8 rounded-full border-2 ${categoryFormData.color === color ? 'border-gray-900' : 'border-transparent'}`}
+                      className={`w-8 h-8 rounded-full border-2 transition-transform ${
+                        categoryFormData.color === color 
+                          ? 'border-gray-900 scale-110' 
+                          : 'border-transparent hover:scale-105'
+                      }`}
                       style={{ backgroundColor: color }}
                     />
                   ))}
