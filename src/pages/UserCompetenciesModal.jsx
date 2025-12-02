@@ -214,6 +214,7 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
     const transformed = (data || []).map(uc => ({
       ...uc,
       competency_name: uc.competencies?.name || 'Unknown',
+      competency_description: uc.competencies?.description || '',
       category_name: uc.competencies?.competency_categories?.name || 'Uncategorized',
       category_color: uc.competencies?.competency_categories?.color || '#3B82F6'
     }));
@@ -625,7 +626,7 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div
-                              className="w-2.5 h-2.5 rounded-full"
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                               style={{ backgroundColor: uc.category_color }}
                             />
                             <div>
@@ -635,14 +636,21 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
                           </div>
                           <button
                             onClick={() => handleRemove(uc.id)}
-                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded flex-shrink-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
 
+                        {/* Competency Description */}
+                        {uc.competency_description && (
+                          <div className="mb-3 p-2 bg-gray-50 rounded-lg border border-gray-100">
+                            <p className="text-xs text-gray-600 leading-relaxed">{uc.competency_description}</p>
+                          </div>
+                        )}
+
                         {/* Level Controls */}
-                        <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Current Level</label>
                             <div className="flex items-center gap-1">
