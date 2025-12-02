@@ -260,7 +260,7 @@ export default function CompetenciesPage() {
     name: '',
     description: '',
     category_id: '',
-    client_id: '',
+    client_ids: [], // Changed to array for multi-select
     level_1_description: 'Awareness - Can recognize the topic',
     level_2_description: 'Knowledge - Can explain concepts',
     level_3_description: 'Practitioner - Can perform with supervision',
@@ -315,8 +315,14 @@ export default function CompetenciesPage() {
 
   const loadCompetencies = async () => {
     try {
-      const data = await dbFetch('competencies?select=*,competency_categories(name,color),clients(name)&order=name.asc');
-      setCompetencies(data || []);
+      const data = await dbFetch('competencies?select=*,competency_categories(name,color),competency_clients(client_id,clients(id,name))&order=name.asc');
+      // Transform data to include client names array
+      const transformed = (data || []).map(comp => ({
+        ...comp,
+        client_names: comp.competency_clients?.map(cc => cc.clients?.name).filter(Boolean) || [],
+        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
+      }));
+      setCompetencies(transformed);
     } catch (error) {
       console.error('Error loading competencies:', error);
     }
@@ -324,7 +330,7 @@ export default function CompetenciesPage() {
 
   const loadCategories = async () => {
     try {
-      const data = await dbFetch('competency_categories?select=*&is_active=eq.true&order=sort_order.asc');
+      const data = await dbFetch('competency_categories?select=*&order=name.asc');
       setCategories(data || []);
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -346,7 +352,7 @@ export default function CompetenciesPage() {
       comp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       comp.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || comp.category_id === categoryFilter;
-    const matchesClient = clientFilter === 'all' || comp.client_id === clientFilter;
+    const matchesClient = clientFilter === 'all' || comp.client_ids?.includes(clientFilter);
     return matchesSearch && matchesCategory && matchesClient;
   });
 
@@ -358,7 +364,7 @@ export default function CompetenciesPage() {
         name: competency.name || '',
         description: competency.description || '',
         category_id: competency.category_id || '',
-        client_id: competency.client_id || '',
+        client_ids: competency.client_ids || [],
         level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
         level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
         level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
@@ -372,7 +378,7 @@ export default function CompetenciesPage() {
         name: '',
         description: '',
         category_id: '',
-        client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+        client_ids: currentProfile?.role === 'client_admin' ? [currentProfile.client_id] : [],
         level_1_description: 'Awareness - Can recognize the topic',
         level_2_description: 'Knowledge - Can explain concepts',
         level_3_description: 'Practitioner - Can perform with supervision',
@@ -394,15 +400,14 @@ export default function CompetenciesPage() {
       if (!formData.name) {
         throw new Error('Competency name is required');
       }
-      if (!formData.client_id) {
-        throw new Error('Client is required');
+      if (formData.client_ids.length === 0) {
+        throw new Error('At least one client is required');
       }
 
       const payload = {
         name: formData.name,
         description: formData.description || null,
         category_id: formData.category_id || null,
-        client_id: formData.client_id,
         level_1_description: formData.level_1_description,
         level_2_description: formData.level_2_description,
         level_3_description: formData.level_3_description,
@@ -411,15 +416,38 @@ export default function CompetenciesPage() {
         is_active: formData.is_active
       };
 
+      let competencyId;
+
       if (editingCompetency) {
+        // Update competency
         await dbFetch(`competencies?id=eq.${editingCompetency.id}`, {
           method: 'PATCH',
           body: JSON.stringify(payload)
         });
+        competencyId = editingCompetency.id;
+
+        // Delete existing client associations
+        await dbFetch(`competency_clients?competency_id=eq.${editingCompetency.id}`, {
+          method: 'DELETE'
+        });
       } else {
-        await dbFetch('competencies', {
+        // Create new competency
+        const result = await dbFetch('competencies?select=id', {
           method: 'POST',
           body: JSON.stringify(payload)
+        });
+        competencyId = result[0]?.id;
+      }
+
+      // Insert client associations
+      if (competencyId && formData.client_ids.length > 0) {
+        const clientAssociations = formData.client_ids.map(clientId => ({
+          competency_id: competencyId,
+          client_id: clientId
+        }));
+        await dbFetch('competency_clients', {
+          method: 'POST',
+          body: JSON.stringify(clientAssociations)
         });
       }
 
@@ -829,7 +857,13 @@ export default function CompetenciesPage() {
               </div>
               
               <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{comp.clients?.name || 'No client'}</span>
+                <span className="truncate max-w-[150px]" title={comp.client_names?.join(', ') || 'No clients'}>
+                  {comp.client_names?.length > 0 
+                    ? comp.client_names.length === 1 
+                      ? comp.client_names[0]
+                      : `${comp.client_names[0]} +${comp.client_names.length - 1}`
+                    : 'No clients'}
+                </span>
                 <span className={`px-2 py-0.5 rounded-full ${comp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                   {comp.is_active ? 'Active' : 'Inactive'}
                 </span>
@@ -872,7 +906,13 @@ export default function CompetenciesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
-                    {comp.clients?.name || '—'}
+                    <span title={comp.client_names?.join(', ') || 'No clients'}>
+                      {comp.client_names?.length > 0 
+                        ? comp.client_names.length === 1 
+                          ? comp.client_names[0]
+                          : `${comp.client_names[0]} +${comp.client_names.length - 1} more`
+                        : '—'}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${comp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -964,19 +1004,36 @@ export default function CompetenciesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Client *
+                    Clients * <span className="text-xs text-gray-400">(select one or more)</span>
                   </label>
-                  <select
-                    value={formData.client_id}
-                    onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={currentProfile?.role === 'client_admin'}
-                  >
-                    <option value="">Select Client</option>
+                  <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
                     {clients.map(client => (
-                      <option key={client.id} value={client.id}>{client.name}</option>
+                      <label
+                        key={client.id}
+                        className={`flex items-center gap-2 p-1.5 rounded cursor-pointer hover:bg-gray-50 ${
+                          formData.client_ids.includes(client.id) ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.client_ids.includes(client.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, client_ids: [...formData.client_ids, client.id] });
+                            } else {
+                              setFormData({ ...formData, client_ids: formData.client_ids.filter(id => id !== client.id) });
+                            }
+                          }}
+                          disabled={currentProfile?.role === 'client_admin'}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{client.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {formData.client_ids.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">{formData.client_ids.length} client(s) selected</p>
+                  )}
                 </div>
 
                 <div className="col-span-2">
@@ -1073,7 +1130,7 @@ export default function CompetenciesPage() {
 
             <form onSubmit={handleCategorySubmit} className="p-6 space-y-4">
               {/* Predefined Categories or Custom */}
-              {!editingCategory && (
+              {!editingCategory && !categoryFormData.isCustom && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Select Category
@@ -1083,9 +1140,13 @@ export default function CompetenciesPage() {
                     onChange={(e) => {
                       const selected = e.target.value;
                       if (selected === 'custom') {
-                        setCategoryFormData({ ...categoryFormData, name: '', isCustom: true });
+                        setCategoryFormData({ 
+                          ...categoryFormData, 
+                          name: '', 
+                          isCustom: true,
+                          color: '#3B82F6'
+                        });
                       } else {
-                        // Set predefined color based on selection
                         const colorMap = {
                           'Safety': '#EF4444',
                           'Quality': '#8B5CF6',
@@ -1121,15 +1182,27 @@ export default function CompetenciesPage() {
               {/* Custom Name Input (shown when editing or custom selected) */}
               {(editingCategory || categoryFormData.isCustom) && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category Name *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Category Name *
+                    </label>
+                    {categoryFormData.isCustom && !editingCategory && (
+                      <button
+                        type="button"
+                        onClick={() => setCategoryFormData({ ...categoryFormData, name: '', isCustom: false })}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        ← Back to list
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={categoryFormData.name}
                     onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="e.g., Digital Skills"
+                    autoFocus
                   />
                 </div>
               )}
