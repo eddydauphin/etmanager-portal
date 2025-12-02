@@ -279,16 +279,9 @@ export default function CompetenciesPage() {
   
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState(null);
-
-  // Sample data for spider chart demo
-  const sampleSpiderData = [
-    { name: 'Spray Drying', currentLevel: 4, targetLevel: 5 },
-    { name: 'Evaporation', currentLevel: 3, targetLevel: 4 },
-    { name: 'HACCP', currentLevel: 5, targetLevel: 5 },
-    { name: 'Leadership', currentLevel: 2, targetLevel: 4 },
-    { name: 'Problem Solving', currentLevel: 3, targetLevel: 4 },
-    { name: 'Communication', currentLevel: 4, targetLevel: 5 }
-  ];
+  
+  // Spider chart category filter (separate from list filter)
+  const [selectedChartCategories, setSelectedChartCategories] = useState([]);
 
   // Load data on mount
   useEffect(() => {
@@ -691,26 +684,118 @@ export default function CompetenciesPage() {
         </div>
       )}
 
-      {/* Spider Chart Demo */}
+      {/* Spider Chart with Category Selection */}
       {competencies.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Competency Overview</h2>
-              <p className="text-sm text-gray-500">Visual representation of competency levels</p>
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Category Selection */}
+            <div className="lg:w-48 flex-shrink-0">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Categories</h3>
+              <div className="space-y-1">
+                <button
+                  onClick={() => setSelectedChartCategories([])}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    selectedChartCategories.length === 0
+                      ? 'bg-blue-100 text-blue-700 font-medium'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  All Categories
+                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      if (selectedChartCategories.includes(cat.id)) {
+                        setSelectedChartCategories(selectedChartCategories.filter(id => id !== cat.id));
+                      } else {
+                        setSelectedChartCategories([...selectedChartCategories, cat.id]);
+                      }
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+                      selectedChartCategories.includes(cat.id)
+                        ? 'bg-blue-100 text-blue-700 font-medium'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    <span className="truncate">{cat.name}</span>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {competencies.filter(c => c.category_id === cat.id).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span className="text-gray-600">Current Level</span>
+
+            {/* Spider Chart */}
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Competency Framework</h2>
+                  <p className="text-sm text-gray-500">
+                    {selectedChartCategories.length === 0 
+                      ? 'Showing all competencies'
+                      : `Showing ${selectedChartCategories.length} selected categor${selectedChartCategories.length === 1 ? 'y' : 'ies'}`
+                    }
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span className="text-gray-600">Defined</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-amber-500 border-2 border-dashed border-amber-500"></div>
-                <span className="text-gray-600">Target Level</span>
-              </div>
+              
+              {/* Filter competencies for spider chart */}
+              {(() => {
+                const chartCompetencies = competencies
+                  .filter(comp => 
+                    selectedChartCategories.length === 0 || 
+                    selectedChartCategories.includes(comp.category_id)
+                  )
+                  .slice(0, 8) // Limit to 8 for readability
+                  .map(comp => ({
+                    name: comp.name,
+                    currentLevel: 5, // Show all as "defined" (level 5)
+                    targetLevel: 5,
+                    color: comp.competency_categories?.color || '#3B82F6'
+                  }));
+
+                if (chartCompetencies.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center h-64 text-gray-400">
+                      <div className="text-center">
+                        <Target className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                        <p>No competencies in selected categories</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <SpiderChart data={chartCompetencies} size={320} />
+                    {competencies.filter(comp => 
+                      selectedChartCategories.length === 0 || 
+                      selectedChartCategories.includes(comp.category_id)
+                    ).length > 8 && (
+                      <p className="text-xs text-gray-400 text-center mt-2">
+                        Showing first 8 competencies. {competencies.filter(comp => 
+                          selectedChartCategories.length === 0 || 
+                          selectedChartCategories.includes(comp.category_id)
+                        ).length - 8} more not displayed.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
-          <SpiderChart data={sampleSpiderData} size={350} />
         </div>
       )}
 
