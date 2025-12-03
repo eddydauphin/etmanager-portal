@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { dbFetch } from '../lib/db';
+import { useAuth } from '../lib/AuthContext';
 import {
   X,
   Target,
@@ -181,6 +182,7 @@ const SpiderChart = ({ data, size = 280 }) => {
 };
 
 export default function UserCompetenciesModal({ user, isOpen, onClose }) {
+  const { profile: currentProfile } = useAuth();
   const [userCompetencies, setUserCompetencies] = useState([]);
   const [availableCompetencies, setAvailableCompetencies] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -509,6 +511,7 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
           body: JSON.stringify({
             user_id: user.id,
             competency_id: data.competency_id,
+            assessed_by: currentProfile?.id,
             assessment_date: new Date().toISOString(),
             assessment_type: 'standard',
             assessment_role: 'manager',
