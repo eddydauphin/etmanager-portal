@@ -513,7 +513,7 @@ export default function UserCompetenciesModal({ user, isOpen, onClose }) {
             competency_id: data.competency_id,
             assessed_by: currentProfile?.id,
             assessment_date: new Date().toISOString(),
-            assessment_type: 'standard',
+            assessment_type: 'custom',
             assessment_role: 'manager',
             level_achieved: achievedLevel,
             notes: data.notes || null,
