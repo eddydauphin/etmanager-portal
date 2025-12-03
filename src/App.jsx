@@ -12,8 +12,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import CompetenciesPage from './pages/CompetenciesPage';
 import CompetencyProfilesPage from './pages/CompetencyProfilesPage';
-import AssessmentTemplatesPage from './pages/AssessmentTemplatesPage';
-import TrainingPage from './pages/TrainingPage';
+import TrainingModulesPage from './pages/TrainingModulesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
@@ -139,15 +138,9 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
-        <Route path="assessment-templates" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
-            <AssessmentTemplatesPage />
-          </ProtectedRoute>
-        } />
-        
         <Route path="training" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
-            <TrainingPage />
+            <TrainingModulesPage />
           </ProtectedRoute>
         } />
         
