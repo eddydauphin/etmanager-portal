@@ -12,6 +12,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import CompetenciesPage from './pages/CompetenciesPage';
 import CompetencyProfilesPage from './pages/CompetencyProfilesPage';
+import AssessmentTemplatesPage from './pages/AssessmentTemplatesPage';
 import TrainingPage from './pages/TrainingPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
@@ -135,6 +136,12 @@ function AppRoutes() {
         <Route path="profiles" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
             <CompetencyProfilesPage />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="assessment-templates" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <AssessmentTemplatesPage />
           </ProtectedRoute>
         } />
         
