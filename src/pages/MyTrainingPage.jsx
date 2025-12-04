@@ -42,19 +42,69 @@ export default function MyTrainingPage() {
 
   useEffect(() => {
     if (profile?.id) {
-      loadAssignments();
+      loadTrainingModules();
     }
   }, [profile]);
 
-  const loadAssignments = async () => {
+  const loadTrainingModules = async () => {
     setLoading(true);
     try {
-      const data = await dbFetch(
-        `user_training?user_id=eq.${profile.id}&select=*,training_modules(*,competency_modules(competencies(name)))&order=assigned_date.desc`
+      // Get user's assigned competencies
+      const userCompetencies = await dbFetch(
+        `user_competencies?user_id=eq.${profile.id}&select=id,competency_id,current_level,target_level,status`
       );
-      setAssignments(data || []);
+
+      if (!userCompetencies || userCompetencies.length === 0) {
+        setAssignments([]);
+        setLoading(false);
+        return;
+      }
+
+      const competencyIds = userCompetencies.map(uc => uc.competency_id);
+
+      // Get published training modules linked to those competencies
+      const modules = await dbFetch(
+        `training_modules?status=eq.published&select=*,competency_modules!inner(competency_id,target_level,competencies(name))&competency_modules.competency_id=in.(${competencyIds.join(',')})`
+      );
+
+      // Also check for manually assigned training (user_training table)
+      const manualAssignments = await dbFetch(
+        `user_training?user_id=eq.${profile.id}&select=*,training_modules(*,competency_modules(competencies(name)))`
+      );
+
+      // Merge: create a unified list with progress tracking
+      const moduleMap = new Map();
+
+      // Add auto-assigned modules from competencies
+      (modules || []).forEach(module => {
+        const userComp = userCompetencies.find(uc => 
+          module.competency_modules?.some(cm => cm.competency_id === uc.competency_id)
+        );
+        
+        moduleMap.set(module.id, {
+          module_id: module.id,
+          training_modules: module,
+          user_competency_id: userComp?.id,
+          status: 'pending',
+          attempts_count: 0,
+          best_score: null,
+          auto_assigned: true
+        });
+      });
+
+      // Override with manual assignments (they have actual progress)
+      (manualAssignments || []).forEach(assignment => {
+        if (assignment.training_modules) {
+          moduleMap.set(assignment.module_id, {
+            ...assignment,
+            auto_assigned: false
+          });
+        }
+      });
+
+      setAssignments(Array.from(moduleMap.values()));
     } catch (error) {
-      console.error('Error loading assignments:', error);
+      console.error('Error loading training modules:', error);
     } finally {
       setLoading(false);
     }
@@ -68,15 +118,39 @@ export default function MyTrainingPage() {
       );
       setSlides(slidesData || []);
       
-      // Update status to in_progress if pending
-      if (assignment.status === 'pending') {
+      let updatedAssignment = assignment;
+
+      // If auto-assigned (no user_training record yet), create one
+      if (assignment.auto_assigned || !assignment.id) {
+        const newRecord = await dbFetch('user_training?select=*', {
+          method: 'POST',
+          body: JSON.stringify({
+            user_id: profile.id,
+            module_id: assignment.module_id,
+            user_competency_id: assignment.user_competency_id,
+            status: 'in_progress',
+            assigned_date: new Date().toISOString(),
+            attempts_count: 0
+          })
+        });
+        
+        if (newRecord && newRecord[0]) {
+          updatedAssignment = {
+            ...assignment,
+            ...newRecord[0],
+            auto_assigned: false
+          };
+        }
+      } else if (assignment.status === 'pending') {
+        // Update existing record to in_progress
         await dbFetch(`user_training?id=eq.${assignment.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ status: 'in_progress' })
         });
+        updatedAssignment = { ...assignment, status: 'in_progress' };
       }
       
-      setSelectedTraining(assignment);
+      setSelectedTraining(updatedAssignment);
       setCurrentSlide(0);
       setShowViewer(true);
     } catch (error) {
@@ -176,8 +250,8 @@ export default function MyTrainingPage() {
       setQuizResult({ score, passed, correctCount, total: questions.length });
       setQuizSubmitted(true);
       
-      // Reload assignments
-      await loadAssignments();
+      // Reload training modules
+      await loadTrainingModules();
     } catch (error) {
       console.error('Error submitting quiz:', error);
     } finally {
