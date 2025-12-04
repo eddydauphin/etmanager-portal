@@ -141,7 +141,7 @@ export default function TrainingModulesPage() {
 
   const loadUsers = async () => {
     try {
-      const data = await dbFetch('profiles?select=id,full_name,email,role,client_id,clients(name)&role=eq.trainee&order=full_name.asc');
+      const data = await dbFetch('profiles?select=id,full_name,email,role,client_id,clients!profiles_client_id_fkey(name)&role=eq.trainee&order=full_name.asc');
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
