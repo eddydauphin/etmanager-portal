@@ -39,10 +39,16 @@ export default function TrainingModulesPage() {
   const [modules, setModules] = useState([]);
   const [competencies, setCompetencies] = useState([]);
   const [clients, setClients] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
+  
+  // Assignment state
+  const [assignedUsers, setAssignedUsers] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [assignDueDate, setAssignDueDate] = useState('');
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -60,13 +66,13 @@ export default function TrainingModulesPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    client_id: '',
+    client_ids: [], // Changed to array for multi-select
     competency_id: '',
     target_level: 3,
     pass_score: 80,
     max_attempts: 3,
     has_audio: true,
-    audio_language: 'en'
+    audio_languages: ['en'] // Changed to array for multi-select
   });
   const [generating, setGenerating] = useState(false);
   const [generatedSlides, setGeneratedSlides] = useState([]);
@@ -96,7 +102,7 @@ export default function TrainingModulesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadModules(), loadCompetencies(), loadClients()]);
+      await Promise.all([loadModules(), loadCompetencies(), loadClients(), loadUsers()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -133,6 +139,24 @@ export default function TrainingModulesPage() {
     }
   };
 
+  const loadUsers = async () => {
+    try {
+      const data = await dbFetch('profiles?select=id,full_name,email,role,client_id,clients(name)&role=eq.trainee&order=full_name.asc');
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  const loadAssignedUsers = async (moduleId) => {
+    try {
+      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles(id,full_name,email)`);
+      setAssignedUsers(data || []);
+    } catch (error) {
+      console.error('Error loading assigned users:', error);
+    }
+  };
+
   // Filter modules
   const filteredModules = modules.filter(module => {
     const matchesSearch = 
@@ -156,13 +180,13 @@ export default function TrainingModulesPage() {
     setFormData({
       title: '',
       description: '',
-      client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+      client_ids: currentProfile?.role === 'client_admin' ? [currentProfile.client_id] : [],
       competency_id: '',
       target_level: 3,
       pass_score: 80,
       max_attempts: 3,
       has_audio: true,
-      audio_language: 'en'
+      audio_languages: ['en']
     });
     setCreateStep(1);
     setCreateMethod(null);
@@ -174,8 +198,13 @@ export default function TrainingModulesPage() {
 
   // Generate content with AI
   const handleGenerateContent = async () => {
-    if (!formData.title || !formData.client_id || !formData.competency_id) {
+    if (!formData.title || formData.client_ids.length === 0 || !formData.competency_id) {
       setFormError('Please fill in all required fields');
+      return;
+    }
+
+    if (formData.audio_languages.length === 0) {
+      setFormError('Please select at least one language');
       return;
     }
 
@@ -184,7 +213,9 @@ export default function TrainingModulesPage() {
 
     try {
       const competency = competencies.find(c => c.id === formData.competency_id);
-      const languageLabel = languages.find(l => l.code === formData.audio_language)?.label || 'English';
+      // Use first selected language for generation
+      const primaryLanguage = formData.audio_languages[0];
+      const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'English';
       
       const levelDescriptions = {
         1: competency?.level_1_description || 'Can recognize the topic',
@@ -252,73 +283,83 @@ export default function TrainingModulesPage() {
     setFormError('');
 
     try {
-      // Create module
-      const modulePayload = {
-        title: formData.title,
-        description: formData.description,
-        client_id: formData.client_id,
-        pass_score: formData.pass_score,
-        max_attempts: formData.max_attempts,
-        has_audio: formData.has_audio,
-        audio_language: formData.audio_language,
-        content_type: 'generated',
-        status: 'draft',
-        created_by: currentProfile?.id
-      };
+      // Create a module for each client and language combination
+      for (const clientId of formData.client_ids) {
+        for (const langCode of formData.audio_languages) {
+          const langLabel = languages.find(l => l.code === langCode)?.label || 'English';
+          const clientName = clients.find(c => c.id === clientId)?.name || '';
+          
+          // Add language suffix if multiple languages selected
+          const titleSuffix = formData.audio_languages.length > 1 ? ` (${langLabel})` : '';
+          
+          const modulePayload = {
+            title: formData.title + titleSuffix,
+            description: formData.description,
+            client_id: clientId,
+            pass_score: formData.pass_score,
+            max_attempts: formData.max_attempts,
+            has_audio: formData.has_audio,
+            audio_language: langCode,
+            content_type: 'generated',
+            status: 'draft',
+            created_by: currentProfile?.id
+          };
 
-      const moduleResult = await dbFetch('training_modules?select=id', {
-        method: 'POST',
-        body: JSON.stringify(modulePayload)
-      });
+          const moduleResult = await dbFetch('training_modules?select=id', {
+            method: 'POST',
+            body: JSON.stringify(modulePayload)
+          });
 
-      const moduleId = moduleResult[0]?.id;
-      if (!moduleId) throw new Error('Failed to create module');
+          const moduleId = moduleResult[0]?.id;
+          if (!moduleId) throw new Error('Failed to create module');
 
-      // Link to competency
-      if (formData.competency_id) {
-        await dbFetch('competency_modules', {
-          method: 'POST',
-          body: JSON.stringify({
-            competency_id: formData.competency_id,
-            module_id: moduleId,
-            target_level: formData.target_level,
-            is_mandatory: true
-          })
-        });
-      }
+          // Link to competency
+          if (formData.competency_id) {
+            await dbFetch('competency_modules', {
+              method: 'POST',
+              body: JSON.stringify({
+                competency_id: formData.competency_id,
+                module_id: moduleId,
+                target_level: formData.target_level,
+                is_mandatory: true
+              })
+            });
+          }
 
-      // Save slides
-      if (generatedSlides.length > 0) {
-        const slidesPayload = generatedSlides.map((slide, index) => ({
-          module_id: moduleId,
-          slide_number: index + 1,
-          title: slide.title,
-          content: { key_points: slide.key_points },
-          audio_script: slide.audio_script
-        }));
+          // Save slides
+          if (generatedSlides.length > 0) {
+            const slidesPayload = generatedSlides.map((slide, index) => ({
+              module_id: moduleId,
+              slide_number: index + 1,
+              title: slide.title,
+              content: { key_points: slide.key_points },
+              audio_script: slide.audio_script
+            }));
 
-        await dbFetch('module_slides', {
-          method: 'POST',
-          body: JSON.stringify(slidesPayload)
-        });
-      }
+            await dbFetch('module_slides', {
+              method: 'POST',
+              body: JSON.stringify(slidesPayload)
+            });
+          }
 
-      // Save quiz questions
-      if (generatedQuiz.length > 0) {
-        const questionsPayload = generatedQuiz.map((q, index) => ({
-          module_id: moduleId,
-          question_text: q.question_text,
-          question_type: 'multiple_choice',
-          options: q.options,
-          correct_answer: q.correct_answer,
-          points: q.points || 1,
-          sort_order: index
-        }));
+          // Save quiz questions
+          if (generatedQuiz.length > 0) {
+            const questionsPayload = generatedQuiz.map((q, index) => ({
+              module_id: moduleId,
+              question_text: q.question_text,
+              question_type: 'multiple_choice',
+              options: q.options,
+              correct_answer: q.correct_answer,
+              points: q.points || 1,
+              sort_order: index
+            }));
 
-        await dbFetch('module_questions', {
-          method: 'POST',
-          body: JSON.stringify(questionsPayload)
-        });
+            await dbFetch('module_questions', {
+              method: 'POST',
+              body: JSON.stringify(questionsPayload)
+            });
+          }
+        }
       }
 
       await loadModules();
@@ -634,6 +675,21 @@ export default function TrainingModulesPage() {
                         </button>
                       )}
                       
+                      {module.status === 'published' && (
+                        <button
+                          onClick={async () => {
+                            setSelectedModule(module);
+                            await loadAssignedUsers(module.id);
+                            setShowAssignModal(true);
+                            setOpenDropdown(null);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2"
+                        >
+                          <Users className="w-4 h-4" />
+                          Assign Users
+                        </button>
+                      )}
+                      
                       <div className="border-t border-gray-100 my-1" />
                       
                       <button
@@ -760,18 +816,32 @@ export default function TrainingModulesPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Client *</label>
-                      <select
-                        value={formData.client_id}
-                        onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        disabled={currentProfile?.role === 'client_admin'}
-                      >
-                        <option value="">Select client</option>
-                        {clients.map(client => (
-                          <option key={client.id} value={client.id}>{client.name}</option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Clients * {formData.client_ids.length > 0 && `(${formData.client_ids.length} selected)`}</label>
+                      <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto">
+                        {currentProfile?.role === 'client_admin' ? (
+                          <div className="text-sm text-gray-600 p-1">
+                            {clients.find(c => c.id === currentProfile.client_id)?.name}
+                          </div>
+                        ) : (
+                          clients.map(client => (
+                            <label key={client.id} className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={formData.client_ids.includes(client.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormData({ ...formData, client_ids: [...formData.client_ids, client.id] });
+                                  } else {
+                                    setFormData({ ...formData, client_ids: formData.client_ids.filter(id => id !== client.id) });
+                                  }
+                                }}
+                                className="w-4 h-4 text-blue-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700">{client.name}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -806,16 +876,26 @@ export default function TrainingModulesPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
-                      <select
-                        value={formData.audio_language}
-                        onChange={(e) => setFormData({ ...formData, audio_language: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Languages * {formData.audio_languages.length > 0 && `(${formData.audio_languages.length} selected)`}</label>
+                      <div className="border border-gray-200 rounded-lg p-2">
                         {languages.map(lang => (
-                          <option key={lang.code} value={lang.code}>{lang.label}</option>
+                          <label key={lang.code} className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.audio_languages.includes(lang.code)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, audio_languages: [...formData.audio_languages, lang.code] });
+                                } else {
+                                  setFormData({ ...formData, audio_languages: formData.audio_languages.filter(c => c !== lang.code) });
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded"
+                            />
+                            <span className="text-sm text-gray-700">{lang.label}</span>
+                          </label>
                         ))}
-                      </select>
+                      </div>
                     </div>
                   </div>
 
@@ -1148,7 +1228,7 @@ export default function TrainingModulesPage() {
               {createStep === 1 && (
                 <button
                   onClick={handleGenerateContent}
-                  disabled={generating || !createMethod || !formData.title || !formData.client_id || !formData.competency_id}
+                  disabled={generating || !createMethod || !formData.title || formData.client_ids.length === 0 || !formData.competency_id || formData.audio_languages.length === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {generating ? (
@@ -1294,6 +1374,142 @@ export default function TrainingModulesPage() {
                   Delete
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Users Modal */}
+      {showAssignModal && selectedModule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Assign Users</h2>
+                <p className="text-sm text-gray-500">{selectedModule.title}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedUsers([]);
+                  setAssignDueDate('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Already assigned */}
+              {assignedUsers.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Already Assigned ({assignedUsers.length})</h4>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {assignedUsers.map(au => (
+                      <div key={au.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                        <span>{au.profiles?.full_name}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          au.status === 'passed' ? 'bg-green-100 text-green-700' :
+                          au.status === 'failed' ? 'bg-red-100 text-red-700' :
+                          au.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {au.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Select users */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Select Users to Assign</h4>
+                <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                  {users
+                    .filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
+                    .filter(u => !assignedUsers.some(au => au.user_id === u.id))
+                    .map(user => (
+                      <label key={user.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedUsers.includes(user.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedUsers([...selectedUsers, user.id]);
+                            } else {
+                              setSelectedUsers(selectedUsers.filter(id => id !== user.id));
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                      </label>
+                    ))}
+                  {users.filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
+                    .filter(u => !assignedUsers.some(au => au.user_id === u.id)).length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-4">No users available to assign</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Due date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (optional)</label>
+                <input
+                  type="date"
+                  value={assignDueDate}
+                  onChange={(e) => setAssignDueDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedUsers([]);
+                  setAssignDueDate('');
+                }}
+                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (selectedUsers.length === 0) return;
+                  
+                  try {
+                    const assignments = selectedUsers.map(userId => ({
+                      user_id: userId,
+                      module_id: selectedModule.id,
+                      assigned_by: currentProfile?.id,
+                      due_date: assignDueDate || null,
+                      status: 'pending'
+                    }));
+
+                    await dbFetch('user_training', {
+                      method: 'POST',
+                      body: JSON.stringify(assignments)
+                    });
+
+                    setShowAssignModal(false);
+                    setSelectedUsers([]);
+                    setAssignDueDate('');
+                  } catch (error) {
+                    console.error('Error assigning users:', error);
+                  }
+                }}
+                disabled={selectedUsers.length === 0}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                Assign {selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}
+              </button>
             </div>
           </div>
         </div>
