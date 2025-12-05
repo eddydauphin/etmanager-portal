@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import {
   BookOpen,
   Play,
+  Pause,
   CheckCircle,
   XCircle,
   Clock,
@@ -11,12 +12,14 @@ import {
   ChevronRight,
   ChevronLeft,
   Volume2,
+  VolumeX,
   Target,
   AlertCircle,
   RotateCcw,
   Lock,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from 'lucide-react';
 
 export default function MyTrainingPage() {
@@ -31,6 +34,12 @@ export default function MyTrainingPage() {
   // Viewer state
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState([]);
+  
+  // Audio state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [audioCache, setAudioCache] = useState({}); // Cache generated audio
+  const audioRef = useRef(null);
   
   // Quiz state
   const [questions, setQuestions] = useState([]);
@@ -268,6 +277,111 @@ export default function MyTrainingPage() {
     setAnswers({});
     setQuizSubmitted(false);
     setQuizResult(null);
+    setIsPlaying(false);
+    setAudioCache({});
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+  };
+
+  // Stop audio when slide changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [currentSlide]);
+
+  // Generate and play audio for current slide
+  const playAudio = async () => {
+    const slide = slides[currentSlide];
+    if (!slide?.audio_script) return;
+
+    const cacheKey = `slide_${slide.id || currentSlide}`;
+
+    // Check cache first
+    if (audioCache[cacheKey]) {
+      playFromCache(cacheKey);
+      return;
+    }
+
+    setIsLoadingAudio(true);
+    try {
+      const language = selectedTraining.training_modules?.audio_language || 'en';
+      
+      const response = await fetch('/api/generate-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: slide.audio_script,
+          language: language
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate audio');
+      }
+
+      const data = await response.json();
+      
+      // Cache the audio
+      setAudioCache(prev => ({
+        ...prev,
+        [cacheKey]: data.audio
+      }));
+
+      // Play the audio
+      const audioSrc = `data:audio/mpeg;base64,${data.audio}`;
+      const audio = new Audio(audioSrc);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        setIsPlaying(false);
+      };
+      
+      audio.onerror = () => {
+        setIsPlaying(false);
+        console.error('Audio playback error');
+      };
+
+      await audio.play();
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Error generating audio:', error);
+      alert('Failed to generate audio. Please try again.');
+    } finally {
+      setIsLoadingAudio(false);
+    }
+  };
+
+  const playFromCache = (cacheKey) => {
+    const audioSrc = `data:audio/mpeg;base64,${audioCache[cacheKey]}`;
+    const audio = new Audio(audioSrc);
+    audioRef.current = audio;
+    
+    audio.onended = () => {
+      setIsPlaying(false);
+    };
+    
+    audio.play();
+    setIsPlaying(true);
+  };
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+  };
+
+  const toggleAudio = () => {
+    if (isPlaying) {
+      stopAudio();
+    } else {
+      playAudio();
+    }
   };
 
   const getStatusColor = (status) => {
@@ -306,12 +420,43 @@ export default function MyTrainingPage() {
             <h1 className="text-lg font-semibold">{selectedTraining.training_modules?.title}</h1>
             <p className="text-sm text-gray-400">Slide {currentSlide + 1} of {slides.length}</p>
           </div>
-          <button
-            onClick={closeAll}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-          >
-            Exit
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Audio Play Button - show if slide has audio script */}
+            {slide?.audio_script && (
+              <button
+                onClick={toggleAudio}
+                disabled={isLoadingAudio}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  isPlaying 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } ${isLoadingAudio ? 'opacity-50 cursor-wait' : ''}`}
+              >
+                {isLoadingAudio ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Loading...</span>
+                  </>
+                ) : isPlaying ? (
+                  <>
+                    <Pause className="w-5 h-5" />
+                    <span>Stop</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-5 h-5" />
+                    <span>Listen</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              onClick={closeAll}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+            >
+              Exit
+            </button>
+          </div>
         </div>
 
         {/* Progress bar */}
@@ -339,9 +484,30 @@ export default function MyTrainingPage() {
 
               {slide.audio_script && (
                 <div className="bg-gray-700 rounded-lg p-4 mt-6">
-                  <div className="flex items-center gap-2 text-gray-400 mb-2">
-                    <Volume2 className="w-4 h-4" />
-                    <span className="text-sm">Narrator Script</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <Volume2 className="w-4 h-4" />
+                      <span className="text-sm">Narrator Script</span>
+                    </div>
+                    <button
+                      onClick={toggleAudio}
+                      disabled={isLoadingAudio}
+                      className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      {isLoadingAudio ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isPlaying ? (
+                        <>
+                          <Pause className="w-4 h-4" />
+                          Stop
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4" />
+                          Play
+                        </>
+                      )}
+                    </button>
                   </div>
                   <p className="text-gray-300">{slide.audio_script}</p>
                 </div>
