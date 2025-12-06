@@ -29,7 +29,8 @@ import {
   ClipboardList,
   RotateCcw,
   Archive,
-  Send
+  Send,
+  Loader2
 } from 'lucide-react';
 
 export default function TrainingModulesPage() {
@@ -78,6 +79,11 @@ export default function TrainingModulesPage() {
   const [generatedSlides, setGeneratedSlides] = useState([]);
   const [generatedQuiz, setGeneratedQuiz] = useState([]);
   const [formError, setFormError] = useState('');
+  
+  // Upload state
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingFile, setProcessingFile] = useState(false);
   
   // Dropdown
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -193,6 +199,9 @@ export default function TrainingModulesPage() {
     setGeneratedSlides([]);
     setGeneratedQuiz([]);
     setFormError('');
+    setUploadedFile(null);
+    setUploadProgress(0);
+    setProcessingFile(false);
     setShowCreateModal(true);
   };
 
@@ -277,6 +286,120 @@ export default function TrainingModulesPage() {
     }
   };
 
+  // Handle file selection
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword'
+    ];
+    const validExtensions = ['.pdf', '.pptx', '.ppt', '.docx', '.doc'];
+    
+    const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    const hasValidType = validTypes.includes(file.type);
+
+    if (!hasValidExtension && !hasValidType) {
+      setFormError('Please upload a PDF, PowerPoint, or Word file (.pdf, .pptx, .ppt, .docx, .doc)');
+      return;
+    }
+
+    // Validate file size (max 25MB)
+    if (file.size > 25 * 1024 * 1024) {
+      setFormError('File size must be less than 25MB');
+      return;
+    }
+
+    setUploadedFile(file);
+    setFormError('');
+  };
+
+  // Process uploaded presentation
+  const handleProcessUpload = async () => {
+    if (!uploadedFile) {
+      setFormError('Please select a file to upload');
+      return;
+    }
+
+    if (!formData.title || formData.client_ids.length === 0 || !formData.competency_id) {
+      setFormError('Please fill in all required fields');
+      return;
+    }
+
+    if (formData.audio_languages.length === 0) {
+      setFormError('Please select at least one language');
+      return;
+    }
+
+    setProcessingFile(true);
+    setUploadProgress(10);
+    setFormError('');
+
+    try {
+      // Read file as base64
+      const fileContent = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadedFile);
+      });
+
+      setUploadProgress(30);
+
+      const competency = competencies.find(c => c.id === formData.competency_id);
+      const primaryLanguage = formData.audio_languages[0];
+      const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'English';
+
+      setUploadProgress(50);
+
+      // Send to processing API
+      const response = await fetch('/api/process-presentation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileContent,
+          fileName: uploadedFile.name,
+          fileType: uploadedFile.type,
+          title: formData.title,
+          competency: competency,
+          targetLevel: formData.target_level,
+          language: languageLabel
+        })
+      });
+
+      setUploadProgress(80);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to process presentation');
+      }
+
+      const result = await response.json();
+      
+      setUploadProgress(100);
+
+      // Set generated content
+      setGeneratedSlides(result.slides || []);
+      setGeneratedQuiz(result.questions || []);
+      
+      setCreateStep(2);
+    } catch (error) {
+      console.error('Error processing upload:', error);
+      setFormError(error.message || 'Failed to process presentation. Please try again.');
+    } finally {
+      setProcessingFile(false);
+      setUploadProgress(0);
+    }
+  };
+
   // Save module
   const handleSaveModule = async () => {
     setGenerating(true);
@@ -300,7 +423,8 @@ export default function TrainingModulesPage() {
             max_attempts: formData.max_attempts,
             has_audio: formData.has_audio,
             audio_language: langCode,
-            content_type: 'generated',
+            content_type: createMethod === 'upload' ? 'uploaded' : 'generated',
+            original_file_name: uploadedFile?.name || null,
             status: 'draft',
             created_by: currentProfile?.id
           };
@@ -739,6 +863,12 @@ export default function TrainingModulesPage() {
                     <ClipboardList className="w-4 h-4" />
                     <span>{module.module_questions?.length || 0} questions</span>
                   </div>
+                  {module.content_type === 'uploaded' && (
+                    <div className="flex items-center gap-1">
+                      <Upload className="w-4 h-4 text-green-600" />
+                      <span className="text-green-600">Uploaded</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -970,6 +1100,80 @@ export default function TrainingModulesPage() {
                         <p className="text-sm text-gray-500">Upload existing PPT/PDF</p>
                       </button>
                     </div>
+
+                    {/* File Upload Section - shown when upload method selected */}
+                    {createMethod === 'upload' && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Upload Presentation File
+                        </label>
+                        
+                        <div className="flex items-center gap-3">
+                          <label className="flex-1">
+                            <div className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                              uploadedFile 
+                                ? 'border-green-300 bg-green-50' 
+                                : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                            }`}>
+                              {uploadedFile ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <FileText className="w-5 h-5 text-green-600" />
+                                  <span className="text-sm font-medium text-green-700">{uploadedFile.name}</span>
+                                  <span className="text-xs text-gray-500">
+                                    ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                  <p className="text-sm text-gray-600">Click to select a file</p>
+                                  <p className="text-xs text-gray-400">PDF, PPTX, DOCX (max 25MB)</p>
+                                </div>
+                              )}
+                            </div>
+                            <input
+                              type="file"
+                              accept=".pdf,.pptx,.ppt,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+                              onChange={handleFileSelect}
+                              className="hidden"
+                            />
+                          </label>
+                          
+                          {uploadedFile && (
+                            <button
+                              type="button"
+                              onClick={() => setUploadedFile(null)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Progress bar during processing */}
+                        {processingFile && (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="text-gray-600">Processing presentation...</span>
+                              <span className="text-blue-600 font-medium">{uploadProgress}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-blue-500 transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              AI is extracting content and creating slides...
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-gray-500 mt-3">
+                          <strong>Tip:</strong> AI will extract text from your presentation and convert it into training slides with audio scripts and quiz questions.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1225,10 +1429,10 @@ export default function TrainingModulesPage() {
                 Cancel
               </button>
 
-              {createStep === 1 && (
+              {createStep === 1 && createMethod === 'generate' && (
                 <button
                   onClick={handleGenerateContent}
-                  disabled={generating || !createMethod || !formData.title || formData.client_ids.length === 0 || !formData.competency_id || formData.audio_languages.length === 0}
+                  disabled={generating || !formData.title || formData.client_ids.length === 0 || !formData.competency_id || formData.audio_languages.length === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {generating ? (
@@ -1242,6 +1446,35 @@ export default function TrainingModulesPage() {
                       Generate Content
                     </>
                   )}
+                </button>
+              )}
+
+              {createStep === 1 && createMethod === 'upload' && (
+                <button
+                  onClick={handleProcessUpload}
+                  disabled={processingFile || !uploadedFile || !formData.title || formData.client_ids.length === 0 || !formData.competency_id || formData.audio_languages.length === 0}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {processingFile ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      Process Presentation
+                    </>
+                  )}
+                </button>
+              )}
+
+              {createStep === 1 && !createMethod && (
+                <button
+                  disabled
+                  className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                >
+                  Select a method above
                 </button>
               )}
 
