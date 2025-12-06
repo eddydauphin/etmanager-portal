@@ -31,6 +31,16 @@ export default function MyTrainingPage() {
   const [showViewer, setShowViewer] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   
+  // Client branding
+  const [clientBranding, setClientBranding] = useState({
+    logo_url: '',
+    primary_color: '#3B82F6',
+    secondary_color: '#1E40AF',
+    accent_color: '#10B981',
+    font_family: 'Inter',
+    name: ''
+  });
+  
   // Viewer state
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState([]);
@@ -52,8 +62,28 @@ export default function MyTrainingPage() {
   useEffect(() => {
     if (profile?.id) {
       loadTrainingModules();
+      loadClientBranding();
     }
   }, [profile]);
+
+  const loadClientBranding = async () => {
+    if (!profile?.client_id) return;
+    try {
+      const data = await dbFetch(`clients?id=eq.${profile.client_id}&select=name,logo_url,primary_color,secondary_color,accent_color,font_family`);
+      if (data && data.length > 0) {
+        setClientBranding({
+          name: data[0].name || '',
+          logo_url: data[0].logo_url || '',
+          primary_color: data[0].primary_color || '#3B82F6',
+          secondary_color: data[0].secondary_color || '#1E40AF',
+          accent_color: data[0].accent_color || '#10B981',
+          font_family: data[0].font_family || 'Inter'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading client branding:', error);
+    }
+  };
 
   const loadTrainingModules = async () => {
     setLoading(true);
@@ -413,12 +443,21 @@ export default function MyTrainingPage() {
     const slide = slides[currentSlide];
     
     return (
-      <div className="min-h-screen bg-gray-900 text-white">
-        {/* Header */}
-        <div className="bg-gray-800 p-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">{selectedTraining.training_modules?.title}</h1>
-            <p className="text-sm text-gray-400">Slide {currentSlide + 1} of {slides.length}</p>
+      <div className="min-h-screen bg-gray-900 text-white" style={{ fontFamily: clientBranding.font_family }}>
+        {/* Header with client branding */}
+        <div className="p-4 flex items-center justify-between" style={{ backgroundColor: clientBranding.secondary_color }}>
+          <div className="flex items-center gap-4">
+            {clientBranding.logo_url && (
+              <img 
+                src={clientBranding.logo_url} 
+                alt={clientBranding.name} 
+                className="h-10 object-contain bg-white/10 rounded px-2 py-1"
+              />
+            )}
+            <div>
+              <h1 className="text-lg font-semibold">{selectedTraining.training_modules?.title}</h1>
+              <p className="text-sm opacity-75">Slide {currentSlide + 1} of {slides.length}</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {/* Audio Play Button - show if slide has audio script */}
@@ -427,10 +466,11 @@ export default function MyTrainingPage() {
                 onClick={toggleAudio}
                 disabled={isLoadingAudio}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  isPlaying 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-blue-600 hover:bg-blue-700'
-                } ${isLoadingAudio ? 'opacity-50 cursor-wait' : ''}`}
+                  isLoadingAudio ? 'opacity-50 cursor-wait' : ''
+                }`}
+                style={{ 
+                  backgroundColor: isPlaying ? clientBranding.accent_color : clientBranding.primary_color 
+                }}
               >
                 {isLoadingAudio ? (
                   <>
@@ -452,18 +492,21 @@ export default function MyTrainingPage() {
             )}
             <button
               onClick={closeAll}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg"
             >
               Exit
             </button>
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar with branding */}
         <div className="h-1 bg-gray-700">
           <div 
-            className="h-full bg-blue-500 transition-all"
-            style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}
+            className="h-full transition-all"
+            style={{ 
+              width: `${((currentSlide + 1) / slides.length) * 100}%`,
+              backgroundColor: clientBranding.primary_color 
+            }}
           />
         </div>
 
@@ -471,12 +514,15 @@ export default function MyTrainingPage() {
         <div className="max-w-4xl mx-auto p-8">
           {slide ? (
             <div className="bg-gray-800 rounded-xl p-8 min-h-[400px]">
-              <h2 className="text-3xl font-bold mb-6">{slide.title}</h2>
+              <h2 className="text-3xl font-bold mb-6" style={{ color: clientBranding.primary_color }}>{slide.title}</h2>
               
               <div className="space-y-4 mb-8">
                 {slide.content?.key_points?.map((point, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+                    <div 
+                      className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                      style={{ backgroundColor: clientBranding.primary_color }}
+                    />
                     <p className="text-xl text-gray-200">{point}</p>
                   </div>
                 ))}
@@ -548,7 +594,8 @@ export default function MyTrainingPage() {
             {currentSlide < slides.length - 1 ? (
               <button
                 onClick={() => setCurrentSlide(currentSlide + 1)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-white"
+                style={{ backgroundColor: clientBranding.primary_color }}
               >
                 Next
                 <ChevronRight className="w-5 h-5" />
@@ -556,7 +603,8 @@ export default function MyTrainingPage() {
             ) : (
               <button
                 onClick={startQuiz}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-white"
+                style={{ backgroundColor: clientBranding.accent_color }}
               >
                 Take Quiz
                 <ChevronRight className="w-5 h-5" />
@@ -607,7 +655,8 @@ export default function MyTrainingPage() {
             
             <button
               onClick={closeAll}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-6 py-3 text-white rounded-lg"
+              style={{ backgroundColor: clientBranding.primary_color }}
             >
               Back to Training
             </button>

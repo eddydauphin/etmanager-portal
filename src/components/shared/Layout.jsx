@@ -16,7 +16,8 @@ import {
   FileText,
   BookOpen,
   Network,
-  Briefcase
+  Briefcase,
+  Palette
 } from 'lucide-react';
 
 function Layout() {
@@ -57,6 +58,7 @@ function Layout() {
         { to: '/profiles', icon: Briefcase, label: 'Profiles' },
         { to: '/training', icon: GraduationCap, label: 'Training' },
         { to: '/reports', icon: BarChart3, label: 'Reports' },
+        { to: '/company-settings', icon: Palette, label: 'Branding' },
         { to: '/settings', icon: Settings, label: 'Settings' },
       ];
     }

@@ -18,6 +18,7 @@ import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
+import CompanySettingsPage from './pages/CompanySettingsPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -147,6 +148,13 @@ function AppRoutes() {
         <Route path="reports" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
             <ReportsPage />
+          </ProtectedRoute>
+        } />
+        
+        {/* Client Admin only - Company Branding */}
+        <Route path="company-settings" element={
+          <ProtectedRoute allowedRoles={['client_admin']}>
+            <CompanySettingsPage />
           </ProtectedRoute>
         } />
         
