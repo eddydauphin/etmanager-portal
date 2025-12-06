@@ -4,9 +4,10 @@
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '25mb'
+      sizeLimit: '4mb'  // Vercel Hobby limit is 4.5MB
     }
-  }
+  },
+  maxDuration: 60  // Allow up to 60 seconds for processing
 };
 
 export default async function handler(req, res) {
@@ -28,6 +29,14 @@ export default async function handler(req, res) {
 
     if (!fileContent) {
       return res.status(400).json({ error: 'No file content provided' });
+    }
+
+    // Check file size (base64 is ~33% larger than original)
+    const estimatedSize = (fileContent.length * 3) / 4;
+    if (estimatedSize > 4 * 1024 * 1024) {
+      return res.status(400).json({ 
+        error: 'File too large. Please upload a file smaller than 4MB, or use a simpler document.' 
+      });
     }
 
     // Decode base64 file content
