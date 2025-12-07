@@ -1,223 +1,260 @@
-// ============================================================================
-// E&T MANAGER - CHANGE PASSWORD PAGE
-// Shown on first login when must_change_password is true
-// ============================================================================
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { Key, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, AlertCircle, CheckCircle, Shield } from 'lucide-react';
 
-function ChangePasswordPage() {
-  const [currentPassword, setCurrentPassword] = useState('');
+export default function ChangePasswordPage() {
+  const navigate = useNavigate();
+  const { profile, refreshProfile } = useAuth();
+  
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  const { user, mustChangePassword, changePassword, signOut } = useAuth();
-  const navigate = useNavigate();
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
-  // Password requirements
-  const requirements = [
-    { id: 'length', label: 'At least 8 characters', test: (p) => p.length >= 8 },
-    { id: 'uppercase', label: 'One uppercase letter', test: (p) => /[A-Z]/.test(p) },
-    { id: 'lowercase', label: 'One lowercase letter', test: (p) => /[a-z]/.test(p) },
-    { id: 'number', label: 'One number', test: (p) => /\d/.test(p) },
-    { id: 'special', label: 'One special character (!@#$%^&*)', test: (p) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
-  ];
+  useEffect(() => {
+    // Check if this is a password reset from email link
+    const checkResetToken = async () => {
+      const hash = window.location.hash;
+      
+      // Check for access_token in URL (from reset email)
+      if (hash && hash.includes('access_token')) {
+        setIsResetMode(true);
+        
+        // Parse the hash to get the token type
+        const params = new URLSearchParams(hash.substring(1));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+        
+        if (type === 'recovery' && accessToken) {
+          // Set the session with the recovery token
+          try {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || ''
+            });
+            
+            if (error) {
+              console.error('Error setting session:', error);
+              setError('Invalid or expired reset link. Please request a new one.');
+            }
+          } catch (err) {
+            console.error('Session error:', err);
+            setError('Failed to process reset link.');
+          }
+        }
+      }
+      
+      setInitializing(false);
+    };
 
-  const passwordValid = requirements.every((req) => req.test(newPassword));
-  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+    checkResetToken();
+  }, []);
 
-  async function handleSubmit(e) {
+  const validatePassword = () => {
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return false;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    return true;
+  };
+
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!passwordValid) {
-      setError('Password does not meet all requirements');
-      return;
-    }
-
-    if (!passwordsMatch) {
-      setError('Passwords do not match');
-      return;
-    }
+    if (!validatePassword()) return;
 
     setLoading(true);
-    const result = await changePassword(newPassword);
-    
-    if (result.success) {
-      navigate('/dashboard');
-    } else {
-      setError(result.error || 'Failed to change password');
+
+    try {
+      // Update password in Supabase Auth
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) throw updateError;
+
+      // If this was a forced password change (not reset), update the profile flag
+      if (!isResetMode && profile?.id) {
+        await supabase
+          .from('profiles')
+          .update({ must_change_password: false })
+          .eq('id', profile.id);
+        
+        // Refresh the profile to get updated must_change_password status
+        if (refreshProfile) {
+          await refreshProfile();
+        }
+      }
+
+      setSuccess(true);
+      
+      // Clear the URL hash
+      window.history.replaceState(null, '', window.location.pathname);
+      
+      // Redirect after 2 seconds
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
+
+    } catch (err) {
+      console.error('Password change error:', err);
+      setError(err.message || 'Failed to change password');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
+  };
+
+  if (initializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
   }
 
-  async function handleLogout() {
-    await signOut();
-    navigate('/login');
-  }
-
-  // If not logged in or doesn't need to change password, redirect
-  if (!user) {
-    navigate('/login');
-    return null;
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Password Changed!</h2>
+            <p className="text-gray-600 mb-4">
+              Your password has been successfully updated.
+            </p>
+            <p className="text-sm text-gray-500">
+              Redirecting to dashboard...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo & Header */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-xl mb-4">
-            <Key className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+            E&T
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Change Your Password</h1>
-          <p className="text-gray-600 mt-1">
-            {mustChangePassword 
-              ? 'Please set a new password to continue'
-              : 'Update your password'
-            }
+          <h1 className="text-2xl font-bold text-gray-900">E&T Manager</h1>
+          <p className="text-gray-600">
+            {isResetMode ? 'Reset your password' : 'Set up your new password'}
           </p>
         </div>
 
-        {/* Change Password Card */}
+        {/* Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          {/* Info Alert for first-time */}
-          {mustChangePassword && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Welcome!</strong> For security, please create a new password. 
-                Your temporary password will no longer work after this.
-              </p>
-            </div>
-          )}
-          
-          {/* Error Alert */}
+          <div className="flex items-center gap-3 mb-6 p-4 bg-blue-50 rounded-lg">
+            <Shield className="w-6 h-6 text-blue-600 flex-shrink-0" />
+            <p className="text-sm text-blue-800">
+              {isResetMode 
+                ? 'Enter your new password below.' 
+                : 'For security, please create a new password for your account.'}
+            </p>
+          </div>
+
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm">{error}</span>
             </div>
           )}
-          
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* New Password */}
-            <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+
+          <form onSubmit={handleChangePassword}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 New Password
               </label>
               <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  id="newPassword"
-                  type={showPasswords ? 'text' : 'password'}
+                  type={showPassword ? 'text' : 'password'}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
                   required
-                  className="w-full px-4 py-2.5 pr-11 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Enter new password"
+                  minLength={8}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPasswords(!showPasswords)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPasswords ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
             </div>
-            
-            {/* Password Requirements */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">Password requirements:</p>
-              <ul className="space-y-1">
-                {requirements.map((req) => (
-                  <li key={req.id} className="flex items-center gap-2 text-sm">
-                    {req.test(newPassword) ? (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
-                    )}
-                    <span className={req.test(newPassword) ? 'text-green-700' : 'text-gray-600'}>
-                      {req.label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            {/* Confirm Password */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Confirm New Password
               </label>
-              <input
-                id="confirmPassword"
-                type={showPasswords ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                  confirmPassword && !passwordsMatch 
-                    ? 'border-red-300 bg-red-50' 
-                    : confirmPassword && passwordsMatch 
-                      ? 'border-green-300 bg-green-50'
-                      : 'border-gray-300'
-                }`}
-                placeholder="Confirm new password"
-              />
-              {confirmPassword && !passwordsMatch && (
-                <p className="mt-1 text-sm text-red-600">Passwords do not match</p>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
               )}
-              {passwordsMatch && (
-                <p className="mt-1 text-sm text-green-600 flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" /> Passwords match
-                </p>
+              {confirmPassword && newPassword === confirmPassword && (
+                <p className="text-xs text-green-500 mt-1">Passwords match ✓</p>
               )}
             </div>
-            
-            {/* Submit */}
+
             <button
               type="submit"
-              disabled={loading || !passwordValid || !passwordsMatch}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || newPassword !== confirmPassword}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Updating password...
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  Updating...
                 </>
               ) : (
                 <>
-                  <Key className="w-5 h-5" />
-                  Set New Password
+                  <Lock className="w-5 h-5" />
+                  {isResetMode ? 'Reset Password' : 'Set New Password'}
                 </>
               )}
             </button>
           </form>
-          
-          {/* Logout option */}
-          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-            <button
-              onClick={handleLogout}
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              Sign out and return to login
-            </button>
-          </div>
         </div>
-        
+
         {/* Footer */}
         <p className="text-center text-sm text-gray-500 mt-6">
-          E&T Manager by Foodek Consulting
+          Need help? Contact{' '}
+          <a href="mailto:support@foodekconsulting.com" className="text-blue-600 hover:underline">
+            support@foodekconsulting.com
+          </a>
         </p>
       </div>
     </div>
   );
 }
-
-export default ChangePasswordPage;
