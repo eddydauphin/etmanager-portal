@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { fileContent, fileName, fileType, title, competency, targetLevel, language } = req.body;
+    const { fileContent, fileName, fileType, title, competency, targetLevel, language, importMode = 'smart' } = req.body;
 
     if (!fileContent) {
       return res.status(400).json({ error: 'No file content provided' });
@@ -45,21 +45,21 @@ export default async function handler(req, res) {
 
     // Process based on file type
     if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-      result = await extractWithClaude(buffer, 'pdf', title, competency, targetLevel, language);
+      result = await extractWithClaude(buffer, 'pdf', title, competency, targetLevel, language, importMode);
     } else if (
       fileType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
       fileType === 'application/vnd.ms-powerpoint' ||
       fileName.endsWith('.pptx') ||
       fileName.endsWith('.ppt')
     ) {
-      result = await extractWithClaude(buffer, 'pptx', title, competency, targetLevel, language);
+      result = await extractWithClaude(buffer, 'pptx', title, competency, targetLevel, language, importMode);
     } else if (
       fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
       fileType === 'application/msword' ||
       fileName.endsWith('.docx') ||
       fileName.endsWith('.doc')
     ) {
-      result = await extractWithClaude(buffer, 'docx', title, competency, targetLevel, language);
+      result = await extractWithClaude(buffer, 'docx', title, competency, targetLevel, language, importMode);
     } else {
       return res.status(400).json({ error: 'Unsupported file type. Please upload PDF, PowerPoint, or Word files.' });
     }
@@ -72,29 +72,27 @@ export default async function handler(req, res) {
   }
 }
 
-async function extractWithClaude(buffer, fileType, title, competency, targetLevel, language) {
+async function extractWithClaude(buffer, fileType, title, competency, targetLevel, language, importMode) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
   
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY or CLAUDE_API_KEY not configured');
   }
 
-  // Convert buffer to base64 for Claude
-  const base64Content = buffer.toString('base64');
-  
-  // Determine media type
-  let mediaType;
-  if (fileType === 'pdf') {
-    mediaType = 'application/pdf';
-  } else if (fileType === 'pptx') {
-    mediaType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-  } else if (fileType === 'docx') {
-    mediaType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  } else {
-    mediaType = 'application/pdf'; // fallback
+  // Claude's document API only supports PDF
+  if (fileType !== 'pdf') {
+    throw new Error('Currently only PDF files are supported for upload. Please convert your PowerPoint or Word document to PDF and try again.');
   }
 
-  const prompt = `You are analyzing an uploaded presentation file to create a training module.
+  // Convert buffer to base64 for Claude
+  const base64Content = buffer.toString('base64');
+
+  // Different prompts based on import mode
+  let prompt;
+  
+  if (importMode === 'direct') {
+    // Direct Import: Preserve original content exactly
+    prompt = `You are analyzing an uploaded PDF document to create a training module. Your task is to DIRECTLY IMPORT the content, preserving it exactly as written.
 
 Training Module Details:
 - Title: ${title || 'Training Module'}
@@ -102,17 +100,73 @@ Training Module Details:
 - Target Level: ${targetLevel} (1=Awareness, 2=Knowledge, 3=Practitioner, 4=Proficient, 5=Expert)
 - Language: ${language || 'English'}
 
-Please analyze the uploaded document and extract the content to create training slides.
+IMPORTANT: This is a DIRECT IMPORT. You must:
+1. Preserve the EXACT original text and bullet points from the document
+2. Do NOT paraphrase, summarize, or restructure the content
+3. Keep the original slide/section structure as closely as possible
+4. Each page or section in the PDF should become a slide
+5. Copy the bullet points exactly as they appear
+
+For each slide:
+1. Use the original heading/title from the document (or create one if none exists)
+2. Copy the exact bullet points or content from that section
+3. Create a brief audio narration script (2-3 sentences) that reads the content naturally
+
+Also generate 10 quiz questions based on the EXACT content in the document. Questions should:
+1. Test specific facts, terms, or procedures mentioned in the document
+2. Have 4 options (A, B, C, D)
+3. Have one correct answer based on the document content
+
+Respond in this exact JSON format:
+{
+  "slides": [
+    {
+      "slide_number": 1,
+      "title": "Original Section Title",
+      "key_points": ["Exact point 1 from document", "Exact point 2 from document", "Exact point 3 from document"],
+      "audio_script": "Brief narration summarizing this slide..."
+    }
+  ],
+  "questions": [
+    {
+      "question_text": "Question testing specific content from the document?",
+      "options": ["A) Option A", "B) Option B", "C) Option C", "D) Option D"],
+      "correct_answer": "A",
+      "points": 1
+    }
+  ]
+}
+
+Create one slide per page/section in the document, and exactly 10 quiz questions.`;
+
+  } else {
+    // Smart Transform: AI restructures and optimizes content
+    prompt = `You are analyzing an uploaded PDF document to create an optimized training module.
+
+Training Module Details:
+- Title: ${title || 'Training Module'}
+- Competency: ${competency?.name || 'General Training'}
+- Target Level: ${targetLevel} (1=Awareness, 2=Knowledge, 3=Practitioner, 4=Proficient, 5=Expert)
+- Language: ${language || 'English'}
+
+Please analyze the document and TRANSFORM it into effective training content:
+
+1. Restructure the content for optimal learning flow
+2. Break complex topics into digestible slides
+3. Rewrite bullet points for clarity and impact
+4. Add context and explanations where helpful
+5. Organize content from foundational to advanced concepts
 
 For each slide you create, provide:
-1. A clear title
-2. 3-4 key learning points (bullet points)
-3. An audio narration script (2-3 sentences explaining the slide content)
+1. A clear, engaging title
+2. 3-4 key learning points (concise, actionable)
+3. An audio narration script (2-3 sentences explaining the concepts)
 
-Also generate 10 quiz questions based on the content. Each question should:
-1. Have 4 options (A, B, C, D)
-2. Have one correct answer
-3. Test understanding at the target competency level
+Also generate 10 quiz questions that test understanding at the target competency level. Each question should:
+1. Test comprehension, not just memorization
+2. Have 4 options (A, B, C, D)
+3. Have one correct answer
+4. Progress from basic to more challenging
 
 Respond in this exact JSON format:
 {
@@ -134,7 +188,8 @@ Respond in this exact JSON format:
   ]
 }
 
-Create 6-10 slides based on the content, and exactly 10 quiz questions.`;
+Create 6-10 well-structured slides, and exactly 10 quiz questions.`;
+  }
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -154,7 +209,7 @@ Create 6-10 slides based on the content, and exactly 10 quiz questions.`;
               type: 'document',
               source: {
                 type: 'base64',
-                media_type: mediaType,
+                media_type: 'application/pdf',
                 data: base64Content
               }
             },

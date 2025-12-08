@@ -84,6 +84,7 @@ export default function TrainingModulesPage() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingFile, setProcessingFile] = useState(false);
+  const [importMode, setImportMode] = useState('smart'); // 'smart' or 'direct'
   
   // Dropdown
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -202,6 +203,7 @@ export default function TrainingModulesPage() {
     setUploadedFile(null);
     setUploadProgress(0);
     setProcessingFile(false);
+    setImportMode('smart');
     setShowCreateModal(true);
   };
 
@@ -291,21 +293,15 @@ export default function TrainingModulesPage() {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file type
-    const validTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword'
-    ];
-    const validExtensions = ['.pdf', '.pptx', '.ppt', '.docx', '.doc'];
+    // Validate file type - Only PDF supported currently
+    const validTypes = ['application/pdf'];
+    const validExtensions = ['.pdf'];
     
     const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     const hasValidType = validTypes.includes(file.type);
 
     if (!hasValidExtension && !hasValidType) {
-      setFormError('Please upload a PDF, PowerPoint, or Word file (.pdf, .pptx, .ppt, .docx, .doc)');
+      setFormError('Please upload a PDF file. PowerPoint and Word files must be converted to PDF first.');
       return;
     }
 
@@ -371,7 +367,8 @@ export default function TrainingModulesPage() {
           title: formData.title,
           competency: competency,
           targetLevel: formData.target_level,
-          language: languageLabel
+          language: languageLabel,
+          importMode: importMode // 'smart' or 'direct'
         })
       });
 
@@ -1104,6 +1101,48 @@ export default function TrainingModulesPage() {
                     {/* File Upload Section - shown when upload method selected */}
                     {createMethod === 'upload' && (
                       <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        {/* Import Mode Selection */}
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Import Mode
+                        </label>
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <button
+                            type="button"
+                            onClick={() => setImportMode('smart')}
+                            className={`p-3 border-2 rounded-lg text-left transition-colors ${
+                              importMode === 'smart'
+                                ? 'border-purple-500 bg-purple-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Sparkles className="w-5 h-5 text-purple-500" />
+                              <span className="font-medium text-gray-900">Smart Transform</span>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              AI restructures content into optimized training slides with narration
+                            </p>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => setImportMode('direct')}
+                            className={`p-3 border-2 rounded-lg text-left transition-colors ${
+                              importMode === 'direct'
+                                ? 'border-green-500 bg-green-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileText className="w-5 h-5 text-green-500" />
+                              <span className="font-medium text-gray-900">Direct Import</span>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              Preserves original content as-is, adds audio scripts & quiz
+                            </p>
+                          </button>
+                        </div>
+
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Upload Presentation File
                         </label>
@@ -1127,13 +1166,13 @@ export default function TrainingModulesPage() {
                                 <div>
                                   <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                                   <p className="text-sm text-gray-600">Click to select a file</p>
-                                  <p className="text-xs text-gray-400">PDF, PPTX, DOCX (max 4MB)</p>
+                                  <p className="text-xs text-gray-400">PDF only (max 4MB)</p>
                                 </div>
                               )}
                             </div>
                             <input
                               type="file"
-                              accept=".pdf,.pptx,.ppt,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+                              accept=".pdf,application/pdf"
                               onChange={handleFileSelect}
                               className="hidden"
                             />
@@ -1154,7 +1193,9 @@ export default function TrainingModulesPage() {
                         {processingFile && (
                           <div className="mt-4">
                             <div className="flex items-center justify-between text-sm mb-1">
-                              <span className="text-gray-600">Processing presentation...</span>
+                              <span className="text-gray-600">
+                                {importMode === 'smart' ? 'AI is transforming content...' : 'Extracting content...'}
+                              </span>
                               <span className="text-blue-600 font-medium">{uploadProgress}%</span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -1164,13 +1205,19 @@ export default function TrainingModulesPage() {
                               />
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
-                              AI is extracting content and creating slides...
+                              {importMode === 'smart' 
+                                ? 'AI is restructuring content and creating optimized slides...'
+                                : 'Extracting original content and generating quiz questions...'}
                             </p>
                           </div>
                         )}
 
                         <p className="text-xs text-gray-500 mt-3">
-                          <strong>Tip:</strong> AI will extract text from your presentation and convert it into training slides with audio scripts and quiz questions.
+                          {importMode === 'smart' ? (
+                            <><strong>Smart Transform:</strong> AI analyzes your document and creates restructured training slides optimized for learning, with narration scripts and quiz questions.</>
+                          ) : (
+                            <><strong>Direct Import:</strong> Your original content is preserved exactly as written. AI adds audio narration scripts and generates quiz questions based on the content.</>
+                          )}
                         </p>
                       </div>
                     )}
