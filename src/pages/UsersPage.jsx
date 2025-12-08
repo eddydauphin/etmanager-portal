@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { dbFetch } from '../lib/db';
-import UserCompetenciesModal from './UserCompetenciesModal';
 import {
   Users,
   Plus,
@@ -27,7 +26,10 @@ import {
   Hash,
   Briefcase,
   Calendar,
-  Target
+  UserCog,
+  GraduationCap,
+  BarChart3,
+  ClipboardCheck
 } from 'lucide-react';
 
 export default function UsersPage() {
@@ -41,23 +43,22 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [showCompetenciesModal, setShowCompetenciesModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
   const [userToResetPassword, setUserToResetPassword] = useState(null);
-  const [selectedUserForCompetencies, setSelectedUserForCompetencies] = useState(null);
   
   // New user credentials (shown after creation)
   const [newUserCredentials, setNewUserCredentials] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   
-  // Form state - now includes employee fields
+  // Form state - includes permissions
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
@@ -67,7 +68,8 @@ export default function UsersPage() {
     department: '',
     line: '',
     hire_date: '',
-    is_active: true
+    is_active: true,
+    permissions: []
   });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -76,23 +78,34 @@ export default function UsersPage() {
   // Dropdown state for action menus
   const [openDropdown, setOpenDropdown] = useState(null);
 
+  // Available permissions that can be assigned to any user
+  const availablePermissions = [
+    { 
+      id: 'training_creator', 
+      label: 'Training Creator', 
+      description: 'Can create and edit training modules',
+      icon: GraduationCap,
+      color: 'purple'
+    },
+    { 
+      id: 'report_viewer', 
+      label: 'Report Viewer', 
+      description: 'Can access training analytics and reports',
+      icon: BarChart3,
+      color: 'blue'
+    },
+    { 
+      id: 'competency_assessor', 
+      label: 'Competency Assessor', 
+      description: 'Can validate and assess trainee competencies',
+      icon: ClipboardCheck,
+      color: 'green'
+    }
+  ];
+
   // Load users and clients on mount
   useEffect(() => {
     loadData();
-    
-    // Check for pending credentials from user creation
-    const pendingCreds = localStorage.getItem('pendingCredentials');
-    if (pendingCreds) {
-      try {
-        const creds = JSON.parse(pendingCreds);
-        setNewUserCredentials(creds);
-        setShowCredentialsModal(true);
-        localStorage.removeItem('pendingCredentials');
-      } catch (e) {
-        console.error('Error parsing pending credentials:', e);
-        localStorage.removeItem('pendingCredentials');
-      }
-    }
   }, [currentProfile]);
 
   // Close dropdown when clicking outside
@@ -115,11 +128,15 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     try {
-      let url = 'profiles?select=*&order=created_at.desc';
+      let url = 'profiles?select=*,clients(id,name,code)&order=created_at.desc';
       
-      // If client admin, only show users from their client
+      // Role-based filtering
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        // Client admin sees all users in their organization
         url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
+        // Department lead sees only users in their department
+        url += `&client_id=eq.${currentProfile.client_id}&department=eq.${currentProfile.department}`;
       }
 
       const data = await dbFetch(url);
@@ -153,23 +170,61 @@ export default function UsersPage() {
     const matchesStatus = statusFilter === 'all' || 
       (statusFilter === 'active' && user.is_active !== false) ||
       (statusFilter === 'inactive' && user.is_active === false);
+    const matchesDepartment = departmentFilter === 'all' || user.department === departmentFilter;
 
-    return matchesSearch && matchesRole && matchesClient && matchesStatus;
+    return matchesSearch && matchesRole && matchesClient && matchesStatus && matchesDepartment;
   });
+
+  // Check if current user can assign a specific role
+  const canAssignRole = (role) => {
+    if (currentProfile?.role === 'super_admin') return true;
+    if (currentProfile?.role === 'client_admin') {
+      return ['client_admin', 'department_lead', 'trainee'].includes(role);
+    }
+    if (currentProfile?.role === 'department_lead') {
+      return role === 'trainee';
+    }
+    return false;
+  };
+
+  // Toggle a permission in the form
+  const togglePermission = (permissionId) => {
+    setFormData(prev => {
+      const current = prev.permissions || [];
+      if (current.includes(permissionId)) {
+        return { ...prev, permissions: current.filter(p => p !== permissionId) };
+      } else {
+        return { ...prev, permissions: [...current, permissionId] };
+      }
+    });
+  };
 
   // Open modal for creating new user
   const handleCreateUser = () => {
     setEditingUser(null);
+    
+    // Determine default values based on current user's role
+    let defaultClientId = '';
+    let defaultDepartment = '';
+    
+    if (currentProfile?.role === 'client_admin') {
+      defaultClientId = currentProfile.client_id;
+    } else if (currentProfile?.role === 'department_lead') {
+      defaultClientId = currentProfile.client_id;
+      defaultDepartment = currentProfile.department;
+    }
+    
     setFormData({
       email: '',
       full_name: '',
-      role: currentProfile?.role === 'client_admin' ? 'trainee' : 'trainee',
-      client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+      role: 'trainee',
+      client_id: defaultClientId,
       employee_number: '',
-      department: '',
+      department: defaultDepartment,
       line: '',
       hire_date: '',
-      is_active: true
+      is_active: true,
+      permissions: []
     });
     setFormError('');
     setFormSuccess('');
@@ -188,7 +243,8 @@ export default function UsersPage() {
       department: user.department || '',
       line: user.line || '',
       hire_date: user.hire_date || '',
-      is_active: user.is_active !== false
+      is_active: user.is_active !== false,
+      permissions: user.permissions || []
     });
     setFormError('');
     setFormSuccess('');
@@ -246,7 +302,12 @@ export default function UsersPage() {
 
       // Role validation for non-super-admin users
       if (formData.role !== 'super_admin' && !formData.client_id) {
-        throw new Error('Client assignment is required for Client Admins and Trainees');
+        throw new Error('Client assignment is required');
+      }
+
+      // Department lead must have a department
+      if (formData.role === 'department_lead' && !formData.department) {
+        throw new Error('Department is required for Department Leads');
       }
 
       if (editingUser) {
@@ -260,6 +321,7 @@ export default function UsersPage() {
           line: formData.line || null,
           hire_date: formData.hire_date || null,
           is_active: formData.is_active,
+          permissions: formData.permissions || [],
           updated_at: new Date().toISOString()
         };
 
@@ -277,58 +339,82 @@ export default function UsersPage() {
         }, 1000);
         
       } else {
-        // Create new user via Edge Function (keeps admin session intact)
+        // Create new user via Supabase Auth
         const tempPassword = generateTempPassword();
         
-        // Get current session token
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token;
+        // Store current session before creating user
+        const { data: currentSession } = await supabase.auth.getSession();
         
-        if (!accessToken) {
-          throw new Error('Not authenticated');
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: tempPassword,
+          options: {
+            data: {
+              full_name: formData.full_name
+            }
+          }
+        });
+
+        if (authError) {
+          if (authError.message.includes('already registered')) {
+            throw new Error('A user with this email already exists');
+          }
+          throw authError;
         }
 
-        // Call Edge Function to create user
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`
-            },
+        if (authData.user) {
+          // Update the profile with all fields including permissions
+          await dbFetch(`profiles?id=eq.${authData.user.id}`, {
+            method: 'PATCH',
             body: JSON.stringify({
-              email: formData.email,
-              password: tempPassword,
               full_name: formData.full_name,
               role: formData.role,
               client_id: formData.role === 'super_admin' ? null : formData.client_id,
               employee_number: formData.employee_number || null,
               department: formData.department || null,
               line: formData.line || null,
-              hire_date: formData.hire_date || null
+              hire_date: formData.hire_date || null,
+              permissions: formData.permissions || [],
+              must_change_password: true,
+              is_active: true
             })
+          });
+          
+          // Restore admin session
+          await supabase.auth.signOut();
+          
+          if (currentSession?.session?.access_token) {
+            await supabase.auth.setSession({
+              access_token: currentSession.session.access_token,
+              refresh_token: currentSession.session.refresh_token
+            });
+          } else {
+            window.location.reload();
+            return;
           }
-        );
-
-        const result = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to create user');
+          
+          // Log credentials for reference
+          await logCredentials(
+            formData.email, 
+            tempPassword, 
+            formData.full_name,
+            currentUser?.id
+          );
+          
+          // Store credentials and show credentials modal
+          setNewUserCredentials({
+            email: formData.email,
+            password: tempPassword,
+            fullName: formData.full_name
+          });
+          
+          // Close form modal, open credentials modal
+          setShowModal(false);
+          setShowCredentialsModal(true);
+          
+          // Reload users
+          loadUsers();
         }
-
-        // Show credentials modal
-        setNewUserCredentials({
-          email: formData.email,
-          password: tempPassword,
-          fullName: formData.full_name
-        });
-        
-        setShowModal(false);
-        setShowCredentialsModal(true);
-        
-        // Reload users list
-        await loadUsers();
       }
 
     } catch (error) {
@@ -357,25 +443,24 @@ export default function UsersPage() {
     setOpenDropdown(null);
   };
 
-  // Confirm delete (permanent)
+  // Confirm delete
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
 
     try {
-      // Delete the profile record
       await dbFetch(`profiles?id=eq.${userToDelete.id}`, {
-        method: 'DELETE'
+        method: 'PATCH',
+        body: JSON.stringify({ 
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
       });
-
-      // Note: This only deletes the profile, not the auth user
-      // To fully delete auth user, you need a Supabase Edge Function with service role
 
       await loadUsers();
       setShowDeleteModal(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('Failed to delete user: ' + error.message);
     }
   };
 
@@ -407,13 +492,15 @@ export default function UsersPage() {
     }
   };
 
-  // Get role display info
+  // Get role display info - updated with department_lead
   const getRoleInfo = (role) => {
     switch (role) {
       case 'super_admin':
         return { label: 'Super Admin', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck };
       case 'client_admin':
         return { label: 'Client Admin', color: 'bg-blue-100 text-blue-700', icon: Shield };
+      case 'department_lead':
+        return { label: 'Dept. Lead', color: 'bg-orange-100 text-orange-700', icon: UserCog };
       default:
         return { label: 'Trainee', color: 'bg-green-100 text-green-700', icon: UserCheck };
     }
@@ -446,8 +533,8 @@ export default function UsersPage() {
           </button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {/* Stats Cards - Updated to include Department Leads */}
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -459,19 +546,21 @@ export default function UsersPage() {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <ShieldCheck className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {users.filter(u => u.role === 'super_admin').length}
-                </p>
-                <p className="text-sm text-gray-500">Super Admins</p>
+          {currentProfile?.role === 'super_admin' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <ShieldCheck className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users.filter(u => u.role === 'super_admin').length}
+                  </p>
+                  <p className="text-sm text-gray-500">Super Admins</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -482,6 +571,19 @@ export default function UsersPage() {
                   {users.filter(u => u.role === 'client_admin').length}
                 </p>
                 <p className="text-sm text-gray-500">Client Admins</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <UserCog className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">
+                  {users.filter(u => u.role === 'department_lead').length}
+                </p>
+                <p className="text-sm text-gray-500">Dept. Leads</p>
               </div>
             </div>
           </div>
@@ -524,8 +626,11 @@ export default function UsersPage() {
                 className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[150px]"
               >
                 <option value="all">All Roles</option>
-                <option value="super_admin">Super Admin</option>
+                {currentProfile?.role === 'super_admin' && (
+                  <option value="super_admin">Super Admin</option>
+                )}
                 <option value="client_admin">Client Admin</option>
+                <option value="department_lead">Dept. Lead</option>
                 <option value="trainee">Trainee</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -545,6 +650,24 @@ export default function UsersPage() {
                     <option key={client.id} value={client.id}>
                       {client.name}
                     </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+            )}
+
+            {/* Department Filter */}
+            {departments.length > 0 && (
+              <div className="relative">
+                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[160px]"
+                >
+                  <option value="all">All Departments</option>
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -584,7 +707,7 @@ export default function UsersPage() {
               <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-1">No users found</h3>
               <p className="text-gray-500">
-                {searchTerm || roleFilter !== 'all' || clientFilter !== 'all' || statusFilter !== 'all'
+                {searchTerm || roleFilter !== 'all' || clientFilter !== 'all' || statusFilter !== 'all' || departmentFilter !== 'all'
                   ? 'Try adjusting your filters'
                   : 'Add your first user to get started'}
               </p>
@@ -607,6 +730,9 @@ export default function UsersPage() {
                       Department / Line
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Permissions
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -618,6 +744,7 @@ export default function UsersPage() {
                   {filteredUsers.map((user) => {
                     const roleInfo = getRoleInfo(user.role);
                     const RoleIcon = roleInfo.icon;
+                    const userPermissions = user.permissions || [];
                     
                     return (
                       <tr key={user.id} className="hover:bg-gray-50 transition-colors">
@@ -665,6 +792,28 @@ export default function UsersPage() {
                           )}
                         </td>
                         <td className="px-6 py-4">
+                          {userPermissions.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {userPermissions.map(permId => {
+                                const perm = availablePermissions.find(p => p.id === permId);
+                                if (!perm) return null;
+                                const PermIcon = perm.icon;
+                                return (
+                                  <span 
+                                    key={permId}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-${perm.color}-100 text-${perm.color}-700`}
+                                    title={perm.label}
+                                  >
+                                    <PermIcon className="w-3 h-3" />
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
                           {user.is_active !== false ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-green-100 text-green-700">
                               <Check className="w-3.5 h-3.5" />
@@ -699,17 +848,6 @@ export default function UsersPage() {
                                   Edit User
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    setSelectedUserForCompetencies(user);
-                                    setShowCompetenciesModal(true);
-                                    setOpenDropdown(null);
-                                  }}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                >
-                                  <Target className="w-4 h-4" />
-                                  Competencies
-                                </button>
-                                <button
                                   onClick={() => handleResetPasswordClick(user)}
                                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                                 >
@@ -722,7 +860,7 @@ export default function UsersPage() {
                                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                                   >
                                     <Trash2 className="w-4 h-4" />
-                                    Delete
+                                    Deactivate
                                   </button>
                                 )}
                               </div>
@@ -823,7 +961,7 @@ export default function UsersPage() {
                 />
               </div>
 
-              {/* Role Selection */}
+              {/* Role Selection - Updated to include Department Lead */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Role *
@@ -848,38 +986,64 @@ export default function UsersPage() {
                     </label>
                   )}
                   
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'client_admin' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <input
-                      type="radio"
-                      name="role"
-                      value="client_admin"
-                      checked={formData.role === 'client_admin'}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="sr-only"
-                      disabled={currentProfile?.role === 'client_admin'}
-                    />
-                    <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
-                    <div>
-                      <div className="font-medium text-gray-900">Client Admin</div>
-                      <div className="text-xs text-gray-500">Manage their organization</div>
-                    </div>
-                  </label>
+                  {/* Client Admin */}
+                  {canAssignRole('client_admin') && (
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'client_admin' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'} ${currentProfile?.role === 'department_lead' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      <input
+                        type="radio"
+                        name="role"
+                        value="client_admin"
+                        checked={formData.role === 'client_admin'}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        className="sr-only"
+                        disabled={currentProfile?.role === 'department_lead'}
+                      />
+                      <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium text-gray-900">Client Admin</div>
+                        <div className="text-xs text-gray-500">Manage entire organization</div>
+                      </div>
+                    </label>
+                  )}
 
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'trainee' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <input
-                      type="radio"
-                      name="role"
-                      value="trainee"
-                      checked={formData.role === 'trainee'}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="sr-only"
-                    />
-                    <UserCheck className={`w-5 h-5 ${formData.role === 'trainee' ? 'text-green-600' : 'text-gray-400'}`} />
-                    <div>
-                      <div className="font-medium text-gray-900">Trainee</div>
-                      <div className="text-xs text-gray-500">Access training & track progress</div>
-                    </div>
-                  </label>
+                  {/* Department Lead */}
+                  {canAssignRole('department_lead') && (
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'department_lead' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'} ${currentProfile?.role === 'department_lead' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      <input
+                        type="radio"
+                        name="role"
+                        value="department_lead"
+                        checked={formData.role === 'department_lead'}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        className="sr-only"
+                        disabled={currentProfile?.role === 'department_lead'}
+                      />
+                      <UserCog className={`w-5 h-5 ${formData.role === 'department_lead' ? 'text-orange-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium text-gray-900">Department Lead</div>
+                        <div className="text-xs text-gray-500">Manage their department team</div>
+                      </div>
+                    </label>
+                  )}
+
+                  {/* Trainee */}
+                  {canAssignRole('trainee') && (
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'trainee' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input
+                        type="radio"
+                        name="role"
+                        value="trainee"
+                        checked={formData.role === 'trainee'}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        className="sr-only"
+                      />
+                      <UserCheck className={`w-5 h-5 ${formData.role === 'trainee' ? 'text-green-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium text-gray-900">Trainee</div>
+                        <div className="text-xs text-gray-500">Access training & track progress</div>
+                      </div>
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -894,8 +1058,8 @@ export default function UsersPage() {
                     <select
                       value={formData.client_id}
                       onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                      disabled={currentProfile?.role === 'client_admin'}
-                      className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${currentProfile?.role === 'client_admin' ? 'bg-gray-50' : ''}`}
+                      disabled={currentProfile?.role !== 'super_admin'}
+                      className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${currentProfile?.role !== 'super_admin' ? 'bg-gray-50' : ''}`}
                     >
                       <option value="">Select organization...</option>
                       {clients.map(client => (
@@ -909,11 +1073,13 @@ export default function UsersPage() {
                 </div>
               )}
 
-              {/* Employee Fields - Only for Trainees */}
-              {formData.role === 'trainee' && (
+              {/* Employee Fields - For Department Leads and Trainees */}
+              {(formData.role === 'trainee' || formData.role === 'department_lead') && (
                 <>
                   <div className="border-t border-gray-200 pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Employee Details</h3>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">
+                      {formData.role === 'department_lead' ? 'Department Lead Details' : 'Employee Details'}
+                    </h3>
                     
                     <div className="grid grid-cols-2 gap-4">
                       {/* Employee Number */}
@@ -951,10 +1117,10 @@ export default function UsersPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mt-4">
-                      {/* Department */}
+                      {/* Department - Required for Department Lead */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Department
+                          Department {formData.role === 'department_lead' && <span className="text-red-500">*</span>}
                         </label>
                         <div className="relative">
                           <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -962,8 +1128,10 @@ export default function UsersPage() {
                             type="text"
                             value={formData.department}
                             onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Production"
+                            disabled={currentProfile?.role === 'department_lead'}
+                            className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${currentProfile?.role === 'department_lead' ? 'bg-gray-50' : ''}`}
+                            placeholder="e.g., ZIPP Dryer"
+                            required={formData.role === 'department_lead'}
                           />
                         </div>
                       </div>
@@ -985,6 +1153,46 @@ export default function UsersPage() {
                   </div>
                 </>
               )}
+
+              {/* Additional Permissions Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Permissions
+                  <span className="font-normal text-gray-500 ml-1">(optional)</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Grant special capabilities to this user regardless of their role
+                </p>
+                <div className="space-y-2">
+                  {availablePermissions.map(permission => {
+                    const PermIcon = permission.icon;
+                    const isSelected = formData.permissions?.includes(permission.id);
+                    return (
+                      <label 
+                        key={permission.id}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                          isSelected 
+                            ? `border-${permission.color}-500 bg-${permission.color}-50` 
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => togglePermission(permission.id)}
+                          className="sr-only"
+                        />
+                        <PermIcon className={`w-5 h-5 ${isSelected ? `text-${permission.color}-600` : 'text-gray-400'}`} />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{permission.label}</div>
+                          <div className="text-xs text-gray-500">{permission.description}</div>
+                        </div>
+                        {isSelected && <Check className={`w-5 h-5 text-${permission.color}-600`} />}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Active Status - Only for editing */}
               {editingUser && (
@@ -1138,11 +1346,11 @@ export default function UsersPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Delete User?
+                Deactivate User?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to permanently delete <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
-                This action cannot be undone.
+                Are you sure you want to deactivate <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
+                They will no longer be able to log in.
               </p>
               <div className="flex gap-3">
                 <button
@@ -1158,7 +1366,7 @@ export default function UsersPage() {
                   onClick={handleDeleteConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Delete
+                  Deactivate
                 </button>
               </div>
             </div>
@@ -1201,16 +1409,6 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-
-      {/* User Competencies Modal */}
-      <UserCompetenciesModal
-        user={selectedUserForCompetencies}
-        isOpen={showCompetenciesModal}
-        onClose={() => {
-          setShowCompetenciesModal(false);
-          setSelectedUserForCompetencies(null);
-        }}
-      />
     </>
   );
 }

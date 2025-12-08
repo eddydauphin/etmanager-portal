@@ -119,9 +119,19 @@ export default function TrainingModulesPage() {
 
   const loadModules = async () => {
     try {
-      const data = await dbFetch(
-        'training_modules?select=*,clients(name),competency_modules(competency_id,target_level,competencies(name)),module_questions(id),module_slides(id)&order=created_at.desc'
-      );
+      let url = 'training_modules?select=*,clients(name),competency_modules(competency_id,target_level,competencies(name)),module_questions(id),module_slides(id)&order=created_at.desc';
+      
+      // Filter based on current user's role
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        // Client admin sees modules for their organization
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
+        // Department lead sees modules for their organization (same as client admin for modules)
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
+      // Super admin sees all modules (no additional filter)
+      
+      const data = await dbFetch(url);
       setModules(data || []);
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -130,7 +140,17 @@ export default function TrainingModulesPage() {
 
   const loadCompetencies = async () => {
     try {
-      const data = await dbFetch('competencies?select=*&is_active=eq.true&order=name.asc');
+      let url = 'competencies?select=*&is_active=eq.true&order=name.asc';
+      
+      // Filter based on current user's role (competencies are client-specific)
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
+      // Super admin sees all competencies
+      
+      const data = await dbFetch(url);
       setCompetencies(data || []);
     } catch (error) {
       console.error('Error loading competencies:', error);
@@ -148,7 +168,19 @@ export default function TrainingModulesPage() {
 
   const loadUsers = async () => {
     try {
-      const data = await dbFetch('profiles?select=id,full_name,email,role,client_id,clients!profiles_client_id_fkey(name)&role=eq.trainee&order=full_name.asc');
+      let url = 'profiles?select=id,full_name,email,role,client_id,department,line,clients!profiles_client_id_fkey(name)&role=eq.trainee&order=full_name.asc';
+      
+      // Filter based on current user's role
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        // Client admin sees all trainees in their organization
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
+        // Department lead sees only trainees in their department
+        url += `&client_id=eq.${currentProfile.client_id}&department=eq.${currentProfile.department}`;
+      }
+      // Super admin sees all trainees (no additional filter)
+      
+      const data = await dbFetch(url);
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -423,7 +455,8 @@ export default function TrainingModulesPage() {
             content_type: createMethod === 'upload' ? 'uploaded' : 'generated',
             original_file_name: uploadedFile?.name || null,
             status: 'draft',
-            created_by: currentProfile?.id
+            created_by: currentProfile?.id,
+            created_by_department: currentProfile?.department || null
           };
 
           const moduleResult = await dbFetch('training_modules?select=id', {
@@ -519,12 +552,71 @@ export default function TrainingModulesPage() {
         body: JSON.stringify({
           status: 'published',
           quiz_approved_by: currentProfile?.id,
-          quiz_approved_at: new Date().toISOString()
+          quiz_approved_at: new Date().toISOString(),
+          reviewed_by: currentProfile?.id,
+          reviewed_at: new Date().toISOString()
         })
       });
       await loadModules();
     } catch (error) {
       console.error('Error publishing:', error);
+    }
+    setOpenDropdown(null);
+  };
+
+  // Submit for Review (for trainees and department leads)
+  const handleSubmitForReview = async (module) => {
+    try {
+      await dbFetch(`training_modules?id=eq.${module.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'submitted',
+          submitted_by: currentProfile?.id,
+          submitted_at: new Date().toISOString()
+        })
+      });
+      await loadModules();
+      alert('Training module submitted for review!');
+    } catch (error) {
+      console.error('Error submitting for review:', error);
+      alert('Failed to submit for review');
+    }
+    setOpenDropdown(null);
+  };
+
+  // Approve submission (for department leads and client admins)
+  const handleApproveSubmission = async (module) => {
+    try {
+      await dbFetch(`training_modules?id=eq.${module.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'published',
+          reviewed_by: currentProfile?.id,
+          reviewed_at: new Date().toISOString()
+        })
+      });
+      await loadModules();
+    } catch (error) {
+      console.error('Error approving:', error);
+    }
+    setOpenDropdown(null);
+  };
+
+  // Return submission for revision
+  const handleReturnSubmission = async (module, notes) => {
+    try {
+      await dbFetch(`training_modules?id=eq.${module.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'returned',
+          reviewed_by: currentProfile?.id,
+          reviewed_at: new Date().toISOString(),
+          review_notes: notes
+        })
+      });
+      await loadModules();
+    } catch (error) {
+      console.error('Error returning:', error);
     }
     setOpenDropdown(null);
   };
@@ -588,6 +680,9 @@ export default function TrainingModulesPage() {
     switch (status) {
       case 'published': return 'bg-green-100 text-green-700';
       case 'content_approved': return 'bg-blue-100 text-blue-700';
+      case 'submitted': return 'bg-purple-100 text-purple-700';
+      case 'in_review': return 'bg-indigo-100 text-indigo-700';
+      case 'returned': return 'bg-red-100 text-red-700';
       case 'draft': return 'bg-amber-100 text-amber-700';
       case 'archived': return 'bg-gray-100 text-gray-600';
       default: return 'bg-gray-100 text-gray-600';
@@ -598,10 +693,36 @@ export default function TrainingModulesPage() {
     switch (status) {
       case 'published': return 'Published';
       case 'content_approved': return 'Quiz Pending';
+      case 'submitted': return 'Pending Review';
+      case 'in_review': return 'In Review';
+      case 'returned': return 'Needs Revision';
       case 'draft': return 'Draft';
       case 'archived': return 'Archived';
       default: return status;
     }
+  };
+
+  // Check if current user can approve submissions
+  const canApprove = (module) => {
+    if (currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin') {
+      return true;
+    }
+    if (currentProfile?.role === 'department_lead') {
+      // Department lead can approve submissions from trainees in their department
+      return module.created_by_department === currentProfile?.department && 
+             module.created_by !== currentProfile?.id;
+    }
+    return false;
+  };
+
+  // Check if current user should submit for review vs publish directly
+  const shouldSubmitForReview = () => {
+    // Trainees always submit for review
+    if (currentProfile?.role === 'trainee') return true;
+    // Department leads submit for client admin review
+    if (currentProfile?.role === 'department_lead') return true;
+    // Client admins and super admins can publish directly
+    return false;
   };
 
   const isSuperAdmin = currentProfile?.role === 'super_admin';
@@ -700,6 +821,8 @@ export default function TrainingModulesPage() {
           >
             <option value="all">All Status</option>
             <option value="published">Published</option>
+            <option value="submitted">Pending Review</option>
+            <option value="returned">Needs Revision</option>
             <option value="content_approved">Quiz Pending</option>
             <option value="draft">Draft</option>
             <option value="archived">Archived</option>
@@ -767,23 +890,65 @@ export default function TrainingModulesPage() {
                       </button>
                       
                       {module.status === 'draft' && (
-                        <button
-                          onClick={() => handleApproveContent(module)}
-                          className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                        >
-                          <Check className="w-4 h-4" />
-                          Approve Content
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleApproveContent(module)}
+                            className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                          >
+                            <Check className="w-4 h-4" />
+                            Approve Content
+                          </button>
+                        </>
                       )}
                       
                       {module.status === 'content_approved' && (
-                        <button
-                          onClick={() => handlePublish(module)}
-                          className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
-                        >
-                          <Send className="w-4 h-4" />
-                          Approve Quiz & Publish
-                        </button>
+                        <>
+                          {shouldSubmitForReview() ? (
+                            <button
+                              onClick={() => handleSubmitForReview(module)}
+                              className="w-full px-4 py-2 text-left text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2"
+                            >
+                              <Send className="w-4 h-4" />
+                              Submit for Review
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handlePublish(module)}
+                              className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                            >
+                              <Send className="w-4 h-4" />
+                              Approve Quiz & Publish
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {module.status === 'submitted' && canApprove(module) && (
+                        <>
+                          <button
+                            onClick={() => handleApproveSubmission(module)}
+                            className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Approve & Publish
+                          </button>
+                          <button
+                            onClick={() => {
+                              const notes = prompt('Please provide feedback for the creator:');
+                              if (notes) handleReturnSubmission(module, notes);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            Return for Revision
+                          </button>
+                        </>
+                      )}
+
+                      {module.status === 'returned' && module.created_by === currentProfile?.id && (
+                        <div className="px-4 py-2 text-xs text-red-600 bg-red-50">
+                          Feedback: {module.review_notes || 'No notes provided'}
+                        </div>
                       )}
                       
                       {module.status !== 'archived' && (
@@ -1706,6 +1871,9 @@ export default function TrainingModulesPage() {
               {/* Select users */}
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Select Users to Assign</h4>
+                {currentProfile?.role === 'department_lead' && (
+                  <p className="text-xs text-gray-500 mb-2">Showing trainees in your department: {currentProfile.department}</p>
+                )}
                 <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
                   {users
                     .filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
@@ -1724,9 +1892,12 @@ export default function TrainingModulesPage() {
                           }}
                           className="w-4 h-4 text-blue-600 rounded"
                         />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
                           <p className="text-xs text-gray-500">{user.email}</p>
+                          {user.department && (
+                            <p className="text-xs text-gray-400">{user.department}{user.line ? ` • ${user.line}` : ''}</p>
+                          )}
                         </div>
                       </label>
                     ))}

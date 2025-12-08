@@ -34,6 +34,7 @@ function Layout() {
   // Menu items based on role
   const getMenuItems = () => {
     const role = profile?.role;
+    const permissions = profile?.permissions || [];
 
     if (role === 'super_admin') {
       return [
@@ -63,13 +64,46 @@ function Layout() {
       ];
     }
 
-    // trainee
-    return [
+    if (role === 'department_lead') {
+      const items = [
+        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { to: '/users', icon: Users, label: 'My Team' },
+        { to: '/competencies', icon: Target, label: 'Competencies' },
+      ];
+      
+      // Add Training if has training_creator permission
+      if (permissions.includes('training_creator')) {
+        items.push({ to: '/training', icon: GraduationCap, label: 'Training' });
+      }
+      
+      // Add Reports if has report_viewer permission
+      if (permissions.includes('report_viewer')) {
+        items.push({ to: '/reports', icon: BarChart3, label: 'Reports' });
+      }
+      
+      items.push({ to: '/settings', icon: Settings, label: 'Settings' });
+      return items;
+    }
+
+    // trainee - check for special permissions
+    const traineeItems = [
       { to: '/my-progress', icon: TrendingUp, label: 'My Progress' },
       { to: '/my-plan', icon: FileText, label: 'My Plan' },
       { to: '/my-training', icon: BookOpen, label: 'My Training' },
-      { to: '/settings', icon: Settings, label: 'Settings' },
     ];
+    
+    // Add Training if trainee has training_creator permission
+    if (permissions.includes('training_creator')) {
+      traineeItems.push({ to: '/training', icon: GraduationCap, label: 'Create Training' });
+    }
+    
+    // Add Reports if trainee has report_viewer permission
+    if (permissions.includes('report_viewer')) {
+      traineeItems.push({ to: '/reports', icon: BarChart3, label: 'Reports' });
+    }
+    
+    traineeItems.push({ to: '/settings', icon: Settings, label: 'Settings' });
+    return traineeItems;
   };
 
   const menuItems = getMenuItems();

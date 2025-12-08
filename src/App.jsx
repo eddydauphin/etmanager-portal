@@ -65,7 +65,7 @@ function ResetTokenHandler({ children }) {
 }
 
 // Protected route wrapper
-function ProtectedRoute({ children, allowedRoles = [] }) {
+function ProtectedRoute({ children, allowedRoles = [], requirePermission = null }) {
   const { user, profile, loading, mustChangePassword } = useAuth();
 
   if (loading) {
@@ -82,8 +82,27 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   }
 
   // Check role if specified
-  if (allowedRoles.length > 0 && !allowedRoles.includes(profile?.role)) {
-    return <Navigate to="/dashboard" replace />;
+  if (allowedRoles.length > 0) {
+    const hasRole = allowedRoles.includes(profile?.role);
+    const isAdmin = ['super_admin', 'client_admin'].includes(profile?.role);
+    
+    // If user has the role and it's an admin role, allow access
+    if (hasRole && isAdmin) {
+      return children;
+    }
+    
+    // For non-admin roles, check if permission is required
+    if (hasRole && requirePermission) {
+      const userPermissions = profile?.permissions || [];
+      if (!userPermissions.includes(requirePermission)) {
+        return <Navigate to="/dashboard" replace />;
+      }
+    }
+    
+    // If doesn't have role at all, redirect
+    if (!hasRole) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return children;
@@ -139,9 +158,9 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
           
-          {/* Super Admin & Client Admin routes */}
+          {/* Super Admin, Client Admin & Department Lead routes */}
           <Route path="users" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead']}>
               <UsersPage />
             </ProtectedRoute>
           } />
@@ -153,7 +172,7 @@ function AppRoutes() {
           } />
           
           <Route path="competencies" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead']}>
               <CompetenciesPage />
             </ProtectedRoute>
           } />
@@ -164,14 +183,16 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
           
+          {/* Training - accessible by admins, dept leads with permission, trainees with permission */}
           <Route path="training" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead', 'trainee']} requirePermission="training_creator">
               <TrainingModulesPage />
             </ProtectedRoute>
           } />
           
+          {/* Reports - accessible by admins, dept leads with permission, trainees with permission */}
           <Route path="reports" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead', 'trainee']} requirePermission="report_viewer">
               <ReportsPage />
             </ProtectedRoute>
           } />
