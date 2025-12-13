@@ -652,10 +652,10 @@ export default function UsersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {user.clients ? (
+                          {user.client_id ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-700">
                               <Building2 className="w-3.5 h-3.5" />
-                              {user.clients.name}
+                              {clients.find(c => c.id === user.client_id)?.name || 'Unknown'}
                             </span>
                           ) : (
                             <span className="text-gray-400">—</span>
