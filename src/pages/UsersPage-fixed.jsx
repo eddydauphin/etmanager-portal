@@ -852,7 +852,6 @@ export default function UsersPage() {
                       checked={formData.role === 'client_admin'}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                       className="sr-only"
-                      disabled={currentProfile?.role === 'client_admin'}
                     />
                     <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
                     <div>
