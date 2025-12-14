@@ -3,23 +3,24 @@
 // Routes and authentication wrapper
 // ============================================================================
 
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 
 // Pages
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
+import TraineesPage from './pages/TraineesPage';
+import TraineeDetailPage from './pages/TraineeDetailPage';
 import CompetenciesPage from './pages/CompetenciesPage';
-import CompetencyProfilesPage from './pages/CompetencyProfilesPage';
-import TrainingModulesPage from './pages/TrainingModulesPage';
+import TrainingPage from './pages/TrainingPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
-import CompanySettingsPage from './pages/CompanySettingsPage';
+import ProfilesPage from './pages/ProfilesPage';
+import TrainingModulesPage from './pages/TrainingModulesPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -41,31 +42,8 @@ function LoadingScreen() {
   );
 }
 
-// Component to handle password reset redirect
-function ResetTokenHandler({ children }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    // Check if URL has recovery token in hash
-    const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
-      // Redirect to change password page with the hash intact
-      navigate('/change-password' + hash, { replace: true });
-    }
-    setChecking(false);
-  }, [navigate]);
-
-  if (checking) {
-    return <LoadingScreen />;
-  }
-
-  return children;
-}
-
 // Protected route wrapper
-function ProtectedRoute({ children, allowedRoles = [], requirePermission = null }) {
+function ProtectedRoute({ children, allowedRoles = [] }) {
   const { user, profile, loading, mustChangePassword } = useAuth();
 
   if (loading) {
@@ -82,27 +60,8 @@ function ProtectedRoute({ children, allowedRoles = [], requirePermission = null 
   }
 
   // Check role if specified
-  if (allowedRoles.length > 0) {
-    const hasRole = allowedRoles.includes(profile?.role);
-    const isAdmin = ['super_admin', 'client_admin'].includes(profile?.role);
-    
-    // If user has the role and it's an admin role, allow access
-    if (hasRole && isAdmin) {
-      return children;
-    }
-    
-    // For non-admin roles, check if permission is required
-    if (hasRole && requirePermission) {
-      const userPermissions = profile?.permissions || [];
-      if (!userPermissions.includes(requirePermission)) {
-        return <Navigate to="/dashboard" replace />;
-      }
-    }
-    
-    // If doesn't have role at all, redirect
-    if (!hasRole) {
-      return <Navigate to="/dashboard" replace />;
-    }
+  if (allowedRoles.length > 0 && !allowedRoles.includes(profile?.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -125,107 +84,116 @@ function PublicRoute({ children }) {
 
 // App routes
 function AppRoutes() {
+  const { profile } = useAuth();
+  
   return (
-    <ResetTokenHandler>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={
-          <PublicRoute>
-            <LoginPage />
-          </PublicRoute>
+    <Routes>
+      {/* Public routes */}
+      <Route path="/login" element={
+        <PublicRoute>
+          <LoginPage />
+        </PublicRoute>
+      } />
+      
+      {/* Password change (semi-protected) */}
+      <Route path="/change-password" element={<ChangePasswordPage />} />
+      
+      {/* Protected routes with Layout */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Layout />
+        </ProtectedRoute>
+      }>
+        {/* Default redirect based on role */}
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        
+        {/* Common routes - All authenticated users */}
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+
+        {/* Super Admin only routes */}
+        <Route path="clients" element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <ClientsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Users - Super Admin sees all, Client Admin sees their org, Team Lead sees their team */}
+        <Route path="users" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+            <UsersPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Expert Network - Super Admin & Client Admin */}
+        <Route path="expert-network" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <ExpertNetworkPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Competencies - Super Admin, Client Admin & Team Lead */}
+        <Route path="competencies" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+            <CompetenciesPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Profiles (Competency Profiles) - Super Admin, Client Admin & Team Lead */}
+        <Route path="profiles" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+            <ProfilesPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Training - Super Admin, Client Admin & Team Lead */}
+        <Route path="training" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+            <TrainingModulesPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Reports - Super Admin, Client Admin & Team Lead */}
+        <Route path="reports" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+            <ReportsPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Trainees - Super Admin & Client Admin (legacy route) */}
+        <Route path="trainees" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <TraineesPage />
+          </ProtectedRoute>
+        } />
+        <Route path="trainees/:id" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+            <TraineeDetailPage />
+          </ProtectedRoute>
         } />
         
-        {/* Password change (semi-protected - allows reset tokens) */}
-        <Route path="/change-password" element={<ChangePasswordPage />} />
-        
-        {/* Protected routes with Layout */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <Layout />
+        {/* Trainee routes - their own views */}
+        <Route path="my-progress" element={
+          <ProtectedRoute allowedRoles={['trainee']}>
+            <MyProgressPage />
           </ProtectedRoute>
-        }>
-          {/* Default redirect */}
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          
-          {/* Common routes */}
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-
-          {/* Super Admin only routes */}
-          <Route path="clients" element={
-            <ProtectedRoute allowedRoles={['super_admin']}>
-              <ClientsPage />
-            </ProtectedRoute>
-          } />
-          
-          {/* Super Admin, Client Admin & Department Lead routes */}
-          <Route path="users" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead']}>
-              <UsersPage />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="expert-network" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
-              <ExpertNetworkPage />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="competencies" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead']}>
-              <CompetenciesPage />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="profiles" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
-              <CompetencyProfilesPage />
-            </ProtectedRoute>
-          } />
-          
-          {/* Training - accessible by admins, dept leads with permission, trainees with permission */}
-          <Route path="training" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead', 'trainee']} requirePermission="training_creator">
-              <TrainingModulesPage />
-            </ProtectedRoute>
-          } />
-          
-          {/* Reports - accessible by admins, dept leads with permission, trainees with permission */}
-          <Route path="reports" element={
-            <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'department_lead', 'trainee']} requirePermission="report_viewer">
-              <ReportsPage />
-            </ProtectedRoute>
-          } />
-          
-          {/* Client Admin only - Company Branding */}
-          <Route path="company-settings" element={
-            <ProtectedRoute allowedRoles={['client_admin']}>
-              <CompanySettingsPage />
-            </ProtectedRoute>
-          } />
-          
-          {/* Trainee routes */}
-          <Route path="my-progress" element={
-            <ProtectedRoute allowedRoles={['trainee']}>
-              <MyProgressPage />
-            </ProtectedRoute>
-          } />
-          <Route path="my-plan" element={
-            <ProtectedRoute allowedRoles={['trainee']}>
-              <MyPlanPage />
-            </ProtectedRoute>
-          } />
-          <Route path="my-training" element={
-            <ProtectedRoute allowedRoles={['trainee']}>
-              <MyTrainingPage />
-            </ProtectedRoute>
-          } />
-        </Route>
-        
-        {/* Catch all - redirect to dashboard or login */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </ResetTokenHandler>
+        } />
+        <Route path="my-plan" element={
+          <ProtectedRoute allowedRoles={['trainee']}>
+            <MyPlanPage />
+          </ProtectedRoute>
+        } />
+        <Route path="my-training" element={
+          <ProtectedRoute allowedRoles={['trainee']}>
+            <MyTrainingPage />
+          </ProtectedRoute>
+        } />
+     
+      </Route>
+      
+      {/* Catch all - redirect to dashboard or login */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 }
 
