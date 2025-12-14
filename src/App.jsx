@@ -13,14 +13,13 @@ import DashboardPage from './pages/DashboardPage';
 import TraineesPage from './pages/TraineesPage';
 import TraineeDetailPage from './pages/TraineeDetailPage';
 import CompetenciesPage from './pages/CompetenciesPage';
-import TrainingPage from './pages/TrainingPage';
+import CompetencyProfilesPage from './pages/CompetencyProfilesPage';
+import TrainingModulesPage from './pages/TrainingModulesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
-import ProfilesPage from './pages/ProfilesPage';
-import TrainingModulesPage from './pages/TrainingModulesPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -139,10 +138,10 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* Profiles (Competency Profiles) - Super Admin, Client Admin & Team Lead */}
+        {/* Competency Profiles - Super Admin, Client Admin & Team Lead */}
         <Route path="profiles" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
-            <ProfilesPage />
+            <CompetencyProfilesPage />
           </ProtectedRoute>
         } />
 
