@@ -59,6 +59,7 @@ export default function UsersPage() {
     full_name: '',
     role: 'trainee',
     client_id: '',
+    reports_to_id: '',
     employee_number: '',
     department: '',
     line: '',
@@ -68,6 +69,9 @@ export default function UsersPage() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Team leads for "Reports To" dropdown
+  const [teamLeads, setTeamLeads] = useState([]);
   
   // Dropdown state for action menus
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -87,7 +91,7 @@ export default function UsersPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadUsers(), loadClients()]);
+      await Promise.all([loadUsers(), loadClients(), loadTeamLeads()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -103,6 +107,11 @@ export default function UsersPage() {
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
+      
+      // If team lead, only show trainees that report to them
+      if (currentProfile?.role === 'team_lead') {
+        url += `&or=(id.eq.${currentProfile.id},reports_to_id.eq.${currentProfile.id})`;
+      }
 
       const data = await dbFetch(url);
       setUsers(data || []);
@@ -117,6 +126,22 @@ export default function UsersPage() {
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
+    }
+  };
+
+  const loadTeamLeads = async () => {
+    try {
+      let url = 'profiles?select=id,full_name,email,client_id&role=eq.team_lead&is_active=eq.true&order=full_name.asc';
+      
+      // If client admin, only show team leads from their client
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
+      
+      const data = await dbFetch(url);
+      setTeamLeads(data || []);
+    } catch (error) {
+      console.error('Error loading team leads:', error);
     }
   };
 
@@ -142,11 +167,16 @@ export default function UsersPage() {
   // Open modal for creating new user
   const handleCreateUser = () => {
     setEditingUser(null);
+    
+    // Team leads can only create trainees that report to them
+    const defaultReportsTo = currentProfile?.role === 'team_lead' ? currentProfile.id : '';
+    
     setFormData({
       email: '',
       full_name: '',
-      role: currentProfile?.role === 'client_admin' ? 'trainee' : 'trainee',
-      client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+      role: (currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? 'trainee' : 'trainee',
+      client_id: (currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? currentProfile.client_id : '',
+      reports_to_id: defaultReportsTo,
       employee_number: '',
       department: '',
       line: '',
@@ -166,6 +196,7 @@ export default function UsersPage() {
       full_name: user.full_name || '',
       role: user.role || 'trainee',
       client_id: user.client_id || '',
+      reports_to_id: user.reports_to_id || '',
       employee_number: user.employee_number || '',
       department: user.department || '',
       line: user.line || '',
@@ -237,6 +268,7 @@ export default function UsersPage() {
           full_name: formData.full_name,
           role: formData.role,
           client_id: formData.role === 'super_admin' ? null : formData.client_id,
+          reports_to_id: formData.role === 'trainee' ? (formData.reports_to_id || null) : null,
           employee_number: formData.employee_number || null,
           department: formData.department || null,
           line: formData.line || null,
@@ -291,6 +323,7 @@ export default function UsersPage() {
               full_name: formData.full_name,
               role: formData.role,
               client_id: formData.role === 'super_admin' ? null : formData.client_id,
+              reports_to_id: formData.role === 'trainee' ? (formData.reports_to_id || null) : null,
               employee_number: formData.employee_number || null,
               department: formData.department || null,
               line: formData.line || null,
@@ -421,6 +454,8 @@ export default function UsersPage() {
         return { label: 'Super Admin', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck };
       case 'client_admin':
         return { label: 'Client Admin', color: 'bg-blue-100 text-blue-700', icon: Shield };
+      case 'team_lead':
+        return { label: 'Team Lead', color: 'bg-orange-100 text-orange-700', icon: Users };
       default:
         return { label: 'Trainee', color: 'bg-green-100 text-green-700', icon: UserCheck };
     }
@@ -533,6 +568,7 @@ export default function UsersPage() {
                 <option value="all">All Roles</option>
                 <option value="super_admin">Super Admin</option>
                 <option value="client_admin">Client Admin</option>
+                <option value="team_lead">Team Lead</option>
                 <option value="trainee">Trainee</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -833,7 +869,7 @@ export default function UsersPage() {
                         name="role"
                         value="super_admin"
                         checked={formData.role === 'super_admin'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value, client_id: '' })}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, client_id: '', reports_to_id: '' })}
                         className="sr-only"
                       />
                       <ShieldCheck className={`w-5 h-5 ${formData.role === 'super_admin' ? 'text-purple-600' : 'text-gray-400'}`} />
@@ -844,22 +880,43 @@ export default function UsersPage() {
                     </label>
                   )}
                   
-                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'client_admin' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <input
-                      type="radio"
-                      name="role"
-                      value="client_admin"
-                      checked={formData.role === 'client_admin'}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="sr-only"
-                      disabled={currentProfile?.role === 'client_admin'}
-                    />
-                    <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
-                    <div>
-                      <div className="font-medium text-gray-900">Client Admin</div>
-                      <div className="text-xs text-gray-500">Manage their organization</div>
-                    </div>
-                  </label>
+                  {/* Client Admin - visible to Super Admin and Client Admin */}
+                  {(currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin') && (
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'client_admin' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input
+                        type="radio"
+                        name="role"
+                        value="client_admin"
+                        checked={formData.role === 'client_admin'}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '' })}
+                        className="sr-only"
+                      />
+                      <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium text-gray-900">Client Admin</div>
+                        <div className="text-xs text-gray-500">Manage entire organization</div>
+                      </div>
+                    </label>
+                  )}
+
+                  {/* Team Lead - visible to Super Admin, Client Admin, and Team Lead */}
+                  {(currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') && (
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'team_lead' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input
+                        type="radio"
+                        name="role"
+                        value="team_lead"
+                        checked={formData.role === 'team_lead'}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '' })}
+                        className="sr-only"
+                      />
+                      <Users className={`w-5 h-5 ${formData.role === 'team_lead' ? 'text-orange-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium text-gray-900">Team Lead</div>
+                        <div className="text-xs text-gray-500">Manage assigned team members, assess & train</div>
+                      </div>
+                    </label>
+                  )}
 
                   <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${formData.role === 'trainee' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
                     <input
@@ -889,9 +946,9 @@ export default function UsersPage() {
                     <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <select
                       value={formData.client_id}
-                      onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                      disabled={currentProfile?.role === 'client_admin'}
-                      className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${currentProfile?.role === 'client_admin' ? 'bg-gray-50' : ''}`}
+                      onChange={(e) => setFormData({ ...formData, client_id: e.target.value, reports_to_id: '' })}
+                      disabled={currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead'}
+                      className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${(currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? 'bg-gray-50' : ''}`}
                     >
                       <option value="">Select organization...</option>
                       {clients.map(client => (
@@ -902,6 +959,37 @@ export default function UsersPage() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   </div>
+                </div>
+              )}
+
+              {/* Reports To - For trainees, optionally assign to a team lead */}
+              {formData.role === 'trainee' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Reports To (Team Lead)
+                  </label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select
+                      value={formData.reports_to_id}
+                      onChange={(e) => setFormData({ ...formData, reports_to_id: e.target.value })}
+                      disabled={currentProfile?.role === 'team_lead'}
+                      className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${currentProfile?.role === 'team_lead' ? 'bg-gray-50' : ''}`}
+                    >
+                      <option value="">No team lead (reports to Client Admin)</option>
+                      {teamLeads
+                        .filter(tl => !formData.client_id || tl.client_id === formData.client_id)
+                        .map(lead => (
+                          <option key={lead.id} value={lead.id}>
+                            {lead.full_name} ({lead.email})
+                          </option>
+                        ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Assign this trainee to a team lead who will manage their training and assessments
+                  </p>
                 </div>
               )}
 
