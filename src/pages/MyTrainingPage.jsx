@@ -270,17 +270,52 @@ export default function MyTrainingPage() {
         body: JSON.stringify(updateData)
       });
 
-      // If passed, update competency level
-      if (passed && selectedTraining.user_competency_id) {
-        const competencyModule = selectedTraining.training_modules?.competency_modules?.[0];
-        if (competencyModule) {
-          await dbFetch(`user_competencies?id=eq.${selectedTraining.user_competency_id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              current_level: competencyModule.target_level,
-              status: 'achieved'
-            })
-          });
+      // If passed, update or create competency record
+      if (passed) {
+        try {
+          // Get linked competency from competency_modules
+          const competencyLinks = await dbFetch(
+            `competency_modules?module_id=eq.${selectedTraining.module_id}&select=competency_id,target_level`
+          );
+          
+          if (competencyLinks && competencyLinks.length > 0) {
+            for (const link of competencyLinks) {
+              // Check if user already has this competency
+              const existingCompetency = await dbFetch(
+                `user_competencies?user_id=eq.${profile.id}&competency_id=eq.${link.competency_id}&select=id,current_level`
+              );
+              
+              if (existingCompetency && existingCompetency.length > 0) {
+                // Update existing - only if new level is higher
+                if (link.target_level > (existingCompetency[0].current_level || 0)) {
+                  await dbFetch(`user_competencies?id=eq.${existingCompetency[0].id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      current_level: link.target_level,
+                      status: 'achieved',
+                      updated_at: new Date().toISOString()
+                    })
+                  });
+                }
+              } else {
+                // Create new user_competencies record
+                await dbFetch('user_competencies', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    user_id: profile.id,
+                    competency_id: link.competency_id,
+                    current_level: link.target_level,
+                    target_level: link.target_level,
+                    status: 'achieved',
+                    created_at: new Date().toISOString()
+                  })
+                });
+              }
+            }
+          }
+        } catch (compError) {
+          console.error('Error updating competencies:', compError);
+          // Don't fail the quiz submission if competency update fails
         }
       }
       
