@@ -15,7 +15,10 @@ import {
   Briefcase,
   Target,
   MoreVertical,
-  Building2
+  Building2,
+  UserPlus,
+  Calendar,
+  Loader2
 } from 'lucide-react';
 
 export default function CompetencyProfilesPage() {
@@ -26,6 +29,8 @@ export default function CompetencyProfilesPage() {
   const [competencies, setCompetencies] = useState([]);
   const [clients, setClients] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [users, setUsers] = useState([]); // For owner, developer, and assignment
+  const [trainees, setTrainees] = useState([]); // For profile assignment
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState('all');
@@ -33,18 +38,31 @@ export default function CompetencyProfilesPage() {
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false); // NEW: Assign to users modal
   const [editingProfile, setEditingProfile] = useState(null);
   const [profileToDelete, setProfileToDelete] = useState(null);
+  const [profileToAssign, setProfileToAssign] = useState(null); // NEW
   
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     client_id: '',
+    owner_id: '',                    // NEW: Profile owner (expert)
+    training_developer_id: '',       // NEW: Training developer
     competencies: [] // Array of { competency_id, default_target_level }
   });
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Assign form state
+  const [assignFormData, setAssignFormData] = useState({
+    user_ids: [],
+    target_date: '',
+    coach_id: ''
+  });
+  const [assignError, setAssignError] = useState('');
+  const [assigning, setAssigning] = useState(false);
   
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -67,7 +85,7 @@ export default function CompetencyProfilesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadProfiles(), loadCompetencies(), loadClients(), loadCategories()]);
+      await Promise.all([loadProfiles(), loadCompetencies(), loadClients(), loadCategories(), loadUsers(), loadTrainees()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -77,7 +95,7 @@ export default function CompetencyProfilesPage() {
 
   const loadProfiles = async () => {
     try {
-      const data = await dbFetch('competency_profiles?select=*,clients(name),profile_competencies(competency_id,default_target_level,competencies(name,competency_categories(name,color)))&order=name.asc');
+      const data = await dbFetch('competency_profiles?select=*,clients(name),owner:owner_id(id,full_name),training_developer:training_developer_id(id,full_name),profile_competencies(competency_id,default_target_level,competencies(name,competency_categories(name,color)))&order=name.asc');
       setProfiles(data || []);
     } catch (error) {
       console.error('Error loading profiles:', error);
@@ -111,6 +129,32 @@ export default function CompetencyProfilesPage() {
     }
   };
 
+  const loadUsers = async () => {
+    try {
+      // Load users who can be owners or training developers (non-trainees)
+      const data = await dbFetch('profiles?select=id,full_name,email,role,client_id&is_active=eq.true&role=neq.trainee&order=full_name.asc');
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  const loadTrainees = async () => {
+    try {
+      // Load trainees for profile assignment
+      let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'team_lead') {
+        url += `&reports_to_id=eq.${currentProfile.id}`;
+      }
+      const data = await dbFetch(url);
+      setTrainees(data || []);
+    } catch (error) {
+      console.error('Error loading trainees:', error);
+    }
+  };
+
   // Filter profiles
   const filteredProfiles = profiles.filter(profile => {
     const matchesSearch = 
@@ -133,6 +177,8 @@ export default function CompetencyProfilesPage() {
         name: profile.name || '',
         description: profile.description || '',
         client_id: profile.client_id || '',
+        owner_id: profile.owner_id || '',
+        training_developer_id: profile.training_developer_id || '',
         competencies: profile.profile_competencies?.map(pc => ({
           competency_id: pc.competency_id,
           default_target_level: pc.default_target_level || 3
@@ -144,12 +190,84 @@ export default function CompetencyProfilesPage() {
         name: '',
         description: '',
         client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+        owner_id: '',
+        training_developer_id: '',
         competencies: []
       });
     }
     setSelectedCategory('all');
     setFormError('');
     setShowModal(true);
+  };
+
+  // Handle assign profile to users
+  const handleOpenAssignModal = (profile) => {
+    setProfileToAssign(profile);
+    setAssignFormData({
+      user_ids: [],
+      target_date: '',
+      coach_id: profile.owner_id || ''
+    });
+    setAssignError('');
+    setShowAssignModal(true);
+  };
+
+  const handleAssignProfile = async () => {
+    setAssignError('');
+    setAssigning(true);
+
+    try {
+      if (assignFormData.user_ids.length === 0) {
+        throw new Error('Please select at least one user');
+      }
+
+      // For each selected user, create user_competencies records for all profile competencies
+      for (const userId of assignFormData.user_ids) {
+        // Create user_profile_assignment record
+        await dbFetch('user_profile_assignments', {
+          method: 'POST',
+          body: JSON.stringify({
+            user_id: userId,
+            profile_id: profileToAssign.id,
+            assigned_by: currentProfile.id,
+            coach_id: assignFormData.coach_id || profileToAssign.owner_id || null,
+            target_date: assignFormData.target_date || null,
+            client_id: profileToAssign.client_id,
+            status: 'active'
+          })
+        });
+
+        // Create user_competencies for each competency in the profile
+        for (const pc of profileToAssign.profile_competencies || []) {
+          // Check if user already has this competency
+          const existing = await dbFetch(
+            `user_competencies?user_id=eq.${userId}&competency_id=eq.${pc.competency_id}`
+          );
+
+          if (!existing || existing.length === 0) {
+            await dbFetch('user_competencies', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: userId,
+                competency_id: pc.competency_id,
+                target_level: pc.default_target_level || 3,
+                current_level: 0,
+                status: 'assigned'
+              })
+            });
+          }
+        }
+      }
+
+      setShowAssignModal(false);
+      setProfileToAssign(null);
+      // Show success message or reload data
+    } catch (error) {
+      console.error('Error assigning profile:', error);
+      setAssignError(error.message || 'Failed to assign profile');
+    } finally {
+      setAssigning(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -172,6 +290,8 @@ export default function CompetencyProfilesPage() {
         name: formData.name,
         description: formData.description || null,
         client_id: formData.client_id,
+        owner_id: formData.owner_id || null,
+        training_developer_id: formData.training_developer_id || null,
         is_active: true,
         created_by: currentProfile?.id
       };
@@ -420,7 +540,17 @@ export default function CompetencyProfilesPage() {
                     <MoreVertical className="w-4 h-4 text-gray-400" />
                   </button>
                   {openDropdown === profile.id && (
-                    <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                    <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                      <button
+                        onClick={() => {
+                          handleOpenAssignModal(profile);
+                          setOpenDropdown(null);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-green-700 hover:bg-green-50 flex items-center gap-2"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Assign to Users
+                      </button>
                       <button
                         onClick={() => {
                           handleOpenModal(profile);
@@ -481,6 +611,27 @@ export default function CompetencyProfilesPage() {
                   )}
                 </div>
               </div>
+              
+              {/* Owner info */}
+              {(profile.owner || profile.training_developer) && (
+                <div className="flex gap-4 text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
+                  {profile.owner && (
+                    <span>Owner: <span className="text-gray-700">{profile.owner.full_name}</span></span>
+                  )}
+                  {profile.training_developer && (
+                    <span>Developer: <span className="text-gray-700">{profile.training_developer.full_name}</span></span>
+                  )}
+                </div>
+              )}
+              
+              {/* Quick Assign Button */}
+              <button
+                onClick={() => handleOpenAssignModal(profile)}
+                className="w-full mt-3 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                Assign to Users
+              </button>
             </div>
           ))}
         </div>
@@ -559,6 +710,45 @@ export default function CompetencyProfilesPage() {
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Brief description of this role profile..."
                     />
+                  </div>
+
+                  {/* Owner and Training Developer */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Owner (Expert/Coach)
+                    </label>
+                    <select
+                      value={formData.owner_id}
+                      onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Owner</option>
+                      {users.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.full_name} ({user.role})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Expert who coaches and approves learners</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Training Developer
+                    </label>
+                    <select
+                      value={formData.training_developer_id}
+                      onChange={(e) => setFormData({ ...formData, training_developer_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Developer</option>
+                      {users.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.full_name} ({user.role})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Person who creates training materials</p>
                   </div>
                 </div>
 
@@ -729,6 +919,158 @@ export default function CompetencyProfilesPage() {
                   Delete
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign to Users Modal */}
+      {showAssignModal && profileToAssign && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <UserPlus className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Assign Profile to Users</h2>
+                  <p className="text-sm text-gray-500">{profileToAssign.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setProfileToAssign(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {assignError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {assignError}
+                </div>
+              )}
+
+              {/* Profile Info */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">
+                  This will assign <strong>{profileToAssign.profile_competencies?.length || 0} competencies</strong> to the selected users:
+                </p>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {profileToAssign.profile_competencies?.map(pc => (
+                    <span key={pc.competency_id} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                      {pc.competencies?.name} (L{pc.default_target_level})
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Select Users */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Users to Assign *
+                </label>
+                <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                  {trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500 text-center">No users available</p>
+                  ) : (
+                    trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').map(user => (
+                      <label
+                        key={user.id}
+                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
+                          assignFormData.user_ids.includes(user.id) ? 'bg-green-50' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={assignFormData.user_ids.includes(user.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAssignFormData({
+                                ...assignFormData,
+                                user_ids: [...assignFormData.user_ids, user.id]
+                              });
+                            } else {
+                              setAssignFormData({
+                                ...assignFormData,
+                                user_ids: assignFormData.user_ids.filter(id => id !== user.id)
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 text-green-600 rounded border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {assignFormData.user_ids.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} user(s) selected</p>
+                )}
+              </div>
+
+              {/* Coach Override */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Coach (Optional)
+                </label>
+                <select
+                  value={assignFormData.coach_id}
+                  onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  <option value="">Use profile owner ({profileToAssign.owner?.full_name || 'None'})</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Target Completion Date (Optional)
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={assignFormData.target_date}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, target_date: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setProfileToAssign(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignProfile}
+                disabled={assigning || assignFormData.user_ids.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                Assign Profile
+              </button>
             </div>
           </div>
         </div>

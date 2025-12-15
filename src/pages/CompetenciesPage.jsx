@@ -241,6 +241,7 @@ export default function CompetenciesPage() {
   const [competencies, setCompetencies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [clients, setClients] = useState([]);
+  const [users, setUsers] = useState([]); // For owner and training developer selection
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -260,7 +261,9 @@ export default function CompetenciesPage() {
     name: '',
     description: '',
     category_id: '',
-    client_ids: [], // Changed to array for multi-select
+    client_ids: [],
+    owner_id: '',                    // NEW: Competency owner (expert/coach)
+    training_developer_id: '',       // NEW: Who creates training materials
     level_1_description: 'Awareness - Can recognize the topic',
     level_2_description: 'Knowledge - Can explain concepts',
     level_3_description: 'Practitioner - Can perform with supervision',
@@ -298,7 +301,7 @@ export default function CompetenciesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadCompetencies(), loadCategories(), loadClients()]);
+      await Promise.all([loadCompetencies(), loadCategories(), loadClients(), loadUsers()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -308,7 +311,7 @@ export default function CompetenciesPage() {
 
   const loadCompetencies = async () => {
     try {
-      const data = await dbFetch('competencies?select=*,competency_categories(name,color),competency_clients(client_id,clients(id,name))&order=name.asc');
+      const data = await dbFetch('competencies?select=*,competency_categories(name,color),competency_clients(client_id,clients(id,name)),owner:owner_id(id,full_name),training_developer:training_developer_id(id,full_name)&order=name.asc');
       // Transform data to include client names array
       const transformed = (data || []).map(comp => ({
         ...comp,
@@ -339,6 +342,17 @@ export default function CompetenciesPage() {
     }
   };
 
+  const loadUsers = async () => {
+    try {
+      // Load users who can be owners or training developers (non-trainees)
+      let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&role=neq.trainee&order=full_name.asc';
+      const data = await dbFetch(url);
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
   // Filter competencies
   const filteredCompetencies = competencies.filter(comp => {
     const matchesSearch = 
@@ -358,6 +372,8 @@ export default function CompetenciesPage() {
         description: competency.description || '',
         category_id: competency.category_id || '',
         client_ids: competency.client_ids || [],
+        owner_id: competency.owner_id || '',
+        training_developer_id: competency.training_developer_id || '',
         level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
         level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
         level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
@@ -372,6 +388,8 @@ export default function CompetenciesPage() {
         description: '',
         category_id: '',
         client_ids: currentProfile?.role === 'client_admin' ? [currentProfile.client_id] : [],
+        owner_id: '',
+        training_developer_id: '',
         level_1_description: 'Awareness - Can recognize the topic',
         level_2_description: 'Knowledge - Can explain concepts',
         level_3_description: 'Practitioner - Can perform with supervision',
@@ -401,6 +419,8 @@ export default function CompetenciesPage() {
         name: formData.name,
         description: formData.description || null,
         category_id: formData.category_id || null,
+        owner_id: formData.owner_id || null,
+        training_developer_id: formData.training_developer_id || null,
         level_1_description: formData.level_1_description,
         level_2_description: formData.level_2_description,
         level_3_description: formData.level_3_description,
@@ -1132,6 +1152,45 @@ export default function CompetenciesPage() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Brief description of this competency..."
                   />
+                </div>
+
+                {/* Owner and Training Developer */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Owner (Expert/Coach)
+                  </label>
+                  <select
+                    value={formData.owner_id}
+                    onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Owner</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.full_name} ({user.role})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Expert who coaches and approves learners</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Training Developer
+                  </label>
+                  <select
+                    value={formData.training_developer_id}
+                    onChange={(e) => setFormData({ ...formData, training_developer_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select Developer</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.full_name} ({user.role})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Person who creates training materials</p>
                 </div>
               </div>
 
