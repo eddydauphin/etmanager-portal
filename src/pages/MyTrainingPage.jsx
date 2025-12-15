@@ -88,50 +88,16 @@ export default function MyTrainingPage() {
   const loadTrainingModules = async () => {
     setLoading(true);
     try {
-      // Get user's assigned competencies
-      const userCompetencies = await dbFetch(
-        `user_competencies?user_id=eq.${profile.id}&select=id,competency_id,current_level,target_level,status`
-      );
-
-      if (!userCompetencies || userCompetencies.length === 0) {
-        setAssignments([]);
-        setLoading(false);
-        return;
-      }
-
-      const competencyIds = userCompetencies.map(uc => uc.competency_id);
-
-      // Get published training modules linked to those competencies
-      const modules = await dbFetch(
-        `training_modules?status=eq.published&select=*,competency_modules!inner(competency_id,target_level,competencies(name))&competency_modules.competency_id=in.(${competencyIds.join(',')})`
-      );
-
-      // Also check for manually assigned training (user_training table)
-      const manualAssignments = await dbFetch(
-        `user_training?user_id=eq.${profile.id}&select=*,training_modules(*,competency_modules(competencies(name)))`
-      );
-
-      // Merge: create a unified list with progress tracking
       const moduleMap = new Map();
 
-      // Add auto-assigned modules from competencies
-      (modules || []).forEach(module => {
-        const userComp = userCompetencies.find(uc => 
-          module.competency_modules?.some(cm => cm.competency_id === uc.competency_id)
-        );
-        
-        moduleMap.set(module.id, {
-          module_id: module.id,
-          training_modules: module,
-          user_competency_id: userComp?.id,
-          status: 'pending',
-          attempts_count: 0,
-          best_score: null,
-          auto_assigned: true
-        });
-      });
+      // FIRST: Always load manually assigned training from user_training table
+      // This is where assignments made via "Assign Users" are stored
+      const manualAssignments = await dbFetch(
+        `user_training?user_id=eq.${profile.id}&select=*,training_modules(*)`
+      );
 
-      // Override with manual assignments (they have actual progress)
+      console.log('Manual assignments:', manualAssignments); // Debug
+
       (manualAssignments || []).forEach(assignment => {
         if (assignment.training_modules) {
           moduleMap.set(assignment.module_id, {
@@ -140,6 +106,38 @@ export default function MyTrainingPage() {
           });
         }
       });
+
+      // SECOND: Get user's assigned competencies for auto-assignment
+      const userCompetencies = await dbFetch(
+        `user_competencies?user_id=eq.${profile.id}&select=id,competency_id,current_level,target_level,status`
+      );
+
+      if (userCompetencies && userCompetencies.length > 0) {
+        const competencyIds = userCompetencies.map(uc => uc.competency_id);
+
+        // Get published training modules linked to those competencies
+        try {
+          const modules = await dbFetch(
+            `training_modules?status=eq.published&select=*`
+          );
+
+          // Add auto-assigned modules from competencies (if not already manually assigned)
+          (modules || []).forEach(module => {
+            if (!moduleMap.has(module.id)) {
+              moduleMap.set(module.id, {
+                module_id: module.id,
+                training_modules: module,
+                status: 'pending',
+                attempts_count: 0,
+                best_score: null,
+                auto_assigned: true
+              });
+            }
+          });
+        } catch (e) {
+          console.log('Error loading auto-assigned modules:', e);
+        }
+      }
 
       setAssignments(Array.from(moduleMap.values()));
     } catch (error) {
