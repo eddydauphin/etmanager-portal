@@ -647,7 +647,7 @@ function TeamLeadDashboard() {
 
         // Get recent training completions
         const recentTraining = await dbFetch(
-          `user_training?select=*,profiles(full_name),training_modules(title)&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
+          `user_training?select=*,profiles!user_id(full_name),training_modules!module_id(title)&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
         );
         setRecentActivity(recentTraining || []);
       }
