@@ -252,7 +252,7 @@ export default function CompetencyProfilesPage() {
                 competency_id: pc.competency_id,
                 target_level: pc.default_target_level || 3,
                 current_level: 0,
-                status: 'assigned'
+                status: 'in_progress'
               })
             });
           }
