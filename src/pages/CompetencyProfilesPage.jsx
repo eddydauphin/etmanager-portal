@@ -221,8 +221,21 @@ export default function CompetencyProfilesPage() {
         throw new Error('Please select at least one user');
       }
 
+      const coachId = assignFormData.coach_id || profileToAssign.owner_id || null;
+      const targetDate = assignFormData.target_date || null;
+
       // For each selected user, create user_competencies records for all profile competencies
       for (const userId of assignFormData.user_ids) {
+        // Check if profile already assigned to this user
+        const existingAssignment = await dbFetch(
+          `user_profile_assignments?user_id=eq.${userId}&profile_id=eq.${profileToAssign.id}`
+        );
+
+        if (existingAssignment && existingAssignment.length > 0) {
+          // Skip this user - already assigned
+          continue;
+        }
+
         // Create user_profile_assignment record
         await dbFetch('user_profile_assignments', {
           method: 'POST',
@@ -230,14 +243,14 @@ export default function CompetencyProfilesPage() {
             user_id: userId,
             profile_id: profileToAssign.id,
             assigned_by: currentProfile.id,
-            coach_id: assignFormData.coach_id || profileToAssign.owner_id || null,
-            target_date: assignFormData.target_date || null,
+            coach_id: coachId,
+            target_date: targetDate,
             client_id: profileToAssign.client_id,
             status: 'active'
           })
         });
 
-        // Create user_competencies for each competency in the profile
+        // Create user_competencies and coaching activities for each competency in the profile
         for (const pc of profileToAssign.profile_competencies || []) {
           // Check if user already has this competency
           const existing = await dbFetch(
@@ -253,6 +266,31 @@ export default function CompetencyProfilesPage() {
                 target_level: pc.default_target_level || 3,
                 current_level: 0,
                 status: 'in_progress'
+              })
+            });
+          }
+
+          // Auto-create coaching activity for this competency
+          if (coachId) {
+            const competencyName = pc.competencies?.name || 'Competency';
+            
+            await dbFetch('development_activities', {
+              method: 'POST',
+              body: JSON.stringify({
+                type: 'coaching',
+                title: `Coaching: ${competencyName}`,
+                description: `Coaching session for developing ${competencyName} competency to Level ${pc.default_target_level || 3}`,
+                objectives: `Achieve Level ${pc.default_target_level || 3} in ${competencyName}`,
+                success_criteria: `Trainee demonstrates competency at Level ${pc.default_target_level || 3} and is validated by coach`,
+                trainee_id: userId,
+                assigned_by: currentProfile.id,
+                coach_id: coachId,
+                competency_id: pc.competency_id,
+                target_level: pc.default_target_level || 3,
+                start_date: new Date().toISOString().split('T')[0],
+                due_date: targetDate,
+                status: 'pending',
+                client_id: profileToAssign.client_id
               })
             });
           }
