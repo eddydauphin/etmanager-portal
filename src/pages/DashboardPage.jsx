@@ -1,6 +1,6 @@
 // ============================================================================
 // E&T MANAGER - DASHBOARD PAGE
-// Role-based dashboard with stats, quick actions, and coaching overview
+// Role-based dashboard with real stats, quick actions, and coaching overview
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -26,21 +26,27 @@ import {
   ChevronRight,
   X,
   Send,
-  Loader2
+  Loader2,
+  TrendingUp,
+  Award
 } from 'lucide-react';
 
 // Stat Card Component
-function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend }) {
+function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick }) {
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
     yellow: 'bg-yellow-50 text-yellow-600',
     red: 'bg-red-50 text-red-600',
-    purple: 'bg-purple-50 text-purple-600'
+    purple: 'bg-purple-50 text-purple-600',
+    amber: 'bg-amber-50 text-amber-600'
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
+    <div 
+      className={`bg-white rounded-xl shadow-sm p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-500">{title}</p>
@@ -48,9 +54,9 @@ function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend })
           {subtitle && (
             <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
           )}
-          {trend && (
-            <p className={`text-sm mt-2 ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}% from last month
+          {trend !== undefined && trend !== null && (
+            <p className={`text-sm mt-2 ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+              {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'} {Math.abs(trend)}% from last month
             </p>
           )}
         </div>
@@ -119,7 +125,7 @@ function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#3B82
 }
 
 // My Coachees Component - For coaches to see their assigned trainees
-function MyCoacheesSection({ profile }) {
+function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
   const [coachingActivities, setCoachingActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -131,13 +137,24 @@ function MyCoacheesSection({ profile }) {
 
   useEffect(() => {
     loadCoachingActivities();
-  }, [profile]);
+  }, [profile, showAll, clientId]);
 
   const loadCoachingActivities = async () => {
     try {
-      const data = await dbFetch(
-        `development_activities?coach_id=eq.${profile.id}&type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),competencies(name)&order=created_at.desc`
-      );
+      let url = `development_activities?type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),coach:coach_id(id,full_name),competencies(name)&order=created_at.desc`;
+      
+      if (showAll && clientId) {
+        // Team Lead / Client Admin - see all for their client
+        url += `&client_id=eq.${clientId}`;
+      } else if (showAll) {
+        // Super Admin - see all
+        // No filter needed
+      } else {
+        // Regular coach - see only their coachees
+        url += `&coach_id=eq.${profile.id}`;
+      }
+      
+      const data = await dbFetch(url);
       setCoachingActivities(data || []);
     } catch (error) {
       console.error('Error loading coaching activities:', error);
@@ -173,7 +190,7 @@ function MyCoacheesSection({ profile }) {
         body: JSON.stringify({
           activity_id: selectedActivity.id,
           author_id: profile.id,
-          author_role: 'coach',
+          author_role: showAll ? 'manager' : 'coach',
           feedback_type: 'progress',
           content: newComment
         })
@@ -226,7 +243,7 @@ function MyCoacheesSection({ profile }) {
         body: JSON.stringify({
           activity_id: selectedActivity.id,
           author_id: profile.id,
-          author_role: 'coach',
+          author_role: showAll ? 'manager' : 'coach',
           feedback_type: 'validation',
           content: 'Coaching completed and validated'
         })
@@ -280,7 +297,7 @@ function MyCoacheesSection({ profile }) {
   }
 
   if (coachingActivities.length === 0) {
-    return null; // Don't show section if no coachees
+    return null; // Don't show section if no activities
   }
 
   // Group by trainee
@@ -315,7 +332,7 @@ function MyCoacheesSection({ profile }) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Users className="w-5 h-5 text-purple-500" />
-            My Coachees
+            {showAll ? 'All Coaching Activities' : 'My Coachees'}
           </h2>
           <Link to="/development" className="text-sm text-blue-600 hover:text-blue-700">
             View all →
@@ -391,6 +408,9 @@ function MyCoacheesSection({ profile }) {
                         <div className="flex items-center gap-2">
                           <span>{statusInfo.icon}</span>
                           <span className="text-sm text-gray-700">{activity.competencies?.name || activity.title}</span>
+                          {showAll && activity.coach && (
+                            <span className="text-xs text-gray-400">• Coach: {activity.coach.full_name}</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs ${statusInfo.color}`}>
@@ -436,7 +456,7 @@ function MyCoacheesSection({ profile }) {
                     {getStatusInfo(selectedActivity).label}
                   </span>
                 </div>
-                {selectedActivity.status === 'completed' && (
+                {(selectedActivity.status === 'completed' || selectedActivity.status === 'in_progress' || selectedActivity.status === 'pending') && (
                   <button
                     onClick={handleValidate}
                     disabled={updatingStatus}
@@ -452,6 +472,10 @@ function MyCoacheesSection({ profile }) {
                 <div>
                   <p className="text-sm text-gray-500">Trainee</p>
                   <p className="font-medium">{selectedActivity.trainee?.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Coach</p>
+                  <p className="font-medium">{selectedActivity.coach?.full_name || 'Not assigned'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Due Date</p>
@@ -495,7 +519,7 @@ function MyCoacheesSection({ profile }) {
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Add coaching feedback..."
+                    placeholder="Add feedback..."
                     className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                   />
@@ -555,12 +579,215 @@ function MyCoacheesSection({ profile }) {
   );
 }
 
+// Team Lead Dashboard - sees all team coaching and training
+function TeamLeadDashboard() {
+  const { profile, clientId } = useAuth();
+  const [stats, setStats] = useState({
+    teamMembers: 0,
+    competenciesAssigned: 0,
+    competenciesAchieved: 0,
+    trainingPending: 0,
+    trainingCompleted: 0,
+    coachingActive: 0,
+    coachingOverdue: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (profile?.id) {
+      loadData();
+    }
+  }, [profile, clientId]);
+
+  async function loadData() {
+    try {
+      // Get team members who report to this team lead
+      const teamMembers = await dbFetch(
+        `profiles?select=id,full_name,email&reports_to_id=eq.${profile.id}&is_active=eq.true`
+      );
+      const teamIds = teamMembers?.map(m => m.id) || [];
+
+      if (teamIds.length > 0) {
+        const teamIdList = teamIds.join(',');
+
+        // Get competencies stats
+        const competencies = await dbFetch(
+          `user_competencies?select=id,status&user_id=in.(${teamIdList})`
+        );
+        const compAssigned = competencies?.length || 0;
+        const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
+
+        // Get training stats
+        const training = await dbFetch(
+          `user_training?select=id,status&user_id=in.(${teamIdList})`
+        );
+        const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
+        const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+
+        // Get coaching stats
+        const coaching = await dbFetch(
+          `development_activities?select=id,status,due_date&trainee_id=in.(${teamIdList})&type=eq.coaching`
+        );
+        const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
+        const coachingOverdue = coaching?.filter(c => {
+          if (!c.due_date || c.status === 'validated') return false;
+          return new Date(c.due_date) < new Date();
+        }).length || 0;
+
+        setStats({
+          teamMembers: teamIds.length,
+          competenciesAssigned: compAssigned,
+          competenciesAchieved: compAchieved,
+          trainingPending,
+          trainingCompleted,
+          coachingActive,
+          coachingOverdue
+        });
+
+        // Get recent training completions
+        const recentTraining = await dbFetch(
+          `user_training?select=*,profiles(full_name),training_modules(title)&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
+        );
+        setRecentActivity(recentTraining || []);
+      }
+    } catch (error) {
+      console.error('Error loading team lead data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  const competencyProgress = stats.competenciesAssigned > 0 
+    ? Math.round((stats.competenciesAchieved / stats.competenciesAssigned) * 100) 
+    : 0;
+
+  return (
+    <div className="space-y-8">
+      {/* Welcome */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Team Lead Dashboard</h1>
+        <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard 
+          title="Team Members" 
+          value={stats.teamMembers}
+          subtitle="Active trainees"
+          icon={Users}
+          color="blue"
+        />
+        <StatCard 
+          title="Competencies" 
+          value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`}
+          subtitle={`${competencyProgress}% achieved`}
+          icon={Target}
+          color="green"
+        />
+        <StatCard 
+          title="Training" 
+          value={stats.trainingPending}
+          subtitle={`Pending (${stats.trainingCompleted} completed)`}
+          icon={GraduationCap}
+          color="amber"
+        />
+        <StatCard 
+          title="Coaching" 
+          value={stats.coachingActive}
+          subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : 'Active sessions'}
+          icon={Users}
+          color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
+        />
+      </div>
+
+      {/* Team Progress Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Team Competency Progress</h3>
+          <ProgressRing percentage={competencyProgress} color="#10B981" />
+          <p className="text-sm text-gray-600 mt-4">
+            {stats.competenciesAchieved} of {stats.competenciesAssigned} competencies achieved
+          </p>
+        </div>
+
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Recent Training Completions</h3>
+          {recentActivity.length === 0 ? (
+            <p className="text-gray-400 text-sm">No recent completions</p>
+          ) : (
+            <div className="space-y-3">
+              {recentActivity.map(item => (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <div>
+                      <p className="font-medium text-gray-900">{item.profiles?.full_name}</p>
+                      <p className="text-sm text-gray-500">{item.training_modules?.title}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* All Team Coaching Activities */}
+      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <QuickAction
+            title="View My Team"
+            description="See team members and progress"
+            href="/my-team"
+            icon={Users}
+          />
+          <QuickAction
+            title="Development Activities"
+            description="Manage coaching & tasks"
+            href="/development"
+            icon={ClipboardList}
+          />
+          <QuickAction
+            title="Assign Training"
+            description="Schedule training for team"
+            href="/training"
+            icon={GraduationCap}
+          />
+          <QuickAction
+            title="View Reports"
+            description="Team analytics"
+            href="/reports"
+            icon={BarChart3}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Super Admin Dashboard
 function SuperAdminDashboard() {
   const { profile } = useAuth();
   const [clients, setClients] = useState([]);
-  const [userCount, setUserCount] = useState(0);
-  const [networkCount, setNetworkCount] = useState(0);
+  const [stats, setStats] = useState({
+    userCount: 0,
+    networkCount: 0,
+    coachingActive: 0,
+    trainingPending: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -575,11 +802,22 @@ function SuperAdminDashboard() {
 
       // Count users (trainees)
       const users = await dbFetch('profiles?select=id&role=eq.trainee');
-      setUserCount(users?.length || 0);
-
+      
       // Count networks
       const networks = await dbFetch('expert_networks?select=id&is_active=eq.true');
-      setNetworkCount(networks?.length || 0);
+
+      // Count active coaching
+      const coaching = await dbFetch('development_activities?select=id&type=eq.coaching&status=neq.validated&status=neq.cancelled');
+
+      // Count pending training
+      const training = await dbFetch('user_training?select=id&status=in.(pending,in_progress)');
+
+      setStats({
+        userCount: users?.length || 0,
+        networkCount: networks?.length || 0,
+        coachingActive: coaching?.length || 0,
+        trainingPending: training?.length || 0
+      });
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -613,24 +851,24 @@ function SuperAdminDashboard() {
         />
         <StatCard 
           title="Total Trainees" 
-          value={userCount}
+          value={stats.userCount}
           subtitle="Across all clients"
           icon={Users}
           color="green"
         />
         <StatCard 
-          title="Expert Networks" 
-          value={networkCount}
-          subtitle="Active networks"
-          icon={Network}
+          title="Active Coaching" 
+          value={stats.coachingActive}
+          subtitle="Sessions in progress"
+          icon={Target}
           color="purple"
         />
         <StatCard 
-          title="Assessments" 
-          value="-"
-          subtitle="This month"
-          icon={Target}
-          color="yellow"
+          title="Training Pending" 
+          value={stats.trainingPending}
+          subtitle="Awaiting completion"
+          icon={GraduationCap}
+          color="amber"
         />
       </div>
 
@@ -725,7 +963,13 @@ function SuperAdminDashboard() {
 function ClientAdminDashboard() {
   const { profile, clientId } = useAuth();
   const [users, setUsers] = useState([]);
-  const [networkCount, setNetworkCount] = useState(0);
+  const [stats, setStats] = useState({
+    networkCount: 0,
+    competenciesAssigned: 0,
+    competenciesAchieved: 0,
+    trainingPending: 0,
+    coachingActive: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -742,9 +986,42 @@ function ClientAdminDashboard() {
       const usersData = await dbFetch(`profiles?select=*&client_id=eq.${clientId}&is_active=eq.true&order=full_name.asc`);
       setUsers(usersData || []);
 
+      const traineeIds = usersData?.filter(u => u.role === 'trainee').map(u => u.id) || [];
+
       // Count networks
       const networks = await dbFetch(`expert_networks?select=id&client_id=eq.${clientId}&is_active=eq.true`);
-      setNetworkCount(networks?.length || 0);
+
+      if (traineeIds.length > 0) {
+        const idList = traineeIds.join(',');
+
+        // Competencies
+        const competencies = await dbFetch(`user_competencies?select=id,status&user_id=in.(${idList})`);
+        const compAssigned = competencies?.length || 0;
+        const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
+
+        // Training
+        const training = await dbFetch(`user_training?select=id,status&user_id=in.(${idList})`);
+        const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
+
+        // Coaching
+        const coaching = await dbFetch(`development_activities?select=id&client_id=eq.${clientId}&type=eq.coaching&status=neq.validated&status=neq.cancelled`);
+
+        setStats({
+          networkCount: networks?.length || 0,
+          competenciesAssigned: compAssigned,
+          competenciesAchieved: compAchieved,
+          trainingPending,
+          coachingActive: coaching?.length || 0
+        });
+      } else {
+        setStats({
+          networkCount: networks?.length || 0,
+          competenciesAssigned: 0,
+          competenciesAchieved: 0,
+          trainingPending: 0,
+          coachingActive: 0
+        });
+      }
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -777,30 +1054,30 @@ function ClientAdminDashboard() {
           color="blue"
         />
         <StatCard 
-          title="Expert Networks" 
-          value={networkCount}
-          subtitle="Active networks"
-          icon={Network}
-          color="purple"
-        />
-        <StatCard 
           title="Competencies" 
-          value="-"
-          subtitle="Assigned"
+          value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`}
+          subtitle="Achieved / Assigned"
           icon={Target}
           color="green"
         />
         <StatCard 
-          title="Training Due" 
-          value="-"
-          subtitle="This month"
-          icon={Clock}
-          color="yellow"
+          title="Training Pending" 
+          value={stats.trainingPending}
+          subtitle="Awaiting completion"
+          icon={GraduationCap}
+          color="amber"
+        />
+        <StatCard 
+          title="Active Coaching" 
+          value={stats.coachingActive}
+          subtitle="Sessions in progress"
+          icon={Users}
+          color="purple"
         />
       </div>
 
       {/* My Coachees Section */}
-      <MyCoacheesSection profile={profile} />
+      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
 
       {/* Quick Actions */}
       <div>
@@ -886,11 +1163,57 @@ function ClientAdminDashboard() {
 // Trainee Dashboard
 function TraineeDashboard() {
   const { profile } = useAuth();
+  const [stats, setStats] = useState({
+    competenciesTotal: 0,
+    competenciesAchieved: 0,
+    trainingPending: 0,
+    trainingCompleted: 0,
+    coachingActive: 0
+  });
+  const [loading, setLoading] = useState(true);
 
-  const overallProgress = 67;
-  const competenciesOnTrack = 8;
-  const competenciesTotal = 12;
-  const upcomingTraining = 3;
+  useEffect(() => {
+    if (profile?.id) {
+      loadData();
+    }
+  }, [profile]);
+
+  async function loadData() {
+    try {
+      // Competencies
+      const competencies = await dbFetch(`user_competencies?select=id,status&user_id=eq.${profile.id}`);
+      const compTotal = competencies?.length || 0;
+      const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
+
+      // Training
+      const training = await dbFetch(`user_training?select=id,status&user_id=eq.${profile.id}`);
+      const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
+      const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+
+      // Coaching
+      const coaching = await dbFetch(`development_activities?select=id&trainee_id=eq.${profile.id}&type=eq.coaching&status=neq.validated&status=neq.cancelled`);
+
+      setStats({
+        competenciesTotal: compTotal,
+        competenciesAchieved: compAchieved,
+        trainingPending,
+        trainingCompleted,
+        coachingActive: coaching?.length || 0
+      });
+    } catch (error) {
+      console.error('Error loading trainee data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  const overallProgress = stats.competenciesTotal > 0 
+    ? Math.round((stats.competenciesAchieved / stats.competenciesTotal) * 100) 
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -906,37 +1229,37 @@ function TraineeDashboard() {
           <h3 className="text-sm font-medium text-gray-500 mb-4">Overall Progress</h3>
           <ProgressRing percentage={overallProgress} />
           <p className="text-sm text-gray-600 mt-4">
-            {competenciesOnTrack} of {competenciesTotal} competencies on track
+            {stats.competenciesAchieved} of {stats.competenciesTotal} competencies achieved
           </p>
         </div>
 
         <div className="lg:col-span-2 grid grid-cols-2 gap-4">
           <StatCard 
             title="Competencies" 
-            value={competenciesTotal}
+            value={stats.competenciesTotal}
             subtitle="Total assigned"
             icon={Target}
             color="blue"
           />
           <StatCard 
-            title="On Track" 
-            value={competenciesOnTrack}
-            subtitle="Meeting targets"
+            title="Achieved" 
+            value={stats.competenciesAchieved}
+            subtitle="Skills completed"
             icon={CheckCircle}
             color="green"
           />
           <StatCard 
-            title="Training Due" 
-            value={upcomingTraining}
-            subtitle="This month"
-            icon={Clock}
-            color="yellow"
+            title="Training" 
+            value={stats.trainingPending}
+            subtitle={`Pending (${stats.trainingCompleted} done)`}
+            icon={GraduationCap}
+            color="amber"
           />
           <StatCard 
-            title="Certifications" 
-            value={2}
-            subtitle="Active"
-            icon={GraduationCap}
+            title="Coaching" 
+            value={stats.coachingActive}
+            subtitle="Active sessions"
+            icon={Users}
             color="purple"
           />
         </div>
@@ -954,7 +1277,7 @@ function TraineeDashboard() {
           />
           <QuickAction
             title="My Development Plan"
-            description="View your IDP"
+            description="View your IDP & coaching"
             href="/my-plan"
             icon={ClipboardList}
           />
@@ -964,37 +1287,6 @@ function TraineeDashboard() {
             href="/my-training"
             icon={GraduationCap}
           />
-        </div>
-      </div>
-
-      {/* Upcoming Training */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Training</h2>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="font-medium text-gray-900">Spray Dryer Operations - Level 2</p>
-                <p className="text-sm text-gray-500">Due in 5 days</p>
-              </div>
-            </div>
-            <Link to="/my-training" className="text-sm text-blue-600 hover:text-blue-700">
-              Start →
-            </Link>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-gray-400" />
-              <div>
-                <p className="font-medium text-gray-900">TPM Fundamentals</p>
-                <p className="text-sm text-gray-500">Due in 12 days</p>
-              </div>
-            </div>
-            <Link to="/my-training" className="text-sm text-blue-600 hover:text-blue-700">
-              View →
-            </Link>
-          </div>
         </div>
       </div>
     </div>
@@ -1033,13 +1325,17 @@ function DashboardPage() {
   if (isClientAdmin) {
     return <ClientAdminDashboard />;
   }
+
+  // Team Lead gets their own dashboard
+  if (profile?.role === 'team_lead') {
+    return <TeamLeadDashboard />;
+  }
   
   if (isTrainee) {
     return <TraineeDashboard />;
   }
 
-  // Team Lead uses Client Admin dashboard with coaching
-  return <ClientAdminDashboard />;
+  return <DashboardSkeleton />;
 }
 
 export default DashboardPage;
