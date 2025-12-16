@@ -1,6 +1,6 @@
 // ============================================================================
 // E&T MANAGER - DASHBOARD PAGE
-// Role-based dashboard with stats and quick actions
+// Role-based dashboard with stats, quick actions, and coaching overview
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -19,7 +19,14 @@ import {
   ClipboardList,
   BarChart3,
   Plus,
-  Network
+  Network,
+  MessageSquare,
+  Calendar,
+  User,
+  ChevronRight,
+  X,
+  Send,
+  Loader2
 } from 'lucide-react';
 
 // Stat Card Component
@@ -111,8 +118,446 @@ function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#3B82
   );
 }
 
+// My Coachees Component - For coaches to see their assigned trainees
+function MyCoacheesSection({ profile }) {
+  const [coachingActivities, setCoachingActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [feedback, setFeedback] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  useEffect(() => {
+    loadCoachingActivities();
+  }, [profile]);
+
+  const loadCoachingActivities = async () => {
+    try {
+      const data = await dbFetch(
+        `development_activities?coach_id=eq.${profile.id}&type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),competencies(name)&order=created_at.desc`
+      );
+      setCoachingActivities(data || []);
+    } catch (error) {
+      console.error('Error loading coaching activities:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFeedback = async (activityId) => {
+    try {
+      const data = await dbFetch(
+        `activity_feedback?activity_id=eq.${activityId}&select=*,author:author_id(full_name,role)&order=created_at.desc`
+      );
+      setFeedback(data || []);
+    } catch (error) {
+      console.error('Error loading feedback:', error);
+    }
+  };
+
+  const openActivityModal = async (activity) => {
+    setSelectedActivity(activity);
+    await loadFeedback(activity.id);
+    setShowActivityModal(true);
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedActivity) return;
+    
+    setSubmittingComment(true);
+    try {
+      await dbFetch('activity_feedback', {
+        method: 'POST',
+        body: JSON.stringify({
+          activity_id: selectedActivity.id,
+          author_id: profile.id,
+          author_role: 'coach',
+          feedback_type: 'progress',
+          content: newComment
+        })
+      });
+      
+      setNewComment('');
+      await loadFeedback(selectedActivity.id);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleValidate = async () => {
+    if (!selectedActivity) return;
+    
+    setUpdatingStatus(true);
+    try {
+      await dbFetch(`development_activities?id=eq.${selectedActivity.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'validated',
+          validated_at: new Date().toISOString(),
+          validated_by: profile.id
+        })
+      });
+      
+      // Update competency level if linked
+      if (selectedActivity.competency_id && selectedActivity.trainee?.id) {
+        const existingComp = await dbFetch(
+          `user_competencies?user_id=eq.${selectedActivity.trainee.id}&competency_id=eq.${selectedActivity.competency_id}`
+        );
+        
+        if (existingComp && existingComp.length > 0) {
+          await dbFetch(`user_competencies?id=eq.${existingComp[0].id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              current_level: selectedActivity.target_level,
+              status: 'achieved',
+              updated_at: new Date().toISOString()
+            })
+          });
+        }
+      }
+      
+      // Add feedback entry
+      await dbFetch('activity_feedback', {
+        method: 'POST',
+        body: JSON.stringify({
+          activity_id: selectedActivity.id,
+          author_id: profile.id,
+          author_role: 'coach',
+          feedback_type: 'validation',
+          content: 'Coaching completed and validated'
+        })
+      });
+      
+      setSelectedActivity({ ...selectedActivity, status: 'validated' });
+      await loadFeedback(selectedActivity.id);
+      await loadCoachingActivities();
+    } catch (error) {
+      console.error('Error validating:', error);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const getStatusInfo = (activity) => {
+    const today = new Date();
+    const dueDate = activity.due_date ? new Date(activity.due_date) : null;
+    const daysLeft = dueDate ? Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24)) : null;
+    
+    if (activity.status === 'validated') {
+      return { color: 'bg-green-100 text-green-700', label: 'Completed', icon: '✅' };
+    }
+    if (activity.status === 'completed') {
+      return { color: 'bg-purple-100 text-purple-700', label: 'Ready to Review', icon: '🔍' };
+    }
+    if (dueDate && daysLeft < 0) {
+      return { color: 'bg-red-100 text-red-700', label: 'Overdue', icon: '🔴' };
+    }
+    if (dueDate && daysLeft <= 7) {
+      return { color: 'bg-amber-100 text-amber-700', label: 'Due Soon', icon: '🟡' };
+    }
+    if (activity.status === 'in_progress') {
+      return { color: 'bg-blue-100 text-blue-700', label: 'In Progress', icon: '🔵' };
+    }
+    return { color: 'bg-gray-100 text-gray-600', label: 'Pending', icon: '⚪' };
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-100 rounded"></div>
+            <div className="h-20 bg-gray-100 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (coachingActivities.length === 0) {
+    return null; // Don't show section if no coachees
+  }
+
+  // Group by trainee
+  const traineeMap = {};
+  coachingActivities.forEach(activity => {
+    const traineeId = activity.trainee?.id;
+    if (traineeId) {
+      if (!traineeMap[traineeId]) {
+        traineeMap[traineeId] = {
+          trainee: activity.trainee,
+          activities: []
+        };
+      }
+      traineeMap[traineeId].activities.push(activity);
+    }
+  });
+
+  const stats = {
+    total: coachingActivities.length,
+    pending: coachingActivities.filter(a => a.status === 'pending' || a.status === 'in_progress').length,
+    readyToReview: coachingActivities.filter(a => a.status === 'completed').length,
+    completed: coachingActivities.filter(a => a.status === 'validated').length,
+    overdue: coachingActivities.filter(a => {
+      if (!a.due_date || a.status === 'validated') return false;
+      return new Date(a.due_date) < new Date();
+    }).length
+  };
+
+  return (
+    <>
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-purple-500" />
+            My Coachees
+          </h2>
+          <Link to="/development" className="text-sm text-blue-600 hover:text-blue-700">
+            View all →
+          </Link>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="text-center p-2 bg-gray-50 rounded-lg">
+            <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+            <p className="text-xs text-gray-500">Total</p>
+          </div>
+          <div className="text-center p-2 bg-amber-50 rounded-lg">
+            <p className="text-xl font-bold text-amber-600">{stats.pending}</p>
+            <p className="text-xs text-gray-500">In Progress</p>
+          </div>
+          <div className="text-center p-2 bg-purple-50 rounded-lg">
+            <p className="text-xl font-bold text-purple-600">{stats.readyToReview}</p>
+            <p className="text-xs text-gray-500">To Review</p>
+          </div>
+          <div className="text-center p-2 bg-green-50 rounded-lg">
+            <p className="text-xl font-bold text-green-600">{stats.completed}</p>
+            <p className="text-xs text-gray-500">Completed</p>
+          </div>
+        </div>
+
+        {stats.overdue > 0 && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <span className="text-sm text-red-700">
+              <strong>{stats.overdue}</strong> coaching {stats.overdue === 1 ? 'activity is' : 'activities are'} overdue
+            </span>
+          </div>
+        )}
+
+        {/* Coachee List */}
+        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+          {Object.values(traineeMap).map(({ trainee, activities }) => {
+            const pendingCount = activities.filter(a => a.status !== 'validated').length;
+            const readyCount = activities.filter(a => a.status === 'completed').length;
+            
+            return (
+              <div key={trainee.id} className="border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{trainee.full_name}</p>
+                      <p className="text-xs text-gray-500">{trainee.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {readyCount > 0 && (
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                        {readyCount} to review
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-500">{pendingCount} active</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  {activities.filter(a => a.status !== 'validated').slice(0, 3).map(activity => {
+                    const statusInfo = getStatusInfo(activity);
+                    return (
+                      <div 
+                        key={activity.id}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100"
+                        onClick={() => openActivityModal(activity)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{statusInfo.icon}</span>
+                          <span className="text-sm text-gray-700">{activity.competencies?.name || activity.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${statusInfo.color}`}>
+                            {statusInfo.label}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Activity Detail Modal */}
+      {showActivityModal && selectedActivity && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">{selectedActivity.title}</h2>
+                <p className="text-sm text-gray-500">Trainee: {selectedActivity.trainee?.full_name}</p>
+              </div>
+              <button
+                onClick={() => setShowActivityModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Status & Actions */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Status:</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusInfo(selectedActivity).color}`}>
+                    {getStatusInfo(selectedActivity).label}
+                  </span>
+                </div>
+                {selectedActivity.status === 'completed' && (
+                  <button
+                    onClick={handleValidate}
+                    disabled={updatingStatus}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {updatingStatus ? 'Validating...' : '✓ Validate & Close'}
+                  </button>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Trainee</p>
+                  <p className="font-medium">{selectedActivity.trainee?.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Due Date</p>
+                  <p className="font-medium">
+                    {selectedActivity.due_date 
+                      ? new Date(selectedActivity.due_date).toLocaleDateString() 
+                      : 'No due date'}
+                  </p>
+                </div>
+                {selectedActivity.competencies?.name && (
+                  <div>
+                    <p className="text-sm text-gray-500">Competency</p>
+                    <p className="font-medium">{selectedActivity.competencies.name}</p>
+                  </div>
+                )}
+                {selectedActivity.target_level && (
+                  <div>
+                    <p className="text-sm text-gray-500">Target Level</p>
+                    <p className="font-medium">Level {selectedActivity.target_level}</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedActivity.objectives && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Objectives</p>
+                  <p className="text-gray-700">{selectedActivity.objectives}</p>
+                </div>
+              )}
+
+              {/* Comments Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Comments & Progress ({feedback.length})
+                </h3>
+
+                {/* Add Comment */}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Add coaching feedback..."
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                  />
+                  <button
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim() || submittingComment}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {submittingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Comments List */}
+                {feedback.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No comments yet</p>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {feedback.map(fb => (
+                      <div key={fb.id} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{fb.author?.full_name || 'Unknown'}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${
+                              fb.author_role === 'coach' ? 'bg-purple-100 text-purple-700' :
+                              fb.author_role === 'coachee' ? 'bg-blue-100 text-blue-700' :
+                              fb.author_role === 'manager' ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {fb.author_role}
+                            </span>
+                            {fb.feedback_type === 'milestone' && (
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                                milestone
+                              </span>
+                            )}
+                            {fb.feedback_type === 'validation' && (
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+                                validated
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {new Date(fb.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700">{fb.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Super Admin Dashboard
 function SuperAdminDashboard() {
+  const { profile } = useAuth();
   const [clients, setClients] = useState([]);
   const [userCount, setUserCount] = useState(0);
   const [networkCount, setNetworkCount] = useState(0);
@@ -189,6 +634,9 @@ function SuperAdminDashboard() {
         />
       </div>
 
+      {/* My Coachees Section - Show if user is a coach */}
+      <MyCoacheesSection profile={profile} />
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -206,10 +654,10 @@ function SuperAdminDashboard() {
             icon={Users}
           />
           <QuickAction
-            title="Expert Networks"
-            description="Manage knowledge networks"
-            href="/expert-network"
-            icon={Network}
+            title="Development Activities"
+            description="Manage coaching & tasks"
+            href="/development"
+            icon={ClipboardList}
           />
           <QuickAction
             title="View Reports"
@@ -351,6 +799,9 @@ function ClientAdminDashboard() {
         />
       </div>
 
+      {/* My Coachees Section */}
+      <MyCoacheesSection profile={profile} />
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -362,10 +813,10 @@ function ClientAdminDashboard() {
             icon={Plus}
           />
           <QuickAction
-            title="Expert Networks"
-            description="Manage knowledge networks"
-            href="/expert-network"
-            icon={Network}
+            title="Development Activities"
+            description="Manage coaching & tasks"
+            href="/development"
+            icon={ClipboardList}
           />
           <QuickAction
             title="View Competencies"
@@ -587,7 +1038,8 @@ function DashboardPage() {
     return <TraineeDashboard />;
   }
 
-  return <DashboardSkeleton />;
+  // Team Lead uses Client Admin dashboard with coaching
+  return <ClientAdminDashboard />;
 }
 
 export default DashboardPage;
