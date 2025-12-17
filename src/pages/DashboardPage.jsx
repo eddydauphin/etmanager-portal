@@ -645,11 +645,28 @@ function TeamLeadDashboard() {
           coachingOverdue
         });
 
-        // Get recent training completions
+        // Get recent training completions - fetch separately and join manually
         const recentTraining = await dbFetch(
-          `user_training?select=*,profiles!user_id(full_name),training_modules!module_id(title)&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
+          `user_training?select=id,status,completed_at,user_id,module_id&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
         );
-        setRecentActivity(recentTraining || []);
+        
+        // Enrich with user and module names
+        if (recentTraining && recentTraining.length > 0) {
+          const enrichedTraining = await Promise.all(recentTraining.map(async (t) => {
+            const [userInfo, moduleInfo] = await Promise.all([
+              dbFetch(`profiles?select=full_name&id=eq.${t.user_id}`),
+              dbFetch(`training_modules?select=title&id=eq.${t.module_id}`)
+            ]);
+            return {
+              ...t,
+              trainee_name: userInfo?.[0]?.full_name || 'Unknown',
+              module_title: moduleInfo?.[0]?.title || 'Unknown'
+            };
+          }));
+          setRecentActivity(enrichedTraining);
+        } else {
+          setRecentActivity([]);
+        }
       }
     } catch (error) {
       console.error('Error loading team lead data:', error);
@@ -727,8 +744,8 @@ function TeamLeadDashboard() {
                   <div className="flex items-center gap-3">
                     <CheckCircle className="w-5 h-5 text-green-500" />
                     <div>
-                      <p className="font-medium text-gray-900">{item.profiles?.full_name}</p>
-                      <p className="text-sm text-gray-500">{item.training_modules?.title}</p>
+                      <p className="font-medium text-gray-900">{item.trainee_name}</p>
+                      <p className="text-sm text-gray-500">{item.module_title}</p>
                     </div>
                   </div>
                   <span className="text-xs text-gray-400">
