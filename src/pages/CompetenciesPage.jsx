@@ -22,7 +22,10 @@ import {
   MoreVertical,
   Copy,
   Archive,
-  Eye
+  Eye,
+  UserPlus,
+  Calendar,
+  Loader2
 } from 'lucide-react';
 
 // Spider Chart Component using SVG
@@ -236,12 +239,14 @@ const MiniSpiderChart = ({ data, size = 120 }) => {
 
 export default function CompetenciesPage() {
   const { user: currentUser, profile: currentProfile } = useAuth();
+  const isSuperAdmin = currentProfile?.role === 'super_admin';
   
   // State
   const [competencies, setCompetencies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]); // For owner and training developer selection
+  const [trainees, setTrainees] = useState([]); // NEW: For competency assignment
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -252,9 +257,11 @@ export default function CompetenciesPage() {
   const [showModal, setShowModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false); // NEW: Assign to users modal
   const [editingCompetency, setEditingCompetency] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [competencyToDelete, setCompetencyToDelete] = useState(null);
+  const [competencyToAssign, setCompetencyToAssign] = useState(null); // NEW
   
   // Form state
   const [formData, setFormData] = useState({
@@ -275,10 +282,21 @@ export default function CompetenciesPage() {
     name: '',
     description: '',
     color: '#3B82F6',
-    client_id: ''
+    client_id: '',
+    isCustom: false
   });
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // NEW: Assign form state
+  const [assignFormData, setAssignFormData] = useState({
+    user_ids: [],
+    target_level: 3,
+    target_date: '',
+    coach_id: ''
+  });
+  const [assignError, setAssignError] = useState('');
+  const [assigning, setAssigning] = useState(false);
   
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -301,7 +319,7 @@ export default function CompetenciesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadCompetencies(), loadCategories(), loadClients(), loadUsers()]);
+      await Promise.all([loadCompetencies(), loadCategories(), loadClients(), loadUsers(), loadTrainees()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -353,6 +371,22 @@ export default function CompetenciesPage() {
     }
   };
 
+  // NEW: Load trainees for competency assignment
+  const loadTrainees = async () => {
+    try {
+      let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'team_lead') {
+        url += `&reports_to_id=eq.${currentProfile.id}`;
+      }
+      const data = await dbFetch(url);
+      setTrainees(data || []);
+    } catch (error) {
+      console.error('Error loading trainees:', error);
+    }
+  };
+
   // Filter competencies
   const filteredCompetencies = competencies.filter(comp => {
     const matchesSearch = 
@@ -400,6 +434,95 @@ export default function CompetenciesPage() {
     }
     setFormError('');
     setShowModal(true);
+  };
+
+  // NEW: Handle assign competency to users
+  const handleOpenAssignModal = (competency) => {
+    setCompetencyToAssign(competency);
+    setAssignFormData({
+      user_ids: [],
+      target_level: 3,
+      target_date: '',
+      coach_id: competency.owner_id || ''
+    });
+    setAssignError('');
+    setShowAssignModal(true);
+  };
+
+  // NEW: Handle assign submission
+  const handleAssignCompetency = async () => {
+    setAssignError('');
+    setAssigning(true);
+
+    try {
+      if (assignFormData.user_ids.length === 0) {
+        throw new Error('Please select at least one user');
+      }
+
+      const coachId = assignFormData.coach_id || competencyToAssign.owner_id || null;
+      const targetDate = assignFormData.target_date || null;
+      const targetLevel = assignFormData.target_level || 3;
+
+      // Get client_id from competency (use first client if multiple)
+      const clientId = competencyToAssign.client_ids?.[0] || currentProfile?.client_id;
+
+      // For each selected user, create user_competencies record and coaching activity
+      for (const userId of assignFormData.user_ids) {
+        // Check if user already has this competency
+        const existing = await dbFetch(
+          `user_competencies?user_id=eq.${userId}&competency_id=eq.${competencyToAssign.id}`
+        );
+
+        if (existing && existing.length > 0) {
+          // Skip this user - already has competency
+          continue;
+        }
+
+        // Create user_competencies record
+        await dbFetch('user_competencies', {
+          method: 'POST',
+          body: JSON.stringify({
+            user_id: userId,
+            competency_id: competencyToAssign.id,
+            target_level: targetLevel,
+            current_level: 0,
+            status: 'in_progress'
+          })
+        });
+
+        // Auto-create coaching activity
+        if (coachId) {
+          await dbFetch('development_activities', {
+            method: 'POST',
+            body: JSON.stringify({
+              type: 'coaching',
+              title: `Coaching: ${competencyToAssign.name}`,
+              description: `Coaching session for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
+              objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name}`,
+              success_criteria: `Trainee demonstrates competency at Level ${targetLevel} and is validated by coach`,
+              trainee_id: userId,
+              assigned_by: currentProfile.id,
+              coach_id: coachId,
+              competency_id: competencyToAssign.id,
+              target_level: targetLevel,
+              start_date: new Date().toISOString().split('T')[0],
+              due_date: targetDate,
+              status: 'pending',
+              client_id: clientId
+            })
+          });
+        }
+      }
+
+      setShowAssignModal(false);
+      setCompetencyToAssign(null);
+      // Show success (could add toast here)
+    } catch (error) {
+      console.error('Error assigning competency:', error);
+      setAssignError(error.message || 'Failed to assign competency');
+    } finally {
+      setAssigning(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -511,7 +634,8 @@ export default function CompetenciesPage() {
         name: categoryFormData.name,
         description: categoryFormData.description || null,
         color: categoryFormData.color,
-        client_id: categoryFormData.client_id || null
+        client_id: categoryFormData.client_id || null,
+        is_active: true
       };
 
       if (editingCategory) {
@@ -530,6 +654,7 @@ export default function CompetenciesPage() {
       setShowCategoryModal(false);
     } catch (error) {
       console.error('Error saving category:', error);
+      setFormError(error.message || 'Failed to save category');
     } finally {
       setSubmitting(false);
     }
@@ -546,6 +671,11 @@ export default function CompetenciesPage() {
     if (!competencyToDelete) return;
 
     try {
+      // Delete client associations first
+      await dbFetch(`competency_clients?competency_id=eq.${competencyToDelete.id}`, {
+        method: 'DELETE'
+      });
+      // Then delete competency
       await dbFetch(`competencies?id=eq.${competencyToDelete.id}`, {
         method: 'DELETE'
       });
@@ -557,34 +687,39 @@ export default function CompetenciesPage() {
     }
   };
 
-  // Get stats
-  const stats = {
-    total: competencies.length,
-    active: competencies.filter(c => c.is_active).length,
-    categories: categories.length,
-    byCategory: categories.map(cat => ({
-      ...cat,
-      count: competencies.filter(c => c.category_id === cat.id).length
-    }))
+  // Toggle client selection
+  const toggleClient = (clientId) => {
+    if (formData.client_ids.includes(clientId)) {
+      setFormData({
+        ...formData,
+        client_ids: formData.client_ids.filter(id => id !== clientId)
+      });
+    } else {
+      setFormData({
+        ...formData,
+        client_ids: [...formData.client_ids, clientId]
+      });
+    }
   };
-
-  const isSuperAdmin = currentProfile?.role === 'super_admin';
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <p className="text-gray-500">Loading competencies...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Competency Framework</h1>
-          <p className="text-sm text-gray-500 mt-1">Define and manage competencies for your organization</p>
+          <h1 className="text-2xl font-bold text-gray-900">Competencies</h1>
+          <p className="text-gray-500 mt-1">Manage skills and competency frameworks</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -605,26 +740,15 @@ export default function CompetenciesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Target className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-2xl font-bold text-gray-900">{competencies.length}</p>
               <p className="text-sm text-gray-500">Total Competencies</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Check className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-              <p className="text-sm text-gray-500">Active</p>
             </div>
           </div>
         </div>
@@ -634,70 +758,67 @@ export default function CompetenciesPage() {
               <Layers className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.categories}</p>
+              <p className="text-2xl font-bold text-gray-900">{categories.length}</p>
               <p className="text-sm text-gray-500">Categories</p>
             </div>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <BarChart3 className="w-5 h-5 text-amber-600" />
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Check className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">5</p>
-              <p className="text-sm text-gray-500">Maturity Levels</p>
+              <p className="text-2xl font-bold text-gray-900">{competencies.filter(c => c.is_active).length}</p>
+              <p className="text-sm text-gray-500">Active</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <Building2 className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
+              <p className="text-sm text-gray-500">Clients</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Categories Management */}
+      {/* Categories Quick View */}
       {categories.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Categories</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Categories</h2>
+            <button 
+              onClick={() => handleOpenCategoryModal()}
+              className="text-sm text-blue-600 hover:text-blue-700"
+            >
+              + Add Category
+            </button>
           </div>
           <div className="flex flex-wrap gap-2">
             {categories.map(cat => (
-              <div
+              <div 
                 key={cat.id}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg group"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200"
               >
-                <div
-                  className="w-3 h-3 rounded-full"
+                <div 
+                  className="w-2.5 h-2.5 rounded-full" 
                   style={{ backgroundColor: cat.color }}
                 />
                 <span className="text-sm text-gray-700">{cat.name}</span>
                 <span className="text-xs text-gray-400">
                   ({competencies.filter(c => c.category_id === cat.id).length})
                 </span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleOpenCategoryModal(cat)}
-                    className="p-1 hover:bg-gray-200 rounded"
-                    title="Edit"
-                  >
-                    <Edit2 className="w-3 h-3 text-gray-500" />
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (confirm(`Delete category "${cat.name}"? Competencies in this category will become uncategorized.`)) {
-                        try {
-                          await dbFetch(`competency_categories?id=eq.${cat.id}`, { method: 'DELETE' });
-                          await loadCategories();
-                        } catch (err) {
-                          console.error('Error deleting category:', err);
-                          alert('Failed to delete category');
-                        }
-                      }
-                    }}
-                    className="p-1 hover:bg-red-100 rounded"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3 h-3 text-red-500" />
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleOpenCategoryModal(cat)}
+                  className="p-0.5 hover:bg-gray-200 rounded ml-1"
+                >
+                  <Edit2 className="w-3 h-3 text-gray-400" />
+                </button>
               </div>
             ))}
           </div>
@@ -925,7 +1046,7 @@ export default function CompetenciesPage() {
                     <MoreVertical className="w-4 h-4 text-gray-400" />
                   </button>
                   {openDropdown === comp.id && (
-                    <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                    <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
                       <button
                         onClick={() => {
                           handleOpenModal(comp);
@@ -935,6 +1056,17 @@ export default function CompetenciesPage() {
                       >
                         <Edit2 className="w-4 h-4" />
                         Edit
+                      </button>
+                      {/* NEW: Assign to Users option */}
+                      <button
+                        onClick={() => {
+                          handleOpenAssignModal(comp);
+                          setOpenDropdown(null);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Assign to Users
                       </button>
                       <button
                         onClick={() => handleDeleteClick(comp)}
@@ -1026,6 +1158,14 @@ export default function CompetenciesPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {/* NEW: Assign to Users button in list view */}
+                      <button
+                        onClick={() => handleOpenAssignModal(comp)}
+                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+                        title="Assign to Users"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleOpenModal(comp)}
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -1051,15 +1191,10 @@ export default function CompetenciesPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Target className="w-5 h-5 text-blue-600" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {editingCompetency ? 'Edit Competency' : 'Create Competency'}
-                </h2>
-              </div>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingCompetency ? 'Edit Competency' : 'Add Competency'}
+              </h2>
               <button
                 onClick={() => setShowModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg"
@@ -1076,21 +1211,33 @@ export default function CompetenciesPage() {
                 </div>
               )}
 
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Competency Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Spray Drying Operations"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g., HACCP Management"
+                />
+              </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Brief description of this competency..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Category
@@ -1100,7 +1247,7 @@ export default function CompetenciesPage() {
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select Category</option>
+                    <option value="">Select category...</option>
                     {categories.map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
@@ -1109,133 +1256,100 @@ export default function CompetenciesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Clients * <span className="text-xs text-gray-400">(select one or more)</span>
-                  </label>
-                  <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
-                    {clients.map(client => (
-                      <label
-                        key={client.id}
-                        className={`flex items-center gap-2 p-1.5 rounded cursor-pointer hover:bg-gray-50 ${
-                          formData.client_ids.includes(client.id) ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.client_ids.includes(client.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, client_ids: [...formData.client_ids, client.id] });
-                            } else {
-                              setFormData({ ...formData, client_ids: formData.client_ids.filter(id => id !== client.id) });
-                            }
-                          }}
-                          disabled={currentProfile?.role === 'client_admin'}
-                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{client.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {formData.client_ids.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">{formData.client_ids.length} client(s) selected</p>
-                  )}
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Brief description of this competency..."
-                  />
-                </div>
-
-                {/* Owner and Training Developer */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Owner (Expert/Coach)
+                    Owner (Expert)
                   </label>
                   <select
                     value={formData.owner_id}
                     onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select Owner</option>
+                    <option value="">Select owner...</option>
                     {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.full_name} ({user.role})
-                      </option>
+                      <option key={user.id} value={user.id}>{user.full_name}</option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-400 mt-1">Expert who coaches and approves learners</p>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Training Developer
-                  </label>
-                  <select
-                    value={formData.training_developer_id}
-                    onChange={(e) => setFormData({ ...formData, training_developer_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select Developer</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.full_name} ({user.role})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">Person who creates training materials</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Training Developer
+                </label>
+                <select
+                  value={formData.training_developer_id}
+                  onChange={(e) => setFormData({ ...formData, training_developer_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select training developer...</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Clients *
+                </label>
+                <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
+                  {clients.map(client => (
+                    <label
+                      key={client.id}
+                      className={`flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer ${
+                        formData.client_ids.includes(client.id) ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.client_ids.includes(client.id)}
+                        onChange={() => toggleClient(client.id)}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{client.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
               {/* Level Descriptions */}
               <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Maturity Level Descriptions</h3>
-                <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Level Descriptions
+                </label>
+                <div className="space-y-2">
                   {[1, 2, 3, 4, 5].map(level => (
-                    <div key={level} className="flex items-start gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0 ${
-                        level === 1 ? 'bg-red-400' :
-                        level === 2 ? 'bg-orange-400' :
-                        level === 3 ? 'bg-yellow-400' :
-                        level === 4 ? 'bg-lime-500' :
-                        'bg-green-500'
-                      }`}>
+                    <div key={level} className="flex items-center gap-2">
+                      <span className="w-8 h-8 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full text-sm font-medium">
                         {level}
-                      </div>
+                      </span>
                       <input
                         type="text"
                         value={formData[`level_${level}_description`]}
-                        onChange={(e) => setFormData({ ...formData, [`level_${level}_description`]: e.target.value })}
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        onChange={(e) => setFormData({ 
+                          ...formData, 
+                          [`level_${level}_description`]: e.target.value 
+                        })}
+                        className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Active Status */}
-              <div className="flex items-center gap-3">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <label htmlFor="is_active" className="text-sm text-gray-700">
+                  Active
                 </label>
-                <span className="text-sm text-gray-700">Active</span>
               </div>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -1465,6 +1579,168 @@ export default function CompetenciesPage() {
                   Delete
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Assign to Users Modal */}
+      {showAssignModal && competencyToAssign && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <UserPlus className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Assign to Users</h2>
+                  <p className="text-sm text-gray-500">{competencyToAssign.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setCompetencyToAssign(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {assignError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {assignError}
+                </div>
+              )}
+
+              {/* Competency Info */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-2">
+                  <strong>{competencyToAssign.name}</strong>
+                </p>
+                <p className="text-xs text-gray-500">{competencyToAssign.description || 'No description'}</p>
+              </div>
+
+              {/* Target Level */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Target Level
+                </label>
+                <select
+                  value={assignFormData.target_level}
+                  onChange={(e) => setAssignFormData({ ...assignFormData, target_level: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  {[1, 2, 3, 4, 5].map(level => (
+                    <option key={level} value={level}>Level {level}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Select Users */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Users to Assign *
+                </label>
+                <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                  {trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500 text-center">No users available</p>
+                  ) : (
+                    trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').map(user => (
+                      <label
+                        key={user.id}
+                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
+                          assignFormData.user_ids.includes(user.id) ? 'bg-green-50' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={assignFormData.user_ids.includes(user.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAssignFormData({
+                                ...assignFormData,
+                                user_ids: [...assignFormData.user_ids, user.id]
+                              });
+                            } else {
+                              setAssignFormData({
+                                ...assignFormData,
+                                user_ids: assignFormData.user_ids.filter(id => id !== user.id)
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 text-green-600 rounded border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {assignFormData.user_ids.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} user(s) selected</p>
+                )}
+              </div>
+
+              {/* Coach */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Coach (Optional)
+                </label>
+                <select
+                  value={assignFormData.coach_id}
+                  onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  <option value="">Use competency owner ({competencyToAssign.owner?.full_name || 'None'})</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Target Completion Date (Optional)
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={assignFormData.target_date}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, target_date: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setCompetencyToAssign(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignCompetency}
+                disabled={assigning || assignFormData.user_ids.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                Assign Competency
+              </button>
             </div>
           </div>
         </div>
