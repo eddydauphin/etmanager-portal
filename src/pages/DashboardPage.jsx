@@ -602,19 +602,26 @@ function TeamLeadDashboard() {
 
   async function loadData() {
     try {
+      console.log('TeamLeadDashboard: Loading data for profile:', profile.id);
+      
       // Get team members who report to this team lead
       const teamMembers = await dbFetch(
         `profiles?select=id,full_name,email&reports_to_id=eq.${profile.id}&is_active=eq.true`
       );
+      console.log('TeamLeadDashboard: Team members found:', teamMembers);
+      
       const teamIds = teamMembers?.map(m => m.id) || [];
+      console.log('TeamLeadDashboard: Team IDs:', teamIds);
 
       if (teamIds.length > 0) {
         const teamIdList = teamIds.join(',');
+        console.log('TeamLeadDashboard: Team ID list:', teamIdList);
 
         // Get competencies stats
         const competencies = await dbFetch(
           `user_competencies?select=id,status&user_id=in.(${teamIdList})`
         );
+        console.log('TeamLeadDashboard: Competencies:', competencies);
         const compAssigned = competencies?.length || 0;
         const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
 
@@ -622,8 +629,10 @@ function TeamLeadDashboard() {
         const training = await dbFetch(
           `user_training?select=id,status&user_id=in.(${teamIdList})`
         );
+        console.log('TeamLeadDashboard: Training:', training);
         const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
         const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+        console.log('TeamLeadDashboard: Training pending:', trainingPending, 'completed:', trainingCompleted);
 
         // Get coaching stats
         const coaching = await dbFetch(
@@ -649,6 +658,7 @@ function TeamLeadDashboard() {
         const recentTraining = await dbFetch(
           `user_training?select=id,status,completed_at,user_id,module_id&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
         );
+        console.log('TeamLeadDashboard: Recent training:', recentTraining);
         
         // Enrich with user and module names
         if (recentTraining && recentTraining.length > 0) {
