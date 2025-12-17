@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import { dbFetch } from '../lib/db';
 import {
   BarChart3,
   Users,
@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export default function ReportsPage() {
-  const { profile } = useAuth();
+  const { profile, clientId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedClient, setSelectedClient] = useState('all');
@@ -43,7 +43,17 @@ export default function ReportsPage() {
   const [moduleStats, setModuleStats] = useState([]);
   const [traineeProgress, setTraineeProgress] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
-  const [completionTrend, setCompletionTrend] = useState([]);
+  const [competencyStats, setCompetencyStats] = useState({
+    total: 0,
+    achieved: 0,
+    inProgress: 0
+  });
+  const [coachingStats, setCoachingStats] = useState({
+    total: 0,
+    active: 0,
+    completed: 0,
+    overdue: 0
+  });
 
   useEffect(() => {
     loadClients();
@@ -57,17 +67,17 @@ export default function ReportsPage() {
 
   const loadClients = async () => {
     try {
-      let query = supabase.from('clients').select('id, name, code');
+      let url = 'clients?select=id,name,code&order=name.asc';
       
-      if (profile?.role === 'client_admin') {
-        query = query.eq('id', profile.client_id);
+      if (profile?.role === 'client_admin' || profile?.role === 'team_lead') {
+        url += `&id=eq.${clientId}`;
       }
       
-      const { data } = await query.order('name');
+      const data = await dbFetch(url);
       setClients(data || []);
       
-      // Set default client for client_admin
-      if (profile?.role === 'client_admin' && data?.length > 0) {
+      // Set default client for client_admin/team_lead
+      if ((profile?.role === 'client_admin' || profile?.role === 'team_lead') && data?.length > 0) {
         setSelectedClient(data[0].id);
       }
     } catch (err) {
@@ -88,7 +98,8 @@ export default function ReportsPage() {
         loadModuleStats(clientFilter),
         loadTraineeProgress(clientFilter),
         loadRecentActivity(clientFilter, dateLimit),
-        loadCompletionTrend(clientFilter)
+        loadCompetencyStats(clientFilter),
+        loadCoachingStats(clientFilter)
       ]);
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -100,61 +111,48 @@ export default function ReportsPage() {
   const loadOverviewStats = async (clientFilter) => {
     try {
       // Get trainees count
-      let traineeQuery = supabase
-        .from('profiles')
-        .select('id', { count: 'exact' })
-        .eq('role', 'trainee');
-      
+      let traineeUrl = 'profiles?select=id&role=eq.trainee';
       if (clientFilter) {
-        traineeQuery = traineeQuery.eq('client_id', clientFilter);
+        traineeUrl += `&client_id=eq.${clientFilter}`;
       }
-      
-      const { count: totalTrainees } = await traineeQuery;
+      const trainees = await dbFetch(traineeUrl);
+      const totalTrainees = trainees?.length || 0;
 
       // Get modules count
-      let moduleQuery = supabase
-        .from('training_modules')
-        .select('id, status', { count: 'exact' });
-      
+      let moduleUrl = 'training_modules?select=id,status';
       if (clientFilter) {
-        moduleQuery = moduleQuery.eq('client_id', clientFilter);
+        moduleUrl += `&client_id=eq.${clientFilter}`;
       }
-      
-      const { data: modules, count: totalModules } = await moduleQuery;
+      const modules = await dbFetch(moduleUrl);
+      const totalModules = modules?.length || 0;
       const publishedModules = modules?.filter(m => m.status === 'published').length || 0;
 
-      // Get training assignments
-      let assignmentQuery = supabase
-        .from('user_training')
-        .select(`
-          id,
-          status,
-          best_score,
-          due_date,
-          user_id,
-          profiles!inner(client_id)
-        `);
+      // Get training assignments - need to get trainees first, then their training
+      let assignmentUrl = 'user_training?select=id,status,best_score,due_date,user_id';
+      const assignments = await dbFetch(assignmentUrl);
       
-      if (clientFilter) {
-        assignmentQuery = assignmentQuery.eq('profiles.client_id', clientFilter);
+      // Filter by client if needed
+      let filteredAssignments = assignments || [];
+      if (clientFilter && trainees) {
+        const traineeIds = trainees.map(t => t.id);
+        filteredAssignments = assignments?.filter(a => traineeIds.includes(a.user_id)) || [];
       }
       
-      const { data: assignments } = await assignmentQuery;
-      
-      const totalAssignments = assignments?.length || 0;
-      const completedAssignments = assignments?.filter(a => a.status === 'completed').length || 0;
-      const inProgressCount = assignments?.filter(a => a.status === 'in_progress').length || 0;
+      const totalAssignments = filteredAssignments.length;
+      // FIXED: Use 'passed' instead of 'completed'
+      const completedAssignments = filteredAssignments.filter(a => a.status === 'passed').length;
+      const inProgressCount = filteredAssignments.filter(a => a.status === 'in_progress' || a.status === 'pending').length;
       
       // Calculate overdue
       const today = new Date();
-      const overdueCount = assignments?.filter(a => 
+      const overdueCount = filteredAssignments.filter(a => 
         a.due_date && 
         new Date(a.due_date) < today && 
-        a.status !== 'completed'
-      ).length || 0;
+        a.status !== 'passed'
+      ).length;
 
-      // Calculate pass rate and avg score from completed
-      const completedWithScores = assignments?.filter(a => a.status === 'completed' && a.best_score !== null) || [];
+      // Calculate pass rate and avg score from completed (passed)
+      const completedWithScores = filteredAssignments.filter(a => a.status === 'passed' && a.best_score !== null);
       const passRate = completedWithScores.length > 0 
         ? (completedWithScores.filter(a => a.best_score >= 80).length / completedWithScores.length) * 100 
         : 0;
@@ -163,12 +161,12 @@ export default function ReportsPage() {
         : 0;
 
       // Active trainees (with at least one assignment)
-      const activeTraineeIds = new Set(assignments?.map(a => a.user_id) || []);
+      const activeTraineeIds = new Set(filteredAssignments.map(a => a.user_id));
 
       setStats({
-        totalTrainees: totalTrainees || 0,
+        totalTrainees,
         activeTrainees: activeTraineeIds.size,
-        totalModules: totalModules || 0,
+        totalModules,
         publishedModules,
         totalAssignments,
         completedAssignments,
@@ -184,31 +182,22 @@ export default function ReportsPage() {
 
   const loadModuleStats = async (clientFilter) => {
     try {
-      let query = supabase
-        .from('training_modules')
-        .select(`
-          id,
-          title,
-          status,
-          pass_score,
-          user_training(
-            id,
-            status,
-            best_score,
-            attempts_count
-          )
-        `)
-        .eq('status', 'published');
-      
+      // Get all published modules
+      let moduleUrl = 'training_modules?select=id,title,status,pass_score';
       if (clientFilter) {
-        query = query.eq('client_id', clientFilter);
+        moduleUrl += `&client_id=eq.${clientFilter}`;
       }
+      moduleUrl += '&status=eq.published';
       
-      const { data: modules } = await query;
+      const modules = await dbFetch(moduleUrl);
+      
+      // Get all training assignments
+      const allTraining = await dbFetch('user_training?select=id,status,best_score,attempts_count,module_id');
       
       const moduleData = modules?.map(module => {
-        const assignments = module.user_training || [];
-        const completed = assignments.filter(a => a.status === 'completed');
+        const assignments = allTraining?.filter(t => t.module_id === module.id) || [];
+        // FIXED: Use 'passed' instead of 'completed'
+        const completed = assignments.filter(a => a.status === 'passed');
         const passed = completed.filter(a => a.best_score >= (module.pass_score || 80));
         const avgScore = completed.length > 0
           ? completed.reduce((sum, a) => sum + (a.best_score || 0), 0) / completed.length
@@ -240,42 +229,36 @@ export default function ReportsPage() {
 
   const loadTraineeProgress = async (clientFilter) => {
     try {
-      let query = supabase
-        .from('profiles')
-        .select(`
-          id,
-          full_name,
-          email,
-          department,
-          client_id,
-          clients(name),
-          user_training(
-            id,
-            status,
-            best_score,
-            due_date
-          )
-        `)
-        .eq('role', 'trainee');
-      
+      // Get trainees
+      let traineeUrl = 'profiles?select=id,full_name,email,department,client_id&role=eq.trainee';
       if (clientFilter) {
-        query = query.eq('client_id', clientFilter);
+        traineeUrl += `&client_id=eq.${clientFilter}`;
       }
+      traineeUrl += '&limit=50';
       
-      const { data: trainees } = await query.limit(50);
+      const trainees = await dbFetch(traineeUrl);
+      
+      // Get all training
+      const allTraining = await dbFetch('user_training?select=id,status,best_score,due_date,user_id');
+      
+      // Get client names
+      const clientsData = await dbFetch('clients?select=id,name');
+      const clientMap = {};
+      clientsData?.forEach(c => clientMap[c.id] = c.name);
       
       const today = new Date();
       const traineeData = trainees?.map(trainee => {
-        const assignments = trainee.user_training || [];
-        const completed = assignments.filter(a => a.status === 'completed').length;
+        const assignments = allTraining?.filter(t => t.user_id === trainee.id) || [];
+        // FIXED: Use 'passed' instead of 'completed'
+        const completed = assignments.filter(a => a.status === 'passed').length;
         const overdue = assignments.filter(a => 
           a.due_date && 
           new Date(a.due_date) < today && 
-          a.status !== 'completed'
+          a.status !== 'passed'
         ).length;
-        const avgScore = assignments.filter(a => a.best_score !== null).length > 0
-          ? assignments.filter(a => a.best_score !== null).reduce((sum, a) => sum + a.best_score, 0) / 
-            assignments.filter(a => a.best_score !== null).length
+        const scoresArray = assignments.filter(a => a.best_score !== null);
+        const avgScore = scoresArray.length > 0
+          ? scoresArray.reduce((sum, a) => sum + a.best_score, 0) / scoresArray.length
           : 0;
 
         return {
@@ -283,7 +266,7 @@ export default function ReportsPage() {
           name: trainee.full_name || trainee.email,
           email: trainee.email,
           department: trainee.department,
-          client: trainee.clients?.name,
+          client: clientMap[trainee.client_id],
           total: assignments.length,
           completed,
           overdue,
@@ -306,36 +289,71 @@ export default function ReportsPage() {
 
   const loadRecentActivity = async (clientFilter, dateLimit) => {
     try {
-      let query = supabase
-        .from('quiz_attempts')
-        .select(`
-          id,
-          score,
-          passed,
-          completed_at,
-          user_id,
-          module_id,
-          profiles!inner(full_name, email, client_id),
-          training_modules(title)
-        `)
-        .not('completed_at', 'is', null)
-        .gte('completed_at', dateLimit.toISOString())
-        .order('completed_at', { ascending: false });
+      // Use user_training_attempts instead of quiz_attempts
+      const attempts = await dbFetch(
+        `user_training_attempts?select=id,score,passed,completed_at,user_training_id&order=completed_at.desc&limit=20`
+      );
       
-      if (clientFilter) {
-        query = query.eq('profiles.client_id', clientFilter);
+      if (!attempts || attempts.length === 0) {
+        setRecentActivity([]);
+        return;
       }
       
-      const { data: attempts } = await query.limit(20);
+      // Get user_training to link to users and modules
+      const trainingIds = [...new Set(attempts.map(a => a.user_training_id))];
+      const trainingData = await dbFetch(
+        `user_training?select=id,user_id,module_id&id=in.(${trainingIds.join(',')})`
+      );
       
-      const activity = attempts?.map(attempt => ({
-        id: attempt.id,
-        trainee: attempt.profiles?.full_name || attempt.profiles?.email,
-        module: attempt.training_modules?.title,
-        score: attempt.score,
-        passed: attempt.passed,
-        date: attempt.completed_at
-      })) || [];
+      // Get user names
+      const userIds = [...new Set(trainingData?.map(t => t.user_id) || [])];
+      const users = userIds.length > 0 
+        ? await dbFetch(`profiles?select=id,full_name,email,client_id&id=in.(${userIds.join(',')})`)
+        : [];
+      
+      // Get module names
+      const moduleIds = [...new Set(trainingData?.map(t => t.module_id) || [])];
+      const modules = moduleIds.length > 0
+        ? await dbFetch(`training_modules?select=id,title&id=in.(${moduleIds.join(',')})`)
+        : [];
+      
+      // Build lookup maps
+      const trainingMap = {};
+      trainingData?.forEach(t => trainingMap[t.id] = t);
+      const userMap = {};
+      users?.forEach(u => userMap[u.id] = u);
+      const moduleMap = {};
+      modules?.forEach(m => moduleMap[m.id] = m);
+      
+      // Filter by client if needed
+      let filteredAttempts = attempts;
+      if (clientFilter) {
+        filteredAttempts = attempts.filter(a => {
+          const training = trainingMap[a.user_training_id];
+          const user = training ? userMap[training.user_id] : null;
+          return user?.client_id === clientFilter;
+        });
+      }
+      
+      // Filter by date
+      filteredAttempts = filteredAttempts.filter(a => 
+        a.completed_at && new Date(a.completed_at) >= dateLimit
+      );
+      
+      const activity = filteredAttempts.slice(0, 20).map(attempt => {
+        const training = trainingMap[attempt.user_training_id];
+        const user = training ? userMap[training.user_id] : null;
+        const module = training ? moduleMap[training.module_id] : null;
+        
+        return {
+          id: attempt.id,
+          trainee: user?.full_name || user?.email || 'Unknown',
+          module: module?.title || 'Unknown',
+          score: attempt.score,
+          passed: attempt.passed,
+          date: attempt.completed_at
+        };
+      });
       
       setRecentActivity(activity);
     } catch (err) {
@@ -343,60 +361,58 @@ export default function ReportsPage() {
     }
   };
 
-  const loadCompletionTrend = async (clientFilter) => {
+  const loadCompetencyStats = async (clientFilter) => {
     try {
-      // Get completions grouped by week for last 8 weeks
-      const weeks = [];
-      const today = new Date();
-      
-      for (let i = 7; i >= 0; i--) {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - (i * 7) - today.getDay());
-        weekStart.setHours(0, 0, 0, 0);
-        
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
-        
-        weeks.push({
-          start: weekStart,
-          end: weekEnd,
-          label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
-        });
-      }
-
-      let query = supabase
-        .from('user_training')
-        .select(`
-          id,
-          completed_at,
-          status,
-          profiles!inner(client_id)
-        `)
-        .eq('status', 'completed')
-        .not('completed_at', 'is', null);
-      
+      // Get trainees for client filter
+      let traineeIds = [];
       if (clientFilter) {
-        query = query.eq('profiles.client_id', clientFilter);
+        const trainees = await dbFetch(`profiles?select=id&role=eq.trainee&client_id=eq.${clientFilter}`);
+        traineeIds = trainees?.map(t => t.id) || [];
       }
       
-      const { data: completions } = await query;
+      // Get all user competencies
+      let compUrl = 'user_competencies?select=id,status,user_id';
+      const competencies = await dbFetch(compUrl);
       
-      const trendData = weeks.map(week => {
-        const count = completions?.filter(c => {
-          const completedDate = new Date(c.completed_at);
-          return completedDate >= week.start && completedDate <= week.end;
-        }).length || 0;
-        
-        return {
-          week: week.label,
-          completions: count
-        };
+      // Filter by client if needed
+      let filtered = competencies || [];
+      if (clientFilter && traineeIds.length > 0) {
+        filtered = competencies?.filter(c => traineeIds.includes(c.user_id)) || [];
+      }
+      
+      setCompetencyStats({
+        total: filtered.length,
+        achieved: filtered.filter(c => c.status === 'achieved').length,
+        inProgress: filtered.filter(c => c.status === 'in_progress' || c.status === 'not_started' || c.status === 'assigned').length
       });
-      
-      setCompletionTrend(trendData);
     } catch (err) {
-      console.error('Error loading completion trend:', err);
+      console.error('Error loading competency stats:', err);
+    }
+  };
+
+  const loadCoachingStats = async (clientFilter) => {
+    try {
+      let coachingUrl = 'development_activities?select=id,status,due_date,client_id&type=eq.coaching';
+      if (clientFilter) {
+        coachingUrl += `&client_id=eq.${clientFilter}`;
+      }
+      
+      const coaching = await dbFetch(coachingUrl);
+      
+      const today = new Date();
+      const overdue = coaching?.filter(c => {
+        if (!c.due_date || c.status === 'validated') return false;
+        return new Date(c.due_date) < today;
+      }).length || 0;
+      
+      setCoachingStats({
+        total: coaching?.length || 0,
+        active: coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0,
+        completed: coaching?.filter(c => c.status === 'validated').length || 0,
+        overdue
+      });
+    } catch (err) {
+      console.error('Error loading coaching stats:', err);
     }
   };
 
@@ -406,218 +422,286 @@ export default function ReportsPage() {
     setRefreshing(false);
   };
 
-  const exportToCSV = () => {
-    // Export trainee progress data
-    const headers = ['Name', 'Email', 'Department', 'Client', 'Assigned', 'Completed', 'Overdue', 'Avg Score', 'Completion %'];
-    const rows = traineeProgress.map(t => [
-      t.name,
-      t.email,
-      t.department || '',
-      t.client || '',
-      t.total,
-      t.completed,
-      t.overdue,
-      t.avgScore,
-      t.completionRate
-    ]);
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
     
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `training-report-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const completionRate = stats.totalAssignments > 0 
+    ? Math.round((stats.completedAssignments / stats.totalAssignments) * 100) 
+    : 0;
 
-  // Find max for trend chart
-  const maxCompletions = Math.max(...completionTrend.map(t => t.completions), 1);
+  const competencyRate = competencyStats.total > 0
+    ? Math.round((competencyStats.achieved / competencyStats.total) * 100)
+    : 0;
 
   return (
-    <div className="p-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Training Analytics</h1>
-          <p className="text-gray-600">Monitor training progress and performance</p>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <BarChart3 className="w-7 h-7 text-blue-600" />
+            Training & Development Reports
+          </h1>
+          <p className="text-gray-500 mt-1">Analytics and performance insights</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Client Filter */}
-          {profile?.role === 'super_admin' && (
-            <select
-              value={selectedClient}
-              onChange={(e) => setSelectedClient(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Clients</option>
-              {clients.map(client => (
-                <option key={client.id} value={client.id}>{client.name}</option>
-              ))}
-            </select>
-          )}
-          
-          {/* Date Range Filter */}
-          <select
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="365">Last year</option>
-          </select>
-          
-          {/* Refresh Button */}
+        <div className="flex items-center gap-3">
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg"
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+            title="Refresh data"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          
-          {/* Export Button */}
-          <button
-            onClick={exportToCSV}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Filter className="w-5 h-5 text-gray-400" />
+          <span className="text-sm font-medium text-gray-700">Filters:</span>
+        </div>
+        
+        {profile?.role === 'super_admin' && (
+          <select
+            value={selectedClient}
+            onChange={(e) => setSelectedClient(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Clients</option>
+            {clients.map(client => (
+              <option key={client.id} value={client.id}>{client.name}</option>
+            ))}
+          </select>
+        )}
+        
+        <select
+          value={dateRange}
+          onChange={(e) => setDateRange(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last year</option>
+        </select>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
         <>
           {/* Overview Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <Users className="w-5 h-5 text-blue-500" />
-                <span className="text-xs text-gray-500">Active: {stats.activeTrainees}</span>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Users className="w-4 h-4" />
+                <span className="text-xs font-medium">Trainees</span>
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalTrainees}</p>
-              <p className="text-sm text-gray-600">Total Trainees</p>
+              <p className="text-xs text-gray-500">{stats.activeTrainees} with training</p>
             </div>
-            
+
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <BookOpen className="w-5 h-5 text-purple-500" />
-                <span className="text-xs text-gray-500">Published: {stats.publishedModules}</span>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <BookOpen className="w-4 h-4" />
+                <span className="text-xs font-medium">Modules</span>
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalModules}</p>
-              <p className="text-sm text-gray-600">Training Modules</p>
+              <p className="text-xs text-gray-500">{stats.publishedModules} published</p>
             </div>
-            
+
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                <span className="text-xs text-gray-500">{stats.completedAssignments} of {stats.totalAssignments}</span>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Target className="w-4 h-4" />
+                <span className="text-xs font-medium">Competencies</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.totalAssignments > 0 
-                  ? Math.round((stats.completedAssignments / stats.totalAssignments) * 100) 
-                  : 0}%
+              <p className="text-2xl font-bold text-gray-900">{competencyStats.total}</p>
+              <p className="text-xs text-green-600">{competencyStats.achieved} achieved ({competencyRate}%)</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Users className="w-4 h-4" />
+                <span className="text-xs font-medium">Coaching</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{coachingStats.total}</p>
+              <p className="text-xs text-gray-500">{coachingStats.active} active, {coachingStats.completed} done</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Clock className="w-4 h-4" />
+                <span className="text-xs font-medium">Training</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalAssignments}</p>
+              <p className="text-xs text-gray-500">{stats.inProgressCount} pending</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-xs font-medium">Overdue</span>
+              </div>
+              <p className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {stats.overdueCount}
               </p>
-              <p className="text-sm text-gray-600">Completion Rate</p>
-            </div>
-            
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <Trophy className="w-5 h-5 text-yellow-500" />
-                <span className="text-xs text-gray-500">Avg: {stats.avgScore}%</span>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{stats.passRate}%</p>
-              <p className="text-sm text-gray-600">Pass Rate</p>
-            </div>
-            
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                <span className="text-xs text-gray-500">In Progress: {stats.inProgressCount}</span>
-              </div>
-              <p className="text-2xl font-bold text-red-600">{stats.overdueCount}</p>
-              <p className="text-sm text-gray-600">Overdue</p>
+              <p className="text-xs text-gray-500">training items</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Completion Trend Chart */}
+          {/* Training Analytics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Completion Rate */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-500" />
-                Completion Trend (8 Weeks)
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                Training Completion
               </h3>
-              <div className="h-48 flex items-end justify-between gap-2">
-                {completionTrend.map((week, index) => (
-                  <div key={index} className="flex-1 flex flex-col items-center">
-                    <div 
-                      className="w-full bg-blue-500 rounded-t-md transition-all duration-300 hover:bg-blue-600"
-                      style={{ 
-                        height: `${(week.completions / maxCompletions) * 100}%`,
-                        minHeight: week.completions > 0 ? '8px' : '2px'
-                      }}
-                      title={`${week.completions} completions`}
+              <div className="flex items-center justify-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle
+                      cx="64" cy="64" r="56"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="12"
                     />
-                    <span className="text-xs text-gray-500 mt-2">{week.week}</span>
-                    <span className="text-xs font-medium text-gray-700">{week.completions}</span>
+                    <circle
+                      cx="64" cy="64" r="56"
+                      fill="none"
+                      stroke="#10B981"
+                      strokeWidth="12"
+                      strokeDasharray={`${completionRate * 3.52} 352`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-3xl font-bold text-gray-900">{completionRate}%</span>
                   </div>
-                ))}
+                </div>
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-sm text-gray-500">
+                  {stats.completedAssignments} of {stats.totalAssignments} completed
+                </p>
               </div>
             </div>
 
-            {/* Module Performance */}
+            {/* Pass Rate */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-purple-500" />
-                Top Modules by Assignment
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                Pass Rate
               </h3>
-              <div className="space-y-3 max-h-48 overflow-y-auto">
-                {moduleStats.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">No module data available</p>
-                ) : (
-                  moduleStats.slice(0, 5).map((module, index) => (
-                    <div key={module.id} className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-400 w-4">{index + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{module.title}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>{module.assigned} assigned</span>
-                          <span>•</span>
-                          <span>{module.completionRate}% complete</span>
-                          <span>•</span>
-                          <span className={module.passRate >= 80 ? 'text-green-600' : 'text-orange-600'}>
-                            {module.passRate}% pass
-                          </span>
-                        </div>
-                      </div>
-                      <div className="w-16 bg-gray-100 rounded-full h-2">
-                        <div 
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${module.completionRate}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
+              <div className="flex items-center justify-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle
+                      cx="64" cy="64" r="56"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="12"
+                    />
+                    <circle
+                      cx="64" cy="64" r="56"
+                      fill="none"
+                      stroke="#F59E0B"
+                      strokeWidth="12"
+                      strokeDasharray={`${stats.passRate * 3.52} 352`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-3xl font-bold text-gray-900">{stats.passRate}%</span>
+                  </div>
+                </div>
               </div>
+              <div className="mt-4 text-center">
+                <p className="text-sm text-gray-500">
+                  Average Score: {stats.avgScore}%
+                </p>
+              </div>
+            </div>
+
+            {/* Competency Progress */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-blue-500" />
+                Competency Achievement
+              </h3>
+              <div className="flex items-center justify-center">
+                <div className="relative w-32 h-32">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle
+                      cx="64" cy="64" r="56"
+                      fill="none"
+                      stroke="#E5E7EB"
+                      strokeWidth="12"
+                    />
+                    <circle
+                      cx="64" cy="64" r="56"
+                      fill="none"
+                      stroke="#3B82F6"
+                      strokeWidth="12"
+                      strokeDasharray={`${competencyRate * 3.52} 352`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-3xl font-bold text-gray-900">{competencyRate}%</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-sm text-gray-500">
+                  {competencyStats.achieved} of {competencyStats.total} achieved
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Module Performance */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-500" />
+              Training Module Performance
+            </h3>
+            <div className="space-y-3">
+              {moduleStats.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No module data available</p>
+              ) : (
+                moduleStats.slice(0, 5).map(module => (
+                  <div key={module.id} className="flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{module.title}</p>
+                      <p className="text-sm text-gray-500">
+                        {module.completed}/{module.assigned} completed • {module.passRate}% pass rate
+                      </p>
+                    </div>
+                    <div className="w-32 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full"
+                        style={{ width: `${module.completionRate}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
