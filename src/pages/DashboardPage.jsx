@@ -2307,6 +2307,9 @@ function TraineeDashboard() {
         </div>
       </div>
 
+      {/* My Training Development Tasks (if assigned as training developer) */}
+      <MyTrainingDevelopmentSection profile={profile} />
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
