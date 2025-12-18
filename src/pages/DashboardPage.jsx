@@ -131,6 +131,7 @@ function TrainingMaterialsSection({ clientId = null }) {
       // Load competencies with training developer info
       let url = 'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)';
       const competencies = await dbFetch(url);
+      console.log('TrainingMaterials: Competencies loaded:', competencies?.length);
       
       // Load training modules - try with competency_id first
       let modules = [];
@@ -140,15 +141,19 @@ function TrainingMaterialsSection({ clientId = null }) {
           modulesUrl += `&client_id=eq.${clientId}`;
         }
         modules = await dbFetch(modulesUrl) || [];
+        console.log('TrainingMaterials: Modules with competency_id:', modules);
       } catch (e) {
         // If competency_id doesn't exist, try without it
+        console.log('TrainingMaterials: competency_id query failed, trying without');
         try {
           let modulesUrl = 'training_modules?select=id,status,title';
           if (clientId) {
             modulesUrl += `&client_id=eq.${clientId}`;
           }
           modules = await dbFetch(modulesUrl) || [];
+          console.log('TrainingMaterials: Modules without competency_id:', modules);
         } catch (e2) {
+          console.log('TrainingMaterials: Module query failed completely');
           modules = [];
         }
       }
@@ -160,6 +165,9 @@ function TrainingMaterialsSection({ clientId = null }) {
       const inDevModules = modules.filter(m => 
         m.status === 'draft' || m.status === 'in_development' || m.status === 'pending'
       );
+      
+      console.log('TrainingMaterials: Released modules:', releasedModules);
+      console.log('TrainingMaterials: In-dev modules:', inDevModules);
       
       setStats({
         total: modules.length,
@@ -173,9 +181,7 @@ function TrainingMaterialsSection({ clientId = null }) {
           .filter(m => m.competency_id)
           .map(m => m.competency_id)
       );
-
-      // Also try to match by name if competency_id not available
-      const releasedModuleTitles = releasedModules.map(m => m.title?.toLowerCase() || '');
+      console.log('TrainingMaterials: Competencies with released training (by ID):', competenciesWithReleasedTraining);
 
       // Group competencies by training developer
       const developerMap = {};
@@ -191,11 +197,17 @@ function TrainingMaterialsSection({ clientId = null }) {
           }
           developerMap[comp.training_developer_id].assigned.push(comp);
           
-          // Check if this competency has released training
+          // Check if this competency has released training by ID
           const hasReleasedById = competenciesWithReleasedTraining.has(comp.id);
-          const hasReleasedByName = releasedModuleTitles.some(title => 
-            title.includes(comp.name?.toLowerCase() || '')
-          );
+          
+          // Check if any released module title contains the competency name
+          const compNameLower = comp.name?.toLowerCase() || '';
+          const hasReleasedByName = releasedModules.some(m => {
+            const titleLower = m.title?.toLowerCase() || '';
+            return titleLower.includes(compNameLower) || compNameLower.includes(titleLower);
+          });
+          
+          console.log(`TrainingMaterials: Competency "${comp.name}" - hasReleasedById: ${hasReleasedById}, hasReleasedByName: ${hasReleasedByName}`);
           
           if (hasReleasedById || hasReleasedByName) {
             developerMap[comp.training_developer_id].completed++;
@@ -205,6 +217,7 @@ function TrainingMaterialsSection({ clientId = null }) {
         }
       });
 
+      console.log('TrainingMaterials: Developer map:', developerMap);
       setDevelopers(Object.values(developerMap));
     } catch (error) {
       console.error('Error loading training materials data:', error);
