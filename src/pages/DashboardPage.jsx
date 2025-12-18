@@ -28,7 +28,9 @@ import {
   Send,
   Loader2,
   TrendingUp,
-  Award
+  Award,
+  Rocket,
+  Lightbulb
 } from 'lucide-react';
 
 // Stat Card Component
@@ -84,6 +86,342 @@ function QuickAction({ title, description, href, icon: Icon }) {
       </div>
       <ArrowRight className="w-5 h-5 text-gray-400" />
     </Link>
+  );
+}
+
+// Quick Action Button (onClick instead of navigation)
+function QuickActionButton({ title, description, onClick, icon: Icon }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow text-left w-full"
+    >
+      <div className="p-3 bg-blue-50 rounded-lg">
+        <Icon className="w-5 h-5 text-blue-600" />
+      </div>
+      <div className="flex-1">
+        <h3 className="font-medium text-gray-900">{title}</h3>
+        <p className="text-sm text-gray-500">{description}</p>
+      </div>
+      <ArrowRight className="w-5 h-5 text-gray-400" />
+    </button>
+  );
+}
+
+// Create Development Activity Modal
+function CreateDevelopmentModal({ isOpen, onClose, profile, onSuccess }) {
+  const [users, setUsers] = useState([]);
+  const [coaches, setCoaches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  
+  const [formData, setFormData] = useState({
+    type: '',
+    title: '',
+    description: '',
+    trainee_ids: [],
+    coach_id: '',
+    start_date: new Date().toISOString().split('T')[0],
+    due_date: ''
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Load trainees
+      let usersUrl = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      if (profile?.role === 'client_admin' && profile?.client_id) {
+        usersUrl += `&client_id=eq.${profile.client_id}`;
+      } else if (profile?.role === 'team_lead') {
+        usersUrl += `&reports_to_id=eq.${profile.id}`;
+      }
+      const usersData = await dbFetch(usersUrl);
+      setUsers(usersData || []);
+
+      // Load coaches (non-trainees)
+      let coachesUrl = 'profiles?select=id,full_name,email,role&is_active=eq.true&role=neq.trainee&order=full_name.asc';
+      if (profile?.role === 'client_admin' && profile?.client_id) {
+        coachesUrl += `&client_id=eq.${profile.client_id}`;
+      }
+      const coachesData = await dbFetch(coachesUrl);
+      setCoaches(coachesData || []);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setError('');
+    
+    if (!formData.type) {
+      setError('Please select an activity type');
+      return;
+    }
+    if (formData.trainee_ids.length === 0) {
+      setError('Please select at least one user');
+      return;
+    }
+    if (!formData.coach_id) {
+      setError('Please select a coach');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const clientId = profile?.client_id || users.find(u => formData.trainee_ids.includes(u.id))?.client_id;
+
+      for (const traineeId of formData.trainee_ids) {
+        await dbFetch('development_activities', {
+          method: 'POST',
+          body: JSON.stringify({
+            type: 'coaching',
+            title: formData.title || (formData.type === 'grow_doing' ? 'Grow through doing' : 'Learn through others'),
+            description: formData.description || (formData.type === 'grow_doing' 
+              ? 'Development through initiatives, projects, and hands-on experience'
+              : 'Development through feedback, coaching, and mentoring'),
+            trainee_id: traineeId,
+            assigned_by: profile.id,
+            coach_id: formData.coach_id,
+            start_date: formData.start_date,
+            due_date: formData.due_date || null,
+            status: 'pending',
+            client_id: clientId
+          })
+        });
+      }
+
+      // Reset and close
+      setFormData({
+        type: '',
+        title: '',
+        description: '',
+        trainee_ids: [],
+        coach_id: '',
+        start_date: new Date().toISOString().split('T')[0],
+        due_date: ''
+      });
+      onClose();
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      console.error('Error creating activity:', err);
+      setError(err.message || 'Failed to create activity');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <ClipboardList className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Create Development Activity</h2>
+              <p className="text-sm text-gray-500">Assign coaching or development task</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <>
+              {/* Activity Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Activity Type *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, type: 'grow_doing' })}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      formData.type === 'grow_doing'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Rocket className={`w-6 h-6 mb-2 ${formData.type === 'grow_doing' ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <p className="font-medium text-gray-900">Grow through doing</p>
+                    <p className="text-xs text-gray-500 mt-1">Initiatives, projects, hands-on</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, type: 'learn_others' })}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      formData.type === 'learn_others'
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <Lightbulb className={`w-6 h-6 mb-2 ${formData.type === 'learn_others' ? 'text-purple-600' : 'text-gray-400'}`} />
+                    <p className="font-medium text-gray-900">Learn through others</p>
+                    <p className="text-xs text-gray-500 mt-1">Feedback, coaching, mentoring</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Title (Optional) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g., Q1 Project Leadership"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Description (Optional) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description (Optional)
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={2}
+                  placeholder="Brief description of the activity..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Select Users */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Users *
+                </label>
+                <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
+                  {users.filter(u => u.role === 'trainee' || u.role === 'team_lead').length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500 text-center">No users available</p>
+                  ) : (
+                    users.filter(u => u.role === 'trainee' || u.role === 'team_lead').map(user => (
+                      <label
+                        key={user.id}
+                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
+                          formData.trainee_ids.includes(user.id) ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.trainee_ids.includes(user.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, trainee_ids: [...formData.trainee_ids, user.id] });
+                            } else {
+                              setFormData({ ...formData, trainee_ids: formData.trainee_ids.filter(id => id !== user.id) });
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {formData.trainee_ids.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">{formData.trainee_ids.length} user(s) selected</p>
+                )}
+              </div>
+
+              {/* Select Coach */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Coach *
+                </label>
+                <select
+                  value={formData.coach_id}
+                  onChange={(e) => setFormData({ ...formData, coach_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select a coach...</option>
+                  {coaches.map(coach => (
+                    <option key={coach.id} value={coach.id}>{coach.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Timeline */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Due Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Create Activity
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -593,6 +931,7 @@ function TeamLeadDashboard() {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
@@ -781,10 +1120,10 @@ function TeamLeadDashboard() {
             href="/my-team"
             icon={Users}
           />
-          <QuickAction
+          <QuickActionButton
             title="Development Activities"
-            description="Manage coaching & tasks"
-            href="/development?action=create"
+            description="Assign coaching & development"
+            onClick={() => setShowDevModal(true)}
             icon={ClipboardList}
           />
           <QuickAction
@@ -801,6 +1140,14 @@ function TeamLeadDashboard() {
           />
         </div>
       </div>
+
+      {/* Create Development Modal */}
+      <CreateDevelopmentModal
+        isOpen={showDevModal}
+        onClose={() => setShowDevModal(false)}
+        profile={profile}
+        onSuccess={() => {}}
+      />
     </div>
   );
 }
@@ -816,6 +1163,7 @@ function SuperAdminDashboard() {
     trainingPending: 0
   });
   const [loading, setLoading] = useState(true);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -918,10 +1266,10 @@ function SuperAdminDashboard() {
             href="/users"
             icon={Users}
           />
-          <QuickAction
+          <QuickActionButton
             title="Development Activities"
-            description="Manage coaching & tasks"
-            href="/development?action=create"
+            description="Assign coaching & development"
+            onClick={() => setShowDevModal(true)}
             icon={ClipboardList}
           />
           <QuickAction
@@ -932,6 +1280,14 @@ function SuperAdminDashboard() {
           />
         </div>
       </div>
+
+      {/* Create Development Modal */}
+      <CreateDevelopmentModal
+        isOpen={showDevModal}
+        onClose={() => setShowDevModal(false)}
+        profile={profile}
+        onSuccess={() => {}}
+      />
 
       {/* Client List */}
       <div>
@@ -998,6 +1354,7 @@ function ClientAdminDashboard() {
     coachingActive: 0
   });
   const [loading, setLoading] = useState(true);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   useEffect(() => {
     if (clientId) {
@@ -1116,10 +1473,10 @@ function ClientAdminDashboard() {
             href="/users"
             icon={Plus}
           />
-          <QuickAction
+          <QuickActionButton
             title="Development Activities"
-            description="Manage coaching & tasks"
-            href="/development?action=create"
+            description="Assign coaching & development"
+            onClick={() => setShowDevModal(true)}
             icon={ClipboardList}
           />
           <QuickAction
@@ -1136,6 +1493,14 @@ function ClientAdminDashboard() {
           />
         </div>
       </div>
+
+      {/* Create Development Modal */}
+      <CreateDevelopmentModal
+        isOpen={showDevModal}
+        onClose={() => setShowDevModal(false)}
+        profile={profile}
+        onSuccess={() => {}}
+      />
 
       {/* Team Members */}
       <div>

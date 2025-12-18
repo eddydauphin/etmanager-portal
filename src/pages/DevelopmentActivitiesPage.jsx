@@ -77,7 +77,9 @@ export default function DevelopmentActivitiesPage() {
 
   // Auto-open create modal if ?action=create in URL
   useEffect(() => {
+    console.log('searchParams action:', searchParams.get('action'));
     if (searchParams.get('action') === 'create') {
+      console.log('Opening modal!');
       setShowCreateModal(true);
       setSearchParams({});
     }
