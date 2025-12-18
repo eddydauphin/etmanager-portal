@@ -784,7 +784,7 @@ function TeamLeadDashboard() {
           <QuickAction
             title="Development Activities"
             description="Manage coaching & tasks"
-            href="/development"
+            href="/development?action=create"
             icon={ClipboardList}
           />
           <QuickAction
@@ -921,7 +921,7 @@ function SuperAdminDashboard() {
           <QuickAction
             title="Development Activities"
             description="Manage coaching & tasks"
-            href="/development"
+            href="/development?action=create"
             icon={ClipboardList}
           />
           <QuickAction
@@ -1119,7 +1119,7 @@ function ClientAdminDashboard() {
           <QuickAction
             title="Development Activities"
             description="Manage coaching & tasks"
-            href="/development"
+            href="/development?action=create"
             icon={ClipboardList}
           />
           <QuickAction

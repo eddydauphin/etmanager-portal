@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import {
@@ -27,6 +28,7 @@ import {
 
 export default function DevelopmentActivitiesPage() {
   const { profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [activities, setActivities] = useState([]);
   const [users, setUsers] = useState([]);
@@ -72,6 +74,14 @@ export default function DevelopmentActivitiesPage() {
   useEffect(() => {
     loadData();
   }, [profile]);
+
+  // Auto-open create modal if ?action=create in URL
+  useEffect(() => {
+    if (searchParams.get('action') === 'create' && !loading) {
+      setShowCreateModal(true);
+      setSearchParams({});
+    }
+  }, [searchParams, loading]);
 
   const loadData = async () => {
     setLoading(true);
