@@ -2069,25 +2069,33 @@ function TraineeDashboard() {
 
   async function loadData() {
     try {
+      console.log('TraineeDashboard: Loading data for user:', profile.id);
+      
       // Competencies
-      const competencies = await dbFetch(`user_competencies?select=id,status&user_id=eq.${profile.id}`);
+      const competencies = await dbFetch(`user_competencies?select=id,status,current_level,target_level&user_id=eq.${profile.id}`);
+      console.log('TraineeDashboard: Competencies:', competencies);
       const compTotal = competencies?.length || 0;
-      const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
+      const compAchieved = competencies?.filter(c => c.status === 'achieved' || c.current_level >= c.target_level).length || 0;
+      const compInProgress = competencies?.filter(c => c.status !== 'achieved' && c.current_level < c.target_level).length || 0;
 
       // Training
-      const training = await dbFetch(`user_training?select=id,status&user_id=eq.${profile.id}`);
-      const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
-      const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+      const training = await dbFetch(`user_training?select=*&user_id=eq.${profile.id}`);
+      console.log('TraineeDashboard: Training assignments:', training);
+      const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'assigned').length || 0;
+      const trainingCompleted = training?.filter(t => t.status === 'passed' || t.status === 'completed').length || 0;
 
       // Coaching
-      const coaching = await dbFetch(`development_activities?select=id&trainee_id=eq.${profile.id}&type=eq.coaching&status=neq.validated&status=neq.cancelled`);
+      const coaching = await dbFetch(`development_activities?select=id,status,title&trainee_id=eq.${profile.id}&type=eq.coaching`);
+      console.log('TraineeDashboard: Coaching activities:', coaching);
+      const activeCoaching = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
 
       setStats({
         competenciesTotal: compTotal,
         competenciesAchieved: compAchieved,
+        competenciesToDevelop: compInProgress,
         trainingPending,
         trainingCompleted,
-        coachingActive: coaching?.length || 0
+        coachingActive: activeCoaching
       });
     } catch (error) {
       console.error('Error loading trainee data:', error);
@@ -2124,32 +2132,32 @@ function TraineeDashboard() {
 
         <div className="lg:col-span-2 grid grid-cols-2 gap-4">
           <StatCard 
-            title="Competencies" 
-            value={stats.competenciesTotal}
-            subtitle="Total assigned"
+            title="Skills to Develop" 
+            value={stats.competenciesTotal - stats.competenciesAchieved}
+            subtitle="In progress"
             icon={Target}
             color="blue"
           />
           <StatCard 
-            title="Achieved" 
-            value={stats.competenciesAchieved}
-            subtitle="Skills completed"
-            icon={CheckCircle}
-            color="green"
-          />
-          <StatCard 
-            title="Training" 
+            title="Training Pending" 
             value={stats.trainingPending}
-            subtitle={`Pending (${stats.trainingCompleted} done)`}
+            subtitle={`${stats.trainingCompleted} completed`}
             icon={GraduationCap}
             color="amber"
           />
           <StatCard 
-            title="Coaching" 
+            title="Active Coaching" 
             value={stats.coachingActive}
-            subtitle="Active sessions"
+            subtitle="Sessions in progress"
             icon={Users}
             color="purple"
+          />
+          <StatCard 
+            title="Skills Achieved" 
+            value={stats.competenciesAchieved}
+            subtitle={`of ${stats.competenciesTotal} total`}
+            icon={CheckCircle}
+            color="green"
           />
         </div>
       </div>
