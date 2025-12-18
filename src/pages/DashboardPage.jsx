@@ -467,11 +467,23 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
   const [coachingActivities, setCoachingActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showValidateModal, setShowValidateModal] = useState(false);
+  const [showTraineeModal, setShowTraineeModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
+  const [selectedTrainee, setSelectedTrainee] = useState(null);
+  const [traineeCompetencies, setTraineeCompetencies] = useState([]);
+  const [selectedCompetency, setSelectedCompetency] = useState(null);
   const [feedback, setFeedback] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [loadingCompetencies, setLoadingCompetencies] = useState(false);
+  
+  // Validation form state
+  const [validateForm, setValidateForm] = useState({
+    achieved_level: 3,
+    notes: ''
+  });
 
   useEffect(() => {
     loadCoachingActivities();
@@ -479,16 +491,13 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
 
   const loadCoachingActivities = async () => {
     try {
-      let url = `development_activities?type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),coach:coach_id(id,full_name),competencies(name)&order=created_at.desc`;
+      let url = `development_activities?type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),coach:coach_id(id,full_name),competencies(id,name)&order=created_at.desc`;
       
       if (showAll && clientId) {
-        // Team Lead / Client Admin - see all for their client
         url += `&client_id=eq.${clientId}`;
       } else if (showAll) {
         // Super Admin - see all
-        // No filter needed
       } else {
-        // Regular coach - see only their coachees
         url += `&coach_id=eq.${profile.id}`;
       }
       
@@ -512,10 +521,49 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     }
   };
 
+  const loadTraineeCompetencies = async (traineeId) => {
+    setLoadingCompetencies(true);
+    try {
+      const data = await dbFetch(
+        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_categories(name,color))&order=created_at.desc`
+      );
+      setTraineeCompetencies(data || []);
+    } catch (error) {
+      console.error('Error loading trainee competencies:', error);
+    } finally {
+      setLoadingCompetencies(false);
+    }
+  };
+
   const openActivityModal = async (activity) => {
     setSelectedActivity(activity);
     await loadFeedback(activity.id);
     setShowActivityModal(true);
+  };
+
+  const openTraineeModal = async (trainee) => {
+    setSelectedTrainee(trainee);
+    await loadTraineeCompetencies(trainee.id);
+    setShowTraineeModal(true);
+  };
+
+  const openValidateModal = (activity = null, competency = null) => {
+    if (activity) {
+      setSelectedActivity(activity);
+      setSelectedCompetency(null);
+      setValidateForm({
+        achieved_level: activity.target_level || 3,
+        notes: ''
+      });
+    } else if (competency) {
+      setSelectedActivity(null);
+      setSelectedCompetency(competency);
+      setValidateForm({
+        achieved_level: competency.target_level || competency.current_level + 1 || 3,
+        notes: ''
+      });
+    }
+    setShowValidateModal(true);
   };
 
   const handleAddComment = async () => {
@@ -543,11 +591,12 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     }
   };
 
-  const handleValidate = async () => {
+  const handleValidateActivity = async () => {
     if (!selectedActivity) return;
     
     setUpdatingStatus(true);
     try {
+      // Update activity status
       await dbFetch(`development_activities?id=eq.${selectedActivity.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -567,15 +616,15 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
           await dbFetch(`user_competencies?id=eq.${existingComp[0].id}`, {
             method: 'PATCH',
             body: JSON.stringify({
-              current_level: selectedActivity.target_level,
-              status: 'achieved',
+              current_level: validateForm.achieved_level,
+              status: validateForm.achieved_level >= existingComp[0].target_level ? 'achieved' : 'in_progress',
               updated_at: new Date().toISOString()
             })
           });
         }
       }
       
-      // Add feedback entry
+      // Add validation feedback
       await dbFetch('activity_feedback', {
         method: 'POST',
         body: JSON.stringify({
@@ -583,15 +632,61 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
           author_id: profile.id,
           author_role: showAll ? 'manager' : 'coach',
           feedback_type: 'validation',
-          content: 'Coaching completed and validated'
+          content: validateForm.notes || `Validated at Level ${validateForm.achieved_level}`
         })
       });
       
-      setSelectedActivity({ ...selectedActivity, status: 'validated' });
-      await loadFeedback(selectedActivity.id);
+      setShowValidateModal(false);
+      setShowActivityModal(false);
       await loadCoachingActivities();
     } catch (error) {
       console.error('Error validating:', error);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleValidateCompetency = async () => {
+    if (!selectedCompetency || !selectedTrainee) return;
+    
+    setUpdatingStatus(true);
+    try {
+      // Update competency level directly
+      await dbFetch(`user_competencies?id=eq.${selectedCompetency.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          current_level: validateForm.achieved_level,
+          status: validateForm.achieved_level >= selectedCompetency.target_level ? 'achieved' : 'in_progress',
+          validated_at: new Date().toISOString(),
+          validated_by: profile.id,
+          updated_at: new Date().toISOString()
+        })
+      });
+
+      // Create a validation record in development_activities for tracking
+      await dbFetch('development_activities', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'coaching',
+          title: `Direct Validation: ${selectedCompetency.competencies?.name || 'Competency'}`,
+          description: validateForm.notes || `Competency validated at Level ${validateForm.achieved_level}`,
+          trainee_id: selectedTrainee.id,
+          assigned_by: profile.id,
+          coach_id: profile.id,
+          competency_id: selectedCompetency.competency_id,
+          target_level: validateForm.achieved_level,
+          status: 'validated',
+          validated_at: new Date().toISOString(),
+          validated_by: profile.id,
+          client_id: clientId || profile.client_id
+        })
+      });
+      
+      setShowValidateModal(false);
+      await loadTraineeCompetencies(selectedTrainee.id);
+      await loadCoachingActivities();
+    } catch (error) {
+      console.error('Error validating competency:', error);
     } finally {
       setUpdatingStatus(false);
     }
@@ -620,6 +715,12 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     return { color: 'bg-gray-100 text-gray-600', label: 'Pending', icon: '⚪' };
   };
 
+  const getLevelColor = (current, target) => {
+    if (current >= target) return 'text-green-600';
+    if (current >= target - 1) return 'text-amber-600';
+    return 'text-gray-600';
+  };
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
@@ -635,7 +736,7 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
   }
 
   if (coachingActivities.length === 0) {
-    return null; // Don't show section if no activities
+    return null;
   }
 
   // Group by trainee
@@ -715,7 +816,10 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
             return (
               <div key={trainee.id} className="border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+                  <div 
+                    className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+                    onClick={() => openTraineeModal(trainee)}
+                  >
                     <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                       <User className="w-4 h-4 text-purple-600" />
                     </div>
@@ -725,6 +829,12 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openTraineeModal(trainee)}
+                      className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                    >
+                      View All Competencies
+                    </button>
                     {readyCount > 0 && (
                       <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                         {readyCount} to review
@@ -746,6 +856,9 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                         <div className="flex items-center gap-2">
                           <span>{statusInfo.icon}</span>
                           <span className="text-sm text-gray-700">{activity.competencies?.name || activity.title}</span>
+                          {activity.target_level && (
+                            <span className="text-xs text-gray-400">→ L{activity.target_level}</span>
+                          )}
                           {showAll && activity.coach && (
                             <span className="text-xs text-gray-400">• Coach: {activity.coach.full_name}</span>
                           )}
@@ -794,13 +907,12 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                     {getStatusInfo(selectedActivity).label}
                   </span>
                 </div>
-                {(selectedActivity.status === 'completed' || selectedActivity.status === 'in_progress' || selectedActivity.status === 'pending') && (
+                {selectedActivity.status !== 'validated' && (
                   <button
-                    onClick={handleValidate}
-                    disabled={updatingStatus}
-                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    onClick={() => openValidateModal(selectedActivity)}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                   >
-                    {updatingStatus ? 'Validating...' : '✓ Validate & Close'}
+                    ✓ Validate Competency
                   </button>
                 )}
               </div>
@@ -888,11 +1000,6 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                             }`}>
                               {fb.author_role}
                             </span>
-                            {fb.feedback_type === 'milestone' && (
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                                milestone
-                              </span>
-                            )}
                             {fb.feedback_type === 'validation' && (
                               <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
                                 validated
@@ -909,6 +1016,176 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trainee Competencies Modal */}
+      {showTraineeModal && selectedTrainee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                  <User className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">{selectedTrainee.full_name}</h2>
+                  <p className="text-sm text-gray-500">All Competencies</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTraineeModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingCompetencies ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : traineeCompetencies.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No competencies assigned yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {traineeCompetencies.map(comp => (
+                    <div key={comp.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        {comp.competencies?.competency_categories?.color && (
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: comp.competencies.competency_categories.color }}
+                          />
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-900">{comp.competencies?.name || 'Unknown'}</p>
+                          <p className="text-xs text-gray-500">
+                            {comp.competencies?.competency_categories?.name || 'Uncategorized'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className={`font-bold ${getLevelColor(comp.current_level, comp.target_level)}`}>
+                            L{comp.current_level || 0} → L{comp.target_level}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {comp.status === 'achieved' ? '✅ Achieved' : 'In progress'}
+                          </p>
+                        </div>
+                        {comp.current_level < comp.target_level && (
+                          <button
+                            onClick={() => openValidateModal(null, comp)}
+                            className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                          >
+                            Validate
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Modal */}
+      {showValidateModal && (selectedActivity || selectedCompetency) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Validate Competency</h2>
+                  <p className="text-sm text-gray-500">
+                    {selectedActivity?.competencies?.name || selectedCompetency?.competencies?.name || 'Competency'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowValidateModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Trainee Info */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">Trainee</p>
+                <p className="font-medium">
+                  {selectedActivity?.trainee?.full_name || selectedTrainee?.full_name}
+                </p>
+              </div>
+
+              {/* Achieved Level Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Achieved Level
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setValidateForm({ ...validateForm, achieved_level: level })}
+                      className={`flex-1 py-3 rounded-lg border-2 font-bold transition-all ${
+                        validateForm.achieved_level === level
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      L{level}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Target: Level {selectedActivity?.target_level || selectedCompetency?.target_level || '?'}
+                </p>
+              </div>
+
+              {/* Validation Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Validation Notes (Optional)
+                </label>
+                <textarea
+                  value={validateForm.notes}
+                  onChange={(e) => setValidateForm({ ...validateForm, notes: e.target.value })}
+                  rows={3}
+                  placeholder="Add notes about this validation..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowValidateModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={selectedActivity ? handleValidateActivity : handleValidateCompetency}
+                disabled={updatingStatus}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {updatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                Confirm Validation
+              </button>
             </div>
           </div>
         </div>
