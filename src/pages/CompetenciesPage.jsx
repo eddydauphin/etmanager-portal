@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
   Check,
+  CheckCircle,
   AlertCircle,
   ChevronDown,
   Filter,
@@ -298,6 +299,17 @@ export default function CompetenciesPage() {
   const [assignError, setAssignError] = useState('');
   const [assigning, setAssigning] = useState(false);
   
+  // NEW: Existing user competencies and validation
+  const [existingUserCompetencies, setExistingUserCompetencies] = useState([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [showValidateModal, setShowValidateModal] = useState(false);
+  const [competencyToValidate, setCompetencyToValidate] = useState(null);
+  const [validating, setValidating] = useState(false);
+  const [validateForm, setValidateForm] = useState({
+    achieved_level: 3,
+    notes: ''
+  });
+  
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState(null);
   
@@ -437,7 +449,7 @@ export default function CompetenciesPage() {
   };
 
   // NEW: Handle assign competency to users
-  const handleOpenAssignModal = (competency) => {
+  const handleOpenAssignModal = async (competency) => {
     setCompetencyToAssign(competency);
     setAssignFormData({
       user_ids: [],
@@ -447,6 +459,83 @@ export default function CompetenciesPage() {
     });
     setAssignError('');
     setShowAssignModal(true);
+    
+    // Load existing user competencies for this competency
+    setLoadingExisting(true);
+    try {
+      const existing = await dbFetch(
+        `user_competencies?competency_id=eq.${competency.id}&select=*,user:user_id(id,full_name,email)`
+      );
+      setExistingUserCompetencies(existing || []);
+    } catch (error) {
+      console.error('Error loading existing competencies:', error);
+      setExistingUserCompetencies([]);
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
+
+  // NEW: Open validation modal for existing competency
+  const handleOpenValidateModal = (userCompetency) => {
+    setCompetencyToValidate(userCompetency);
+    setValidateForm({
+      achieved_level: userCompetency.target_level || userCompetency.current_level + 1 || 3,
+      notes: ''
+    });
+    setShowValidateModal(true);
+  };
+
+  // NEW: Handle competency validation
+  const handleValidateCompetency = async () => {
+    if (!competencyToValidate) return;
+    
+    setValidating(true);
+    try {
+      // Update user_competencies record
+      await dbFetch(`user_competencies?id=eq.${competencyToValidate.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          current_level: validateForm.achieved_level,
+          status: validateForm.achieved_level >= competencyToValidate.target_level ? 'achieved' : 'in_progress',
+          validated_at: new Date().toISOString(),
+          validated_by: currentProfile.id,
+          updated_at: new Date().toISOString()
+        })
+      });
+
+      // Create a validation record in development_activities
+      const clientId = competencyToAssign?.client_ids?.[0] || currentProfile?.client_id;
+      await dbFetch('development_activities', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'coaching',
+          title: `Validation: ${competencyToAssign?.name || 'Competency'}`,
+          description: validateForm.notes || `Competency validated at Level ${validateForm.achieved_level}`,
+          trainee_id: competencyToValidate.user_id,
+          assigned_by: currentProfile.id,
+          coach_id: currentProfile.id,
+          competency_id: competencyToValidate.competency_id,
+          target_level: validateForm.achieved_level,
+          status: 'validated',
+          validated_at: new Date().toISOString(),
+          validated_by: currentProfile.id,
+          client_id: clientId
+        })
+      });
+
+      // Refresh existing competencies
+      const existing = await dbFetch(
+        `user_competencies?competency_id=eq.${competencyToAssign.id}&select=*,user:user_id(id,full_name,email)`
+      );
+      setExistingUserCompetencies(existing || []);
+      
+      setShowValidateModal(false);
+      setCompetencyToValidate(null);
+    } catch (error) {
+      console.error('Error validating competency:', error);
+    } finally {
+      setValidating(false);
+    }
   };
 
   // NEW: Handle assign submission
@@ -1646,43 +1735,115 @@ export default function CompetenciesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Users to Assign *
                 </label>
-                <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-                  {trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').length === 0 ? (
-                    <p className="p-4 text-sm text-gray-500 text-center">No users available</p>
-                  ) : (
-                    trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').map(user => (
-                      <label
-                        key={user.id}
-                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
-                          assignFormData.user_ids.includes(user.id) ? 'bg-green-50' : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={assignFormData.user_ids.includes(user.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setAssignFormData({
-                                ...assignFormData,
-                                user_ids: [...assignFormData.user_ids, user.id]
-                              });
-                            } else {
-                              setAssignFormData({
-                                ...assignFormData,
-                                user_ids: assignFormData.user_ids.filter(id => id !== user.id)
-                              });
-                            }
-                          }}
-                          className="w-4 h-4 text-green-600 rounded border-gray-300"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
+                
+                {loadingExisting ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
+                    {/* Users who already have this competency */}
+                    {existingUserCompetencies.length > 0 && (
+                      <div className="border-b border-gray-200">
+                        <div className="px-3 py-2 bg-gray-100 text-xs font-medium text-gray-600 sticky top-0">
+                          Already Assigned ({existingUserCompetencies.length})
                         </div>
-                      </label>
-                    ))
-                  )}
-                </div>
+                        {existingUserCompetencies.map(uc => (
+                          <div
+                            key={uc.id}
+                            className="flex items-center justify-between p-3 border-b border-gray-100 last:border-0 bg-gray-50"
+                          >
+                            <div className="flex items-center gap-2">
+                              {uc.current_level >= uc.target_level ? (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-amber-400" />
+                              )}
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{uc.user?.full_name}</p>
+                                <p className="text-xs text-gray-500">
+                                  L{uc.current_level || 0} → L{uc.target_level} 
+                                  {uc.current_level >= uc.target_level && (
+                                    <span className="ml-1 text-green-600">✓ Achieved</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            {uc.current_level < uc.target_level && (
+                              <button
+                                onClick={() => handleOpenValidateModal(uc)}
+                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                              >
+                                Validate
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Users without this competency (can be assigned) */}
+                    {(() => {
+                      const existingUserIds = existingUserCompetencies.map(uc => uc.user_id);
+                      const availableUsers = trainees.filter(
+                        t => (t.role === 'trainee' || t.role === 'team_lead') && !existingUserIds.includes(t.id)
+                      );
+                      
+                      if (availableUsers.length === 0 && existingUserCompetencies.length === 0) {
+                        return <p className="p-4 text-sm text-gray-500 text-center">No users available</p>;
+                      }
+                      
+                      if (availableUsers.length === 0) {
+                        return (
+                          <div className="px-3 py-2 bg-blue-50 text-xs text-blue-600 text-center">
+                            All users already have this competency assigned
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <>
+                          {existingUserCompetencies.length > 0 && (
+                            <div className="px-3 py-2 bg-gray-100 text-xs font-medium text-gray-600 sticky top-0">
+                              Available to Assign ({availableUsers.length})
+                            </div>
+                          )}
+                          {availableUsers.map(user => (
+                            <label
+                              key={user.id}
+                              className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
+                                assignFormData.user_ids.includes(user.id) ? 'bg-green-50' : ''
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={assignFormData.user_ids.includes(user.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAssignFormData({
+                                      ...assignFormData,
+                                      user_ids: [...assignFormData.user_ids, user.id]
+                                    });
+                                  } else {
+                                    setAssignFormData({
+                                      ...assignFormData,
+                                      user_ids: assignFormData.user_ids.filter(id => id !== user.id)
+                                    });
+                                  }
+                                }}
+                                className="w-4 h-4 text-green-600 rounded border-gray-300"
+                              />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
                 {assignFormData.user_ids.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} user(s) selected</p>
                 )}
@@ -1740,6 +1901,103 @@ export default function CompetenciesPage() {
               >
                 {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                 Assign Competency
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Modal */}
+      {showValidateModal && competencyToValidate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Validate Competency</h2>
+                  <p className="text-sm text-gray-500">{competencyToAssign?.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowValidateModal(false);
+                  setCompetencyToValidate(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Trainee Info */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">Trainee</p>
+                <p className="font-medium">{competencyToValidate.user?.full_name}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Current: Level {competencyToValidate.current_level || 0} → Target: Level {competencyToValidate.target_level}
+                </p>
+              </div>
+
+              {/* Achieved Level Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Achieved Level
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(level => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setValidateForm({ ...validateForm, achieved_level: level })}
+                      className={`flex-1 py-3 rounded-lg border-2 font-bold transition-all ${
+                        validateForm.achieved_level === level
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      L{level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Validation Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Validation Notes (Optional)
+                </label>
+                <textarea
+                  value={validateForm.notes}
+                  onChange={(e) => setValidateForm({ ...validateForm, notes: e.target.value })}
+                  rows={3}
+                  placeholder="Add notes about this validation..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowValidateModal(false);
+                  setCompetencyToValidate(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleValidateCompetency}
+                disabled={validating}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                Confirm Validation
               </button>
             </div>
           </div>
