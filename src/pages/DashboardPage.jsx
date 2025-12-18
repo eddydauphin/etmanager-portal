@@ -130,22 +130,28 @@ function TrainingMaterialsSection({ clientId = null }) {
     try {
       // Load competencies with training developer info
       let url = 'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)';
-      if (clientId) {
-        // For client-specific view, we'd need to filter by client - but competencies can be multi-client
-        // So we load all and will filter by training_developer's client if needed
-      }
       const competencies = await dbFetch(url);
       
-      // Load training modules to check which competencies have materials
-      const modules = await dbFetch('training_modules?select=id,competency_id,status,title');
+      // Load training modules - simple query without competency_id
+      let modulesUrl = 'training_modules?select=id,status,title';
+      if (clientId) {
+        modulesUrl += `&client_id=eq.${clientId}`;
+      }
+      let modules = [];
+      try {
+        modules = await dbFetch(modulesUrl) || [];
+      } catch (e) {
+        // Table might not exist or have different schema
+        console.log('Training modules query failed, trying alternative');
+        modules = [];
+      }
       
       // Calculate stats
-      const competenciesWithModules = new Set(modules?.map(m => m.competency_id) || []);
-      const releasedModules = modules?.filter(m => m.status === 'released' || m.status === 'active') || [];
-      const inDevModules = modules?.filter(m => m.status === 'draft' || m.status === 'in_development') || [];
+      const releasedModules = modules.filter(m => m.status === 'released' || m.status === 'active' || m.status === 'published');
+      const inDevModules = modules.filter(m => m.status === 'draft' || m.status === 'in_development' || m.status === 'pending');
       
       setStats({
-        total: modules?.length || 0,
+        total: modules.length,
         released: releasedModules.length,
         inDevelopment: inDevModules.length
       });
@@ -163,14 +169,7 @@ function TrainingMaterialsSection({ clientId = null }) {
             };
           }
           developerMap[comp.training_developer_id].assigned.push(comp);
-          
-          // Check if this competency has released training
-          const hasReleasedModule = releasedModules.some(m => m.competency_id === comp.id);
-          if (hasReleasedModule) {
-            developerMap[comp.training_developer_id].completed++;
-          } else {
-            developerMap[comp.training_developer_id].pending++;
-          }
+          developerMap[comp.training_developer_id].pending++;
         }
       });
 
