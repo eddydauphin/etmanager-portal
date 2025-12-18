@@ -293,6 +293,7 @@ export default function CompetenciesPage() {
   const [assignFormData, setAssignFormData] = useState({
     user_ids: [],
     target_level: 3,
+    current_level: 0,
     target_date: '',
     coach_id: ''
   });
@@ -374,8 +375,11 @@ export default function CompetenciesPage() {
 
   const loadUsers = async () => {
     try {
-      // Load users who can be owners or training developers (non-trainees)
-      let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&role=neq.trainee&order=full_name.asc';
+      // Load ALL users from the organization (anyone can be a training developer)
+      let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
       const data = await dbFetch(url);
       setUsers(data || []);
     } catch (error) {
@@ -454,6 +458,7 @@ export default function CompetenciesPage() {
     setAssignFormData({
       user_ids: [],
       target_level: 3,
+      current_level: 0,
       target_date: '',
       coach_id: competency.owner_id || ''
     });
@@ -501,17 +506,17 @@ export default function CompetenciesPage() {
     
     setValidating(true);
     try {
-      // Update user_competencies record
-      await dbFetch(`user_competencies?id=eq.${competencyToValidate.id}`, {
+      console.log('Validating competency:', competencyToValidate.id, 'to level:', validateForm.achieved_level);
+      
+      // Update user_competencies record - only update columns that exist
+      const updateResult = await dbFetch(`user_competencies?id=eq.${competencyToValidate.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           current_level: validateForm.achieved_level,
-          status: validateForm.achieved_level >= competencyToValidate.target_level ? 'achieved' : 'in_progress',
-          validated_at: new Date().toISOString(),
-          validated_by: currentProfile.id,
-          updated_at: new Date().toISOString()
+          status: validateForm.achieved_level >= competencyToValidate.target_level ? 'achieved' : 'in_progress'
         })
       });
+      console.log('Update result:', updateResult);
 
       // Create a validation record in development_activities
       const clientId = competencyToAssign?.client_ids?.[0] || currentProfile?.client_id;
@@ -569,6 +574,8 @@ export default function CompetenciesPage() {
       const coachId = assignFormData.coach_id || competencyToAssign.owner_id || null;
       const targetDate = assignFormData.target_date || null;
       const targetLevel = assignFormData.target_level || 3;
+      const currentLevel = assignFormData.current_level || 0;
+      const isAlreadyCompetent = currentLevel > 0;
 
       // Get client_id from competency (use first client if multiple)
       const clientId = competencyToAssign.client_ids?.[0] || currentProfile?.client_id;
@@ -592,13 +599,32 @@ export default function CompetenciesPage() {
             user_id: userId,
             competency_id: competencyToAssign.id,
             target_level: targetLevel,
-            current_level: 0,
-            status: 'in_progress'
+            current_level: currentLevel,
+            status: currentLevel >= targetLevel ? 'achieved' : 'in_progress'
           })
         });
 
-        // Auto-create coaching activity
-        if (coachId) {
+        // If already competent, create a validation record
+        if (isAlreadyCompetent) {
+          await dbFetch('development_activities', {
+            method: 'POST',
+            body: JSON.stringify({
+              type: 'coaching',
+              title: `Initial Validation: ${competencyToAssign.name}`,
+              description: `Competency validated at Level ${currentLevel} (prior experience)`,
+              trainee_id: userId,
+              assigned_by: currentProfile.id,
+              coach_id: currentProfile.id,
+              competency_id: competencyToAssign.id,
+              target_level: currentLevel,
+              status: 'validated',
+              validated_at: new Date().toISOString(),
+              validated_by: currentProfile.id,
+              client_id: clientId
+            })
+          });
+        } else if (coachId) {
+          // Auto-create coaching activity only if not already competent
           await dbFetch('development_activities', {
             method: 'POST',
             body: JSON.stringify({
@@ -1694,8 +1720,8 @@ export default function CompetenciesPage() {
       {/* NEW: Assign to Users Modal */}
       {showAssignModal && competencyToAssign && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <UserPlus className="w-5 h-5 text-green-600" />
@@ -1716,21 +1742,13 @@ export default function CompetenciesPage() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {assignError && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   {assignError}
                 </div>
               )}
-
-              {/* Competency Info */}
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">
-                  <strong>{competencyToAssign.name}</strong>
-                </p>
-                <p className="text-xs text-gray-500">{competencyToAssign.description || 'No description'}</p>
-              </div>
 
               {/* Target Level */}
               <div>
@@ -1748,6 +1766,28 @@ export default function CompetenciesPage() {
                 </select>
               </div>
 
+              {/* Current Level - for direct validation */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Level (if already competent)
+                </label>
+                <select
+                  value={assignFormData.current_level || 0}
+                  onChange={(e) => setAssignFormData({ ...assignFormData, current_level: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  <option value={0}>Not yet competent (Level 0)</option>
+                  {[1, 2, 3, 4, 5].map(level => (
+                    <option key={level} value={level}>Level {level}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {assignFormData.current_level > 0 
+                    ? `Will be validated at Level ${assignFormData.current_level}` 
+                    : 'Requires coaching to develop competency'}
+                </p>
+              </div>
+
               {/* Select Users */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1759,7 +1799,7 @@ export default function CompetenciesPage() {
                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                   </div>
                 ) : (
-                  <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
+                  <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
                     {/* Users who already have this competency */}
                     {existingUserCompetencies.length > 0 && (
                       <div className="border-b border-gray-200">
@@ -1867,28 +1907,31 @@ export default function CompetenciesPage() {
                 )}
               </div>
 
-              {/* Coach */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Coach (Optional)
-                </label>
-                <select
-                  value={assignFormData.coach_id}
-                  onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                >
-                  <option value="">Use competency owner ({competencyToAssign.owner?.full_name || 'None'})</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>{user.full_name}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Coach - only show if not already competent */}
+              {(!assignFormData.current_level || assignFormData.current_level === 0) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Coach (Optional)
+                  </label>
+                  <select
+                    value={assignFormData.coach_id}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  >
+                    <option value="">Use competency owner ({competencyToAssign.owner?.full_name || 'None'})</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>{user.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-              {/* Target Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target Completion Date (Optional)
-                </label>
+              {/* Target Date - only show if not already competent */}
+              {(!assignFormData.current_level || assignFormData.current_level === 0) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Completion Date (Optional)
+                  </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -1899,10 +1942,11 @@ export default function CompetenciesPage() {
                   />
                 </div>
               </div>
+              )}
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={() => {
                   setShowAssignModal(false);
@@ -1918,7 +1962,7 @@ export default function CompetenciesPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                Assign Competency
+                {assignFormData.current_level > 0 ? 'Assign & Validate' : 'Assign Competency'}
               </button>
             </div>
           </div>
@@ -1954,7 +1998,7 @@ export default function CompetenciesPage() {
               {/* Trainee Info */}
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-500">Trainee</p>
-                <p className="font-medium">{competencyToValidate.user?.full_name}</p>
+                <p className="font-medium">{competencyToValidate.user?.full_name || 'Unknown User'}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   Current: Level {competencyToValidate.current_level || 0} → Target: Level {competencyToValidate.target_level}
                 </p>

@@ -30,7 +30,11 @@ import {
   TrendingUp,
   Award,
   Rocket,
-  Lightbulb
+  Lightbulb,
+  BookOpen,
+  FileText,
+  FileCheck,
+  FileClock
 } from 'lucide-react';
 
 // Stat Card Component
@@ -105,6 +109,169 @@ function QuickActionButton({ title, description, onClick, icon: Icon }) {
       </div>
       <ArrowRight className="w-5 h-5 text-gray-400" />
     </button>
+  );
+}
+
+// Training Materials KPI Section
+function TrainingMaterialsSection({ clientId = null }) {
+  const [stats, setStats] = useState({
+    total: 0,
+    released: 0,
+    inDevelopment: 0
+  });
+  const [developers, setDevelopers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTrainingMaterialsData();
+  }, [clientId]);
+
+  const loadTrainingMaterialsData = async () => {
+    try {
+      // Load competencies with training developer info
+      let url = 'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)';
+      if (clientId) {
+        // For client-specific view, we'd need to filter by client - but competencies can be multi-client
+        // So we load all and will filter by training_developer's client if needed
+      }
+      const competencies = await dbFetch(url);
+      
+      // Load training modules to check which competencies have materials
+      const modules = await dbFetch('training_modules?select=id,competency_id,status,title');
+      
+      // Calculate stats
+      const competenciesWithModules = new Set(modules?.map(m => m.competency_id) || []);
+      const releasedModules = modules?.filter(m => m.status === 'released' || m.status === 'active') || [];
+      const inDevModules = modules?.filter(m => m.status === 'draft' || m.status === 'in_development') || [];
+      
+      setStats({
+        total: modules?.length || 0,
+        released: releasedModules.length,
+        inDevelopment: inDevModules.length
+      });
+
+      // Group competencies by training developer
+      const developerMap = {};
+      competencies?.forEach(comp => {
+        if (comp.training_developer_id && comp.training_developer) {
+          if (!developerMap[comp.training_developer_id]) {
+            developerMap[comp.training_developer_id] = {
+              user: comp.training_developer,
+              assigned: [],
+              completed: 0,
+              pending: 0
+            };
+          }
+          developerMap[comp.training_developer_id].assigned.push(comp);
+          
+          // Check if this competency has released training
+          const hasReleasedModule = releasedModules.some(m => m.competency_id === comp.id);
+          if (hasReleasedModule) {
+            developerMap[comp.training_developer_id].completed++;
+          } else {
+            developerMap[comp.training_developer_id].pending++;
+          }
+        }
+      });
+
+      setDevelopers(Object.values(developerMap));
+    } catch (error) {
+      console.error('Error loading training materials data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-20 bg-gray-100 rounded"></div>
+            <div className="h-20 bg-gray-100 rounded"></div>
+            <div className="h-20 bg-gray-100 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-blue-500" />
+          Training Materials
+        </h2>
+        <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700">
+          Manage →
+        </Link>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-4">
+        <div className="text-center p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <FileText className="w-4 h-4 text-gray-500" />
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          <p className="text-xs text-gray-500">Total Modules</p>
+        </div>
+        <div className="text-center p-3 bg-green-50 rounded-lg">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <FileCheck className="w-4 h-4 text-green-500" />
+          </div>
+          <p className="text-2xl font-bold text-green-600">{stats.released}</p>
+          <p className="text-xs text-gray-500">Released</p>
+        </div>
+        <div className="text-center p-3 bg-amber-50 rounded-lg">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <FileClock className="w-4 h-4 text-amber-500" />
+          </div>
+          <p className="text-2xl font-bold text-amber-600">{stats.inDevelopment}</p>
+          <p className="text-xs text-gray-500">In Development</p>
+        </div>
+      </div>
+
+      {/* Developers with assigned materials */}
+      {developers.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Training Developers</h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {developers.map(dev => (
+              <div key={dev.user.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{dev.user.full_name}</p>
+                    <p className="text-xs text-gray-500">{dev.assigned.length} competencies assigned</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-green-600">{dev.completed} done</p>
+                  </div>
+                  {dev.pending > 0 && (
+                    <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                      {dev.pending} pending
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {developers.length === 0 && stats.total === 0 && (
+        <p className="text-sm text-gray-500 text-center py-4">
+          No training materials yet. Assign training developers to competencies.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1387,6 +1554,9 @@ function TeamLeadDashboard() {
       {/* All Team Coaching Activities */}
       <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
 
+      {/* Training Materials KPI */}
+      <TrainingMaterialsSection clientId={clientId} />
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -1526,6 +1696,9 @@ function SuperAdminDashboard() {
 
       {/* My Coachees Section - Show if user is a coach */}
       <MyCoacheesSection profile={profile} />
+
+      {/* Training Materials KPI */}
+      <TrainingMaterialsSection />
 
       {/* Quick Actions */}
       <div>
@@ -1739,6 +1912,9 @@ function ClientAdminDashboard() {
 
       {/* My Coachees Section */}
       <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+
+      {/* Training Materials KPI */}
+      <TrainingMaterialsSection clientId={clientId} />
 
       {/* Quick Actions */}
       <div>
