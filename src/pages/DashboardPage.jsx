@@ -319,6 +319,142 @@ function TrainingMaterialsSection({ clientId = null }) {
   );
 }
 
+// My Training Development Section - Shows user's assigned training to develop
+function MyTrainingDevelopmentSection({ profile }) {
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (profile?.id) {
+      loadMyAssignments();
+    }
+  }, [profile]);
+
+  const loadMyAssignments = async () => {
+    try {
+      // Get competencies where current user is the training developer
+      const competencies = await dbFetch(
+        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
+      );
+      
+      if (!competencies || competencies.length === 0) {
+        setAssignments([]);
+        setLoading(false);
+        return;
+      }
+
+      // Check which have training modules
+      const modules = await dbFetch('training_modules?select=id,title,status,competency_id');
+      
+      // Enrich competencies with module status
+      const enriched = competencies.map(comp => {
+        const relatedModules = modules?.filter(m => m.competency_id === comp.id) || [];
+        const hasReleased = relatedModules.some(m => 
+          m.status === 'released' || m.status === 'active' || m.status === 'published'
+        );
+        const hasDraft = relatedModules.some(m => 
+          m.status === 'draft' || m.status === 'in_development'
+        );
+        
+        return {
+          ...comp,
+          modules: relatedModules,
+          status: hasReleased ? 'released' : hasDraft ? 'in_development' : 'not_started'
+        };
+      });
+
+      setAssignments(enriched);
+    } catch (error) {
+      console.error('Error loading training development assignments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return null; // Don't show loading state, just hide
+  }
+
+  if (assignments.length === 0) {
+    return null; // Don't show if no assignments
+  }
+
+  const pending = assignments.filter(a => a.status !== 'released');
+  const completed = assignments.filter(a => a.status === 'released');
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-purple-500" />
+          My Training Development
+        </h2>
+        <Link to="/training?tab=development" className="text-sm text-blue-600 hover:text-blue-700">
+          Open Development →
+        </Link>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="text-center p-2 bg-gray-50 rounded-lg">
+          <p className="text-xl font-bold text-gray-900">{assignments.length}</p>
+          <p className="text-xs text-gray-500">Assigned</p>
+        </div>
+        <div className="text-center p-2 bg-amber-50 rounded-lg">
+          <p className="text-xl font-bold text-amber-600">{pending.length}</p>
+          <p className="text-xs text-gray-500">Pending</p>
+        </div>
+        <div className="text-center p-2 bg-green-50 rounded-lg">
+          <p className="text-xl font-bold text-green-600">{completed.length}</p>
+          <p className="text-xs text-gray-500">Released</p>
+        </div>
+      </div>
+
+      {/* Pending Items */}
+      {pending.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Pending Development:</p>
+          {pending.slice(0, 5).map(item => (
+            <Link
+              key={item.id}
+              to={`/training?tab=development&competency=${item.id}`}
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
+            >
+              <div className="flex items-center gap-2">
+                {item.competency_categories?.color && (
+                  <div 
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: item.competency_categories.color }}
+                  />
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                  <p className="text-xs text-gray-500">{item.competency_categories?.name || 'Uncategorized'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  item.status === 'in_development' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {item.status === 'in_development' ? 'In Progress' : 'Not Started'}
+                </span>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </div>
+            </Link>
+          ))}
+          {pending.length > 5 && (
+            <p className="text-xs text-gray-500 text-center">
+              +{pending.length - 5} more pending
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Create Development Activity Modal
 function CreateDevelopmentModal({ isOpen, onClose, profile, onSuccess }) {
   const [users, setUsers] = useState([]);
@@ -1601,6 +1737,9 @@ function TeamLeadDashboard() {
       {/* Training Materials KPI */}
       <TrainingMaterialsSection clientId={clientId} />
 
+      {/* My Training Development Tasks */}
+      <MyTrainingDevelopmentSection profile={profile} />
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -1743,6 +1882,9 @@ function SuperAdminDashboard() {
 
       {/* Training Materials KPI */}
       <TrainingMaterialsSection />
+
+      {/* My Training Development Tasks */}
+      <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
       <div>
@@ -1959,6 +2101,9 @@ function ClientAdminDashboard() {
 
       {/* Training Materials KPI */}
       <TrainingMaterialsSection clientId={clientId} />
+
+      {/* My Training Development Tasks */}
+      <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
       <div>
