@@ -464,9 +464,19 @@ export default function CompetenciesPage() {
     setLoadingExisting(true);
     try {
       const existing = await dbFetch(
-        `user_competencies?competency_id=eq.${competency.id}&select=*,user:user_id(id,full_name,email)`
+        `user_competencies?competency_id=eq.${competency.id}&select=*`
       );
-      setExistingUserCompetencies(existing || []);
+      
+      // Fetch user details separately for each
+      if (existing && existing.length > 0) {
+        const enriched = await Promise.all(existing.map(async (uc) => {
+          const userData = await dbFetch(`profiles?id=eq.${uc.user_id}&select=id,full_name,email`);
+          return { ...uc, user: userData?.[0] || null };
+        }));
+        setExistingUserCompetencies(enriched);
+      } else {
+        setExistingUserCompetencies([]);
+      }
     } catch (error) {
       console.error('Error loading existing competencies:', error);
       setExistingUserCompetencies([]);
@@ -525,9 +535,17 @@ export default function CompetenciesPage() {
 
       // Refresh existing competencies
       const existing = await dbFetch(
-        `user_competencies?competency_id=eq.${competencyToAssign.id}&select=*,user:user_id(id,full_name,email)`
+        `user_competencies?competency_id=eq.${competencyToAssign.id}&select=*`
       );
-      setExistingUserCompetencies(existing || []);
+      if (existing && existing.length > 0) {
+        const enriched = await Promise.all(existing.map(async (uc) => {
+          const userData = await dbFetch(`profiles?id=eq.${uc.user_id}&select=id,full_name,email`);
+          return { ...uc, user: userData?.[0] || null };
+        }));
+        setExistingUserCompetencies(enriched);
+      } else {
+        setExistingUserCompetencies([]);
+      }
       
       setShowValidateModal(false);
       setCompetencyToValidate(null);
