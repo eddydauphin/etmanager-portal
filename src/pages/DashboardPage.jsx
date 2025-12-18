@@ -132,29 +132,50 @@ function TrainingMaterialsSection({ clientId = null }) {
       let url = 'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)';
       const competencies = await dbFetch(url);
       
-      // Load training modules - simple query without competency_id
-      let modulesUrl = 'training_modules?select=id,status,title';
-      if (clientId) {
-        modulesUrl += `&client_id=eq.${clientId}`;
-      }
+      // Load training modules - try with competency_id first
       let modules = [];
       try {
+        let modulesUrl = 'training_modules?select=id,status,title,competency_id';
+        if (clientId) {
+          modulesUrl += `&client_id=eq.${clientId}`;
+        }
         modules = await dbFetch(modulesUrl) || [];
       } catch (e) {
-        // Table might not exist or have different schema
-        console.log('Training modules query failed, trying alternative');
-        modules = [];
+        // If competency_id doesn't exist, try without it
+        try {
+          let modulesUrl = 'training_modules?select=id,status,title';
+          if (clientId) {
+            modulesUrl += `&client_id=eq.${clientId}`;
+          }
+          modules = await dbFetch(modulesUrl) || [];
+        } catch (e2) {
+          modules = [];
+        }
       }
       
       // Calculate stats
-      const releasedModules = modules.filter(m => m.status === 'released' || m.status === 'active' || m.status === 'published');
-      const inDevModules = modules.filter(m => m.status === 'draft' || m.status === 'in_development' || m.status === 'pending');
+      const releasedModules = modules.filter(m => 
+        m.status === 'released' || m.status === 'active' || m.status === 'published'
+      );
+      const inDevModules = modules.filter(m => 
+        m.status === 'draft' || m.status === 'in_development' || m.status === 'pending'
+      );
       
       setStats({
         total: modules.length,
         released: releasedModules.length,
         inDevelopment: inDevModules.length
       });
+
+      // Create a set of competency IDs that have released training
+      const competenciesWithReleasedTraining = new Set(
+        releasedModules
+          .filter(m => m.competency_id)
+          .map(m => m.competency_id)
+      );
+
+      // Also try to match by name if competency_id not available
+      const releasedModuleTitles = releasedModules.map(m => m.title?.toLowerCase() || '');
 
       // Group competencies by training developer
       const developerMap = {};
@@ -169,7 +190,18 @@ function TrainingMaterialsSection({ clientId = null }) {
             };
           }
           developerMap[comp.training_developer_id].assigned.push(comp);
-          developerMap[comp.training_developer_id].pending++;
+          
+          // Check if this competency has released training
+          const hasReleasedById = competenciesWithReleasedTraining.has(comp.id);
+          const hasReleasedByName = releasedModuleTitles.some(title => 
+            title.includes(comp.name?.toLowerCase() || '')
+          );
+          
+          if (hasReleasedById || hasReleasedByName) {
+            developerMap[comp.training_developer_id].completed++;
+          } else {
+            developerMap[comp.training_developer_id].pending++;
+          }
         }
       });
 
