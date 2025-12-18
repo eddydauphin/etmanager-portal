@@ -390,7 +390,7 @@ function MyTrainingDevelopmentSection({ profile }) {
           My Training Development
         </h2>
         <Link to="/training?tab=development" className="text-sm text-blue-600 hover:text-blue-700">
-          Open Development →
+          Develop Materials →
         </Link>
       </div>
 
