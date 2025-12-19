@@ -1,4 +1,17 @@
+// Disable Vercel caching
+export const config = {
+  api: {
+    responseLimit: false,
+  },
+};
+
 export default async function handler(req, res) {
+  // Prevent ALL caching
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -15,6 +28,15 @@ export default async function handler(req, res) {
 
   try {
     const { type, title, competency, targetLevel, levelDescriptions, language } = req.body;
+
+    // Debug logging
+    console.log('=== GENERATE TRAINING API ===');
+    console.log('Type:', type);
+    console.log('Title:', title);
+    console.log('Competency:', competency?.name);
+    console.log('Target Level:', targetLevel);
+    console.log('Language:', language);
+    console.log('============================');
 
     const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
     
@@ -81,6 +103,9 @@ Respond ONLY with valid JSON, no markdown:
       return res.status(400).json({ error: 'Invalid type. Use "slides" or "quiz"' });
     }
 
+    // Log the prompt being sent
+    console.log('Sending prompt to Claude for:', title, '/', competency?.name);
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -111,6 +136,7 @@ Respond ONLY with valid JSON, no markdown:
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      console.log('Generated', parsed.slides?.length || 0, 'slides for:', title);
       return res.status(200).json(parsed);
     } else {
       return res.status(500).json({ error: 'Failed to parse response', raw: content });
