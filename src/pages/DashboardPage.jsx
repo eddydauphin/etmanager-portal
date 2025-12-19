@@ -160,10 +160,10 @@ function TrainingMaterialsSection({ clientId = null }) {
       
       // Calculate stats
       const releasedModules = modules.filter(m => 
-        m.status === 'published' || m.status === 'published' || m.status === 'published'
+        m.status === 'published' || m.status === 'content_approved'
       );
       const inDevModules = modules.filter(m => 
-        m.status === 'draft' || m.status === 'draft' || m.status === 'pending'
+        m.status === 'draft' || m.status === 'pending'
       );
       
       console.log('TrainingMaterials: Released modules:', releasedModules);
@@ -332,10 +332,14 @@ function MyTrainingDevelopmentSection({ profile }) {
 
   const loadMyAssignments = async () => {
     try {
+      console.log('MyTrainingDev: Loading for profile:', profile.id);
+      
       // Get competencies where current user is the training developer
       const competencies = await dbFetch(
         `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
       );
+      
+      console.log('MyTrainingDev: Competencies found:', competencies);
       
       if (!competencies || competencies.length === 0) {
         setAssignments([]);
@@ -345,24 +349,26 @@ function MyTrainingDevelopmentSection({ profile }) {
 
       // Check which have training modules
       const modules = await dbFetch('training_modules?select=id,title,status,competency_id');
+      console.log('MyTrainingDev: Modules found:', modules);
       
       // Enrich competencies with module status
       const enriched = competencies.map(comp => {
         const relatedModules = modules?.filter(m => m.competency_id === comp.id) || [];
-        const hasReleased = relatedModules.some(m => 
-          m.status === 'published' || m.status === 'published' || m.status === 'published'
+        const hasPublished = relatedModules.some(m => 
+          m.status === 'published' || m.status === 'content_approved'
         );
         const hasDraft = relatedModules.some(m => 
-          m.status === 'draft' || m.status === 'draft'
+          m.status === 'draft' || m.status === 'pending'
         );
         
         return {
           ...comp,
           modules: relatedModules,
-          status: hasReleased ? 'released' : hasDraft ? 'in_development' : 'not_started'
+          status: hasPublished ? 'published' : hasDraft ? 'in_progress' : 'not_started'
         };
       });
 
+      console.log('MyTrainingDev: Enriched assignments:', enriched);
       setAssignments(enriched);
     } catch (error) {
       console.error('Error loading training development assignments:', error);
@@ -379,8 +385,8 @@ function MyTrainingDevelopmentSection({ profile }) {
     return null; // Don't show if no assignments
   }
 
-  const pending = assignments.filter(a => a.status !== 'released');
-  const completed = assignments.filter(a => a.status === 'released');
+  const pending = assignments.filter(a => a.status !== 'published');
+  const completed = assignments.filter(a => a.status === 'published');
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
@@ -434,11 +440,11 @@ function MyTrainingDevelopmentSection({ profile }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  item.status === 'draft' 
+                  item.status === 'in_progress' 
                     ? 'bg-blue-100 text-blue-700' 
                     : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {item.status === 'draft' ? 'In Progress' : 'Not Started'}
+                  {item.status === 'in_progress' ? 'In Progress' : 'Not Started'}
                 </span>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </div>
