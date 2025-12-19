@@ -298,9 +298,15 @@ export default function TrainingModulesPage() {
       };
       console.log('Sending to API:', requestPayload);
       
-      const slidesResponse = await fetch('/api/generate-training', {
+      // Add timestamp to prevent browser caching
+      const slidesResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store',
         body: JSON.stringify(requestPayload)
       });
 
@@ -313,9 +319,14 @@ export default function TrainingModulesPage() {
       setGeneratedSlides(slidesData.slides || []);
 
       // Generate quiz
-      const quizResponse = await fetch('/api/generate-training', {
+      const quizResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store',
         body: JSON.stringify({
           type: 'quiz',
           title: formData.title,
@@ -410,10 +421,15 @@ export default function TrainingModulesPage() {
 
       setUploadProgress(50);
 
-      // Send to processing API
-      const response = await fetch('/api/process-presentation', {
+      // Send to processing API with cache-busting
+      const response = await fetch(`/api/process-presentation?t=${Date.now()}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store',
         body: JSON.stringify({
           fileContent,
           fileName: uploadedFile.name,

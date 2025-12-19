@@ -11,6 +11,12 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  // Prevent ALL caching
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -26,6 +32,13 @@ export default async function handler(req, res) {
 
   try {
     const { fileContent, fileName, fileType, title, competency, targetLevel, language, importMode = 'smart' } = req.body;
+
+    // Debug logging
+    console.log('=== PROCESS PRESENTATION API ===');
+    console.log('File:', fileName);
+    console.log('Title:', title);
+    console.log('Competency:', competency?.name);
+    console.log('================================');
 
     if (!fileContent) {
       return res.status(400).json({ error: 'No file content provided' });
