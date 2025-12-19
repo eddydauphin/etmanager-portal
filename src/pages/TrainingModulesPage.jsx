@@ -291,10 +291,12 @@ export default function TrainingModulesPage() {
       const requestPayload = {
         type: 'slides',
         title: formData.title,
+        description: formData.description, // User's description, not competency description
         competency: competency,
         targetLevel: formData.target_level,
         levelDescriptions: levelDescriptions,
-        language: languageLabel
+        language: languageLabel,
+        _nonce: `${Date.now()}-${Math.random()}` // Bypass Vercel Edge cache
       };
       console.log('Sending to API:', requestPayload);
       
@@ -330,9 +332,11 @@ export default function TrainingModulesPage() {
         body: JSON.stringify({
           type: 'quiz',
           title: formData.title,
+          description: formData.description, // User's description
           competency: competency,
           targetLevel: formData.target_level,
-          language: languageLabel
+          language: languageLabel,
+          _nonce: `${Date.now()}-${Math.random()}` // Bypass Vercel Edge cache
         })
       });
 
@@ -438,7 +442,8 @@ export default function TrainingModulesPage() {
           competency: competency,
           targetLevel: formData.target_level,
           language: languageLabel,
-          importMode: importMode // 'smart' or 'direct'
+          importMode: importMode,
+          _nonce: `${Date.now()}-${Math.random()}` // Bypass Vercel Edge cache
         })
       });
 

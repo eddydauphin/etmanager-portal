@@ -27,12 +27,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { type, title, competency, targetLevel, levelDescriptions, language } = req.body;
+    const { type, title, description, competency, targetLevel, levelDescriptions, language } = req.body;
 
     // Debug logging
     console.log('=== GENERATE TRAINING API ===');
     console.log('Type:', type);
     console.log('Title:', title);
+    console.log('Description:', description);
     console.log('Competency:', competency?.name);
     console.log('Target Level:', targetLevel);
     console.log('Language:', language);
@@ -47,19 +48,23 @@ export default async function handler(req, res) {
     let prompt = '';
 
     if (type === 'slides') {
+      // Use user's description for content, competency name for category only
       prompt = `Generate a professional training presentation for the following:
 
 Title: ${title}
-Competency: ${competency?.name || 'General'}
+Topic Description: ${description || title}
+Category: ${competency?.name || 'General'}
 Target Level: ${targetLevel} (${getLevelName(targetLevel)})
-Description: ${competency?.description || 'No description provided'}
 
-Level Descriptions:
+Level Descriptions for reference:
 - Level 1 (Awareness): ${levelDescriptions?.[1] || 'Can recognize the topic'}
 - Level 2 (Knowledge): ${levelDescriptions?.[2] || 'Can explain concepts'}
 - Level 3 (Practitioner): ${levelDescriptions?.[3] || 'Can perform with supervision'}
 - Level 4 (Proficient): ${levelDescriptions?.[4] || 'Works independently'}
 - Level 5 (Expert): ${levelDescriptions?.[5] || 'Can teach others'}
+
+IMPORTANT: Generate content specifically about "${title}" and "${description || title}". 
+The Category "${competency?.name}" is just for classification purposes.
 
 Generate exactly 8 slides for training up to Level ${targetLevel}. For each slide provide:
 1. Title (short, clear)
@@ -80,9 +85,14 @@ Respond ONLY with valid JSON, no markdown:
   ]
 }`;
     } else if (type === 'quiz') {
-      prompt = `Generate a quiz for the training module "${title}" about "${competency?.name}".
+      prompt = `Generate a quiz for the training module about "${title}".
+      
+Topic Description: ${description || title}
+Category: ${competency?.name || 'General'} (for classification only)
 
 The trainee should demonstrate Level ${targetLevel} (${getLevelName(targetLevel)}) competency.
+
+IMPORTANT: Generate questions specifically about "${title}" and "${description || title}".
 
 Generate exactly 10 multiple choice questions. Each question should have 4 options (A, B, C, D) with one correct answer.
 
@@ -104,7 +114,7 @@ Respond ONLY with valid JSON, no markdown:
     }
 
     // Log the prompt being sent
-    console.log('Sending prompt to Claude for:', title, '/', competency?.name);
+    console.log('Sending prompt to Claude for:', title);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
