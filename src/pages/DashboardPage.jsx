@@ -113,10 +113,12 @@ function QuickActionButton({ title, description, onClick, icon: Icon }) {
 }
 
 // Training Materials KPI Section
+// Training Modules KPI Section - Admin view of all training modules
 function TrainingMaterialsSection({ clientId = null }) {
   const [stats, setStats] = useState({
     total: 0,
-    released: 0,
+    published: 0,
+    pendingApproval: 0,
     inDevelopment: 0
   });
   const [developers, setDevelopers] = useState([]);
@@ -129,59 +131,35 @@ function TrainingMaterialsSection({ clientId = null }) {
   const loadTrainingMaterialsData = async () => {
     try {
       // Load competencies with training developer info
-      let url = 'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)';
-      const competencies = await dbFetch(url);
-      console.log('TrainingMaterials: Competencies loaded:', competencies?.length);
+      const competencies = await dbFetch(
+        'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)'
+      );
       
-      // Load training modules - try with competency_id first
-      let modules = [];
-      try {
-        let modulesUrl = 'training_modules?select=id,status,title,competency_id';
-        if (clientId) {
-          modulesUrl += `&client_id=eq.${clientId}`;
-        }
-        modules = await dbFetch(modulesUrl) || [];
-        console.log('TrainingMaterials: Modules with competency_id:', modules);
-      } catch (e) {
-        // If competency_id doesn't exist, try without it
-        console.log('TrainingMaterials: competency_id query failed, trying without');
-        try {
-          let modulesUrl = 'training_modules?select=id,status,title';
-          if (clientId) {
-            modulesUrl += `&client_id=eq.${clientId}`;
-          }
-          modules = await dbFetch(modulesUrl) || [];
-          console.log('TrainingMaterials: Modules without competency_id:', modules);
-        } catch (e2) {
-          console.log('TrainingMaterials: Module query failed completely');
-          modules = [];
-        }
+      // Load training modules
+      let modulesUrl = 'training_modules?select=id,status,title,competency_id';
+      if (clientId) {
+        modulesUrl += `&client_id=eq.${clientId}`;
       }
+      const modules = await dbFetch(modulesUrl) || [];
       
-      // Calculate stats
-      const releasedModules = modules.filter(m => 
-        m.status === 'published' || m.status === 'content_approved'
-      );
-      const inDevModules = modules.filter(m => 
-        m.status === 'draft' || m.status === 'pending'
-      );
-      
-      console.log('TrainingMaterials: Released modules:', releasedModules);
-      console.log('TrainingMaterials: In-dev modules:', inDevModules);
+      // Calculate stats by status
+      const published = modules.filter(m => m.status === 'published').length;
+      const pendingApproval = modules.filter(m => m.status === 'pending' || m.status === 'content_approved').length;
+      const inDevelopment = modules.filter(m => m.status === 'draft').length;
       
       setStats({
         total: modules.length,
-        released: releasedModules.length,
-        inDevelopment: inDevModules.length
+        published,
+        pendingApproval,
+        inDevelopment
       });
 
-      // Create a set of competency IDs that have released training
-      const competenciesWithReleasedTraining = new Set(
-        releasedModules
-          .filter(m => m.competency_id)
+      // Create a set of competency IDs that have published training
+      const competenciesWithPublishedTraining = new Set(
+        modules
+          .filter(m => m.status === 'published' && m.competency_id)
           .map(m => m.competency_id)
       );
-      console.log('TrainingMaterials: Competencies with released training (by ID):', competenciesWithReleasedTraining);
 
       // Group competencies by training developer
       const developerMap = {};
@@ -190,26 +168,14 @@ function TrainingMaterialsSection({ clientId = null }) {
           if (!developerMap[comp.training_developer_id]) {
             developerMap[comp.training_developer_id] = {
               user: comp.training_developer,
-              assigned: [],
+              competencies: [],
               completed: 0,
               pending: 0
             };
           }
-          developerMap[comp.training_developer_id].assigned.push(comp);
+          developerMap[comp.training_developer_id].competencies.push(comp);
           
-          // Check if this competency has released training by ID
-          const hasReleasedById = competenciesWithReleasedTraining.has(comp.id);
-          
-          // Check if any released module title contains the competency name
-          const compNameLower = comp.name?.toLowerCase() || '';
-          const hasReleasedByName = releasedModules.some(m => {
-            const titleLower = m.title?.toLowerCase() || '';
-            return titleLower.includes(compNameLower) || compNameLower.includes(titleLower);
-          });
-          
-          console.log(`TrainingMaterials: Competency "${comp.name}" - hasReleasedById: ${hasReleasedById}, hasReleasedByName: ${hasReleasedByName}`);
-          
-          if (hasReleasedById || hasReleasedByName) {
+          if (competenciesWithPublishedTraining.has(comp.id)) {
             developerMap[comp.training_developer_id].completed++;
           } else {
             developerMap[comp.training_developer_id].pending++;
@@ -217,7 +183,6 @@ function TrainingMaterialsSection({ clientId = null }) {
         }
       });
 
-      console.log('TrainingMaterials: Developer map:', developerMap);
       setDevelopers(Object.values(developerMap));
     } catch (error) {
       console.error('Error loading training materials data:', error);
@@ -226,12 +191,17 @@ function TrainingMaterialsSection({ clientId = null }) {
     }
   };
 
+  // Calculate total pending across all developers
+  const totalPending = developers.reduce((sum, d) => sum + d.pending, 0);
+  const totalCompleted = developers.reduce((sum, d) => sum + d.completed, 0);
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
+            <div className="h-20 bg-gray-100 rounded"></div>
             <div className="h-20 bg-gray-100 rounded"></div>
             <div className="h-20 bg-gray-100 rounded"></div>
             <div className="h-20 bg-gray-100 rounded"></div>
@@ -246,58 +216,57 @@ function TrainingMaterialsSection({ clientId = null }) {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-blue-500" />
-          Training Materials
+          Training Modules
         </h2>
         <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700">
           Manage →
         </Link>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      {/* Module Status KPIs */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        <Link to="/training" className="text-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+          <p className="text-2xl font-bold text-green-600">{stats.published}</p>
+          <p className="text-xs text-gray-600">Published</p>
+        </Link>
+        <Link to="/training" className="text-center p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+          <p className="text-2xl font-bold text-amber-600">{stats.pendingApproval}</p>
+          <p className="text-xs text-gray-600">Pending Approval</p>
+        </Link>
+        <Link to="/training" className="text-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+          <p className="text-2xl font-bold text-blue-600">{stats.inDevelopment}</p>
+          <p className="text-xs text-gray-600">In Development</p>
+        </Link>
         <div className="text-center p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <FileText className="w-4 h-4 text-gray-500" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          <p className="text-xs text-gray-500">Total Modules</p>
-        </div>
-        <div className="text-center p-3 bg-green-50 rounded-lg">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <FileCheck className="w-4 h-4 text-green-500" />
-          </div>
-          <p className="text-2xl font-bold text-green-600">{stats.released}</p>
-          <p className="text-xs text-gray-500">Released</p>
-        </div>
-        <div className="text-center p-3 bg-amber-50 rounded-lg">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <FileClock className="w-4 h-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-bold text-amber-600">{stats.inDevelopment}</p>
-          <p className="text-xs text-gray-500">In Development</p>
+          <p className="text-2xl font-bold text-gray-700">{stats.total}</p>
+          <p className="text-xs text-gray-600">Total</p>
         </div>
       </div>
 
-      {/* Developers with assigned materials */}
+      {/* Development Assignments Summary */}
       {developers.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Training Developers</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Development Assignments</h3>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="text-green-600 font-medium">{totalCompleted} completed</span>
+              <span className="text-amber-600 font-medium">{totalPending} pending</span>
+            </div>
+          </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
-            {developers.map(dev => (
-              <div key={dev.user.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
+            {developers.map((dev) => (
+              <div key={dev.user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{dev.user.full_name}</p>
-                    <p className="text-xs text-gray-500">{dev.assigned.length} competencies assigned</p>
+                    <p className="text-sm font-medium text-gray-900">{dev.user.full_name || dev.user.email}</p>
+                    <p className="text-xs text-gray-500">{dev.competencies.length} competencies assigned</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-green-600">{dev.completed} done</p>
-                  </div>
+                  <span className="text-sm text-green-600 font-medium">{dev.completed} done</span>
                   {dev.pending > 0 && (
                     <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
                       {dev.pending} pending
@@ -312,14 +281,14 @@ function TrainingMaterialsSection({ clientId = null }) {
 
       {developers.length === 0 && stats.total === 0 && (
         <p className="text-sm text-gray-500 text-center py-4">
-          No training materials yet. Assign training developers to competencies.
+          No training modules yet. Create modules and assign developers.
         </p>
       )}
     </div>
   );
 }
 
-// My Training Development Section - Shows user's assigned training to develop
+// My Development Tasks - Competencies where user is assigned to CREATE training materials
 function MyTrainingDevelopmentSection({ profile }) {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -332,14 +301,10 @@ function MyTrainingDevelopmentSection({ profile }) {
 
   const loadMyAssignments = async () => {
     try {
-      console.log('MyTrainingDev: Loading for profile:', profile.id);
-      
       // Get competencies where current user is the training developer
       const competencies = await dbFetch(
         `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
       );
-      
-      console.log('MyTrainingDev: Competencies found:', competencies);
       
       if (!competencies || competencies.length === 0) {
         setAssignments([]);
@@ -349,7 +314,6 @@ function MyTrainingDevelopmentSection({ profile }) {
 
       // Check which have training modules
       const modules = await dbFetch('training_modules?select=id,title,status,competency_id');
-      console.log('MyTrainingDev: Modules found:', modules);
       
       // Enrich competencies with module status
       const enriched = competencies.map(comp => {
@@ -368,7 +332,6 @@ function MyTrainingDevelopmentSection({ profile }) {
         };
       });
 
-      console.log('MyTrainingDev: Enriched assignments:', enriched);
       setAssignments(enriched);
     } catch (error) {
       console.error('Error loading training development assignments:', error);
@@ -378,11 +341,11 @@ function MyTrainingDevelopmentSection({ profile }) {
   };
 
   if (loading) {
-    return null; // Don't show loading state, just hide
+    return null;
   }
 
   if (assignments.length === 0) {
-    return null; // Don't show if no assignments
+    return null;
   }
 
   const pending = assignments.filter(a => a.status !== 'published');
@@ -391,12 +354,15 @@ function MyTrainingDevelopmentSection({ profile }) {
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-purple-500" />
-          My Training Development
-        </h2>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-500" />
+            My Development Tasks
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">Competencies you're assigned to create training materials for</p>
+        </div>
         <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700">
-          Develop Materials →
+          Create Materials →
         </Link>
       </div>
 
@@ -408,18 +374,18 @@ function MyTrainingDevelopmentSection({ profile }) {
         </div>
         <div className="text-center p-2 bg-amber-50 rounded-lg">
           <p className="text-xl font-bold text-amber-600">{pending.length}</p>
-          <p className="text-xs text-gray-500">Pending</p>
+          <p className="text-xs text-gray-500">To Create</p>
         </div>
         <div className="text-center p-2 bg-green-50 rounded-lg">
           <p className="text-xl font-bold text-green-600">{completed.length}</p>
-          <p className="text-xs text-gray-500">Released</p>
+          <p className="text-xs text-gray-500">Published</p>
         </div>
       </div>
 
       {/* Pending Items */}
       {pending.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-700">Pending Development:</p>
+          <p className="text-sm font-medium text-gray-700">Competencies needing training materials:</p>
           {pending.slice(0, 5).map(item => (
             <Link
               key={item.id}
