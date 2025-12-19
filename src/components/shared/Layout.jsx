@@ -76,8 +76,9 @@ function Layout() {
       ];
     }
 
-    // trainee
+    // trainee - now includes Dashboard
     return [
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/my-progress', icon: TrendingUp, label: 'My Progress' },
       { to: '/my-plan', icon: FileText, label: 'My Plan' },
       { to: '/my-training', icon: BookOpen, label: 'My Training' },
@@ -143,6 +144,7 @@ function Layout() {
             <h1 className="text-lg font-semibold text-gray-900">
               {profile?.role === 'super_admin' && 'Super Admin Dashboard'}
               {profile?.role === 'client_admin' && 'Client Admin Dashboard'}
+              {profile?.role === 'team_lead' && 'Team Lead Dashboard'}
               {profile?.role === 'trainee' && 'Trainee Portal'}
             </h1>
           </div>
