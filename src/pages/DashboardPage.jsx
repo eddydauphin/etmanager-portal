@@ -160,10 +160,10 @@ function TrainingMaterialsSection({ clientId = null }) {
       
       // Calculate stats
       const releasedModules = modules.filter(m => 
-        m.status === 'released' || m.status === 'active' || m.status === 'published'
+        m.status === 'published' || m.status === 'published' || m.status === 'published'
       );
       const inDevModules = modules.filter(m => 
-        m.status === 'draft' || m.status === 'in_development' || m.status === 'pending'
+        m.status === 'draft' || m.status === 'draft' || m.status === 'pending'
       );
       
       console.log('TrainingMaterials: Released modules:', releasedModules);
@@ -350,10 +350,10 @@ function MyTrainingDevelopmentSection({ profile }) {
       const enriched = competencies.map(comp => {
         const relatedModules = modules?.filter(m => m.competency_id === comp.id) || [];
         const hasReleased = relatedModules.some(m => 
-          m.status === 'released' || m.status === 'active' || m.status === 'published'
+          m.status === 'published' || m.status === 'published' || m.status === 'published'
         );
         const hasDraft = relatedModules.some(m => 
-          m.status === 'draft' || m.status === 'in_development'
+          m.status === 'draft' || m.status === 'draft'
         );
         
         return {
@@ -434,11 +434,11 @@ function MyTrainingDevelopmentSection({ profile }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  item.status === 'in_development' 
+                  item.status === 'draft' 
                     ? 'bg-blue-100 text-blue-700' 
                     : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {item.status === 'in_development' ? 'In Progress' : 'Not Started'}
+                  {item.status === 'draft' ? 'In Progress' : 'Not Started'}
                 </span>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </div>

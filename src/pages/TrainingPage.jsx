@@ -59,7 +59,7 @@ export default function TrainingPage() {
     title: '',
     description: '',
     competency_id: '',
-    content_type: 'document',
+    content_type: 'generated',
     content_url: '',
     duration_minutes: 30,
     status: 'draft'
@@ -119,16 +119,16 @@ export default function TrainingPage() {
       const enriched = (comps || []).map(comp => {
         const relatedModules = allModules?.filter(m => m.competency_id === comp.id) || [];
         const hasReleased = relatedModules.some(m => 
-          m.status === 'released' || m.status === 'active' || m.status === 'published'
+          m.status === 'published' || m.status === 'content_approved'
         );
         const hasDraft = relatedModules.some(m => 
-          m.status === 'draft' || m.status === 'in_development'
+          m.status === 'draft'
         );
         
         return {
           ...comp,
           modules: relatedModules,
-          developmentStatus: hasReleased ? 'released' : hasDraft ? 'in_development' : 'not_started'
+          developmentStatus: hasReleased ? 'published' : hasDraft ? 'draft' : 'not_started'
         };
       });
       
@@ -166,7 +166,7 @@ export default function TrainingPage() {
       title: '',
       description: '',
       competency_id: competencyId || '',
-      content_type: 'document',
+      content_type: 'generated',
       content_url: '',
       duration_minutes: 30,
       status: 'draft'
@@ -267,14 +267,17 @@ export default function TrainingPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'released':
-      case 'active':
       case 'published':
         return 'bg-green-100 text-green-700';
+      case 'content_approved':
+        return 'bg-blue-100 text-blue-700';
+      case 'pending':
+        return 'bg-amber-100 text-amber-700';
       case 'draft':
         return 'bg-gray-100 text-gray-700';
-      case 'in_development':
-        return 'bg-blue-100 text-blue-700';
+      case 'archived':
+      case 'rejected':
+        return 'bg-red-100 text-red-700';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -325,9 +328,9 @@ export default function TrainingPage() {
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
               My Development
-              {myDevelopmentTasks.filter(t => t.developmentStatus !== 'released').length > 0 && (
+              {myDevelopmentTasks.filter(t => t.developmentStatus !== 'published').length > 0 && (
                 <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">
-                  {myDevelopmentTasks.filter(t => t.developmentStatus !== 'released').length}
+                  {myDevelopmentTasks.filter(t => t.developmentStatus !== 'published').length}
                 </span>
               )}
             </div>
@@ -420,7 +423,7 @@ export default function TrainingPage() {
                         <div className="flex items-center justify-end gap-2">
                           {module.status === 'draft' && (
                             <button
-                              onClick={() => handleUpdateStatus(module.id, 'released')}
+                              onClick={() => handleUpdateStatus(module.id, 'published')}
                               className="p-1 hover:bg-green-100 rounded text-green-600"
                               title="Release"
                             >
@@ -484,19 +487,19 @@ export default function TrainingPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        task.developmentStatus === 'released' 
+                        task.developmentStatus === 'published' 
                           ? 'bg-green-100 text-green-700'
-                          : task.developmentStatus === 'in_development'
+                          : task.developmentStatus === 'draft'
                             ? 'bg-blue-100 text-blue-700'
                             : 'bg-amber-100 text-amber-700'
                       }`}>
-                        {task.developmentStatus === 'released' 
+                        {task.developmentStatus === 'published' 
                           ? 'Released' 
-                          : task.developmentStatus === 'in_development'
+                          : task.developmentStatus === 'draft'
                             ? 'In Development'
                             : 'Not Started'}
                       </span>
-                      {task.developmentStatus !== 'released' && (
+                      {task.developmentStatus !== 'published' && (
                         <button
                           onClick={() => handleCreateModule(task.id)}
                           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -616,11 +619,9 @@ export default function TrainingPage() {
                     onChange={(e) => setFormData({ ...formData, content_type: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                   >
-                    <option value="document">Document</option>
-                    <option value="video">Video</option>
-                    <option value="presentation">Presentation</option>
-                    <option value="quiz">Quiz</option>
-                    <option value="external">External Link</option>
+                    <option value="generated">Generated</option>
+                    <option value="uploaded">Uploaded</option>
+                    <option value="adapted">Adapted</option>
                   </select>
                 </div>
                 <div>
@@ -654,8 +655,10 @@ export default function TrainingPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 >
                   <option value="draft">Draft</option>
-                  <option value="in_development">In Development</option>
-                  <option value="released">Released</option>
+                  <option value="pending">Pending Review</option>
+                  <option value="content_approved">Content Approved</option>
+                  <option value="published">Published</option>
+                  <option value="archived">Archived</option>
                 </select>
               </div>
             </form>
