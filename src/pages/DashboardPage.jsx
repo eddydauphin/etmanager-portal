@@ -136,11 +136,14 @@ function TrainingMaterialsSection({ clientId = null }) {
       );
       
       // Load training modules
-      let modulesUrl = 'training_modules?select=id,status,title,competency_id';
+      let modulesUrl = 'training_modules?select=id,status,title';
       if (clientId) {
         modulesUrl += `&client_id=eq.${clientId}`;
       }
       const modules = await dbFetch(modulesUrl) || [];
+      
+      // Load competency_modules junction table to get module-competency links
+      const competencyModules = await dbFetch('competency_modules?select=module_id,competency_id') || [];
       
       // Calculate stats by status
       const published = modules.filter(m => m.status === 'published').length;
@@ -154,11 +157,16 @@ function TrainingMaterialsSection({ clientId = null }) {
         inDevelopment
       });
 
+      // Get published module IDs
+      const publishedModuleIds = new Set(
+        modules.filter(m => m.status === 'published').map(m => m.id)
+      );
+
       // Create a set of competency IDs that have published training
       const competenciesWithPublishedTraining = new Set(
-        modules
-          .filter(m => m.status === 'published' && m.competency_id)
-          .map(m => m.competency_id)
+        competencyModules
+          .filter(cm => publishedModuleIds.has(cm.module_id))
+          .map(cm => cm.competency_id)
       );
 
       // Group competencies by training developer
@@ -312,12 +320,30 @@ function MyTrainingDevelopmentSection({ profile }) {
         return;
       }
 
-      // Check which have training modules
-      const modules = await dbFetch('training_modules?select=id,title,status,competency_id');
+      // Get competency_modules to check which competencies have modules
+      const competencyModules = await dbFetch('competency_modules?select=competency_id,module_id');
+      
+      // Get all modules to check their status
+      const modules = await dbFetch('training_modules?select=id,title,status');
+      
+      // Create a map of module status by id
+      const moduleStatusMap = {};
+      modules?.forEach(m => {
+        moduleStatusMap[m.id] = m.status;
+      });
       
       // Enrich competencies with module status
       const enriched = competencies.map(comp => {
-        const relatedModules = modules?.filter(m => m.competency_id === comp.id) || [];
+        // Find modules linked to this competency
+        const linkedModuleIds = competencyModules
+          ?.filter(cm => cm.competency_id === comp.id)
+          .map(cm => cm.module_id) || [];
+        
+        const relatedModules = linkedModuleIds.map(id => ({
+          id,
+          status: moduleStatusMap[id]
+        })).filter(m => m.status);
+        
         const hasPublished = relatedModules.some(m => 
           m.status === 'published' || m.status === 'content_approved'
         );
