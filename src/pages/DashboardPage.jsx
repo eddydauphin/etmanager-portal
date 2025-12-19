@@ -395,7 +395,7 @@ function MyTrainingDevelopmentSection({ profile }) {
           <FileText className="w-5 h-5 text-purple-500" />
           My Training Development
         </h2>
-        <Link to="/training?tab=development" className="text-sm text-blue-600 hover:text-blue-700">
+        <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700">
           Develop Materials →
         </Link>
       </div>
@@ -423,7 +423,7 @@ function MyTrainingDevelopmentSection({ profile }) {
           {pending.slice(0, 5).map(item => (
             <Link
               key={item.id}
-              to={`/training?tab=development&competency=${item.id}`}
+              to="/training"
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
             >
               <div className="flex items-center gap-2">

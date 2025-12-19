@@ -14,7 +14,7 @@ import TraineesPage from './pages/TraineesPage';
 import TraineeDetailPage from './pages/TraineeDetailPage';
 import CompetenciesPage from './pages/CompetenciesPage';
 import CompetencyProfilesPage from './pages/CompetencyProfilesPage';
-import TrainingPage from './pages/TrainingPage';
+import TrainingModulesPage from './pages/TrainingModulesPage';
 import DevelopmentActivitiesPage from './pages/DevelopmentActivitiesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
@@ -156,7 +156,7 @@ function AppRoutes() {
         {/* Training - All roles can access (trainees need it for training development) */}
         <Route path="training" element={
           <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead', 'trainee']}>
-            <TrainingPage />
+            <TrainingModulesPage />
           </ProtectedRoute>
         } />
 
