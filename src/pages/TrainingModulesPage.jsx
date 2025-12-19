@@ -142,15 +142,21 @@ export default function TrainingModulesPage() {
     try {
       let url = 'competencies?select=*&is_active=eq.true&order=name.asc';
       
-      // Filter based on current user's role (competencies are client-specific)
+      // Filter based on current user's role
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
       } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'trainee') {
+        // Trainees only see competencies they're assigned to develop
+        url += `&training_developer_id=eq.${currentProfile.id}`;
       }
       // Super admin sees all competencies
       
       const data = await dbFetch(url);
+      console.log('Loaded competencies for role', currentProfile?.role, ':', data);
       setCompetencies(data || []);
     } catch (error) {
       console.error('Error loading competencies:', error);
@@ -256,6 +262,19 @@ export default function TrainingModulesPage() {
 
     try {
       const competency = competencies.find(c => c.id === formData.competency_id);
+      
+      // Debug logging
+      console.log('=== GENERATE CONTENT DEBUG ===');
+      console.log('Form title:', formData.title);
+      console.log('Selected competency_id:', formData.competency_id);
+      console.log('Found competency:', competency);
+      console.log('All competencies:', competencies);
+      console.log('==============================');
+      
+      if (!competency) {
+        throw new Error('Selected competency not found');
+      }
+      
       // Use first selected language for generation
       const primaryLanguage = formData.audio_languages[0];
       const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'English';
@@ -269,17 +288,20 @@ export default function TrainingModulesPage() {
       };
 
       // Generate slides
+      const requestPayload = {
+        type: 'slides',
+        title: formData.title,
+        competency: competency,
+        targetLevel: formData.target_level,
+        levelDescriptions: levelDescriptions,
+        language: languageLabel
+      };
+      console.log('Sending to API:', requestPayload);
+      
       const slidesResponse = await fetch('/api/generate-training', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'slides',
-          title: formData.title,
-          competency: competency,
-          targetLevel: formData.target_level,
-          levelDescriptions: levelDescriptions,
-          language: languageLabel
-        })
+        body: JSON.stringify(requestPayload)
       });
 
       if (!slidesResponse.ok) {
