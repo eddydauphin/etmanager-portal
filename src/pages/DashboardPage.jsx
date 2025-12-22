@@ -497,9 +497,10 @@ function CreateDevelopmentModal({ isOpen, onClose, profile, onSuccess }) {
       const usersData = await dbFetch(usersUrl);
       setUsers(usersData || []);
 
-      // Load coaches (non-trainees)
+      // Load coaches (non-trainees) - MUST FILTER BY CLIENT
       let coachesUrl = 'profiles?select=id,full_name,email,role&is_active=eq.true&role=neq.trainee&order=full_name.asc';
-      if (profile?.role === 'client_admin' && profile?.client_id) {
+      // All non-super_admin roles should only see coaches from their organization
+      if (profile?.role !== 'super_admin' && profile?.client_id) {
         coachesUrl += `&client_id=eq.${profile.client_id}`;
       }
       const coachesData = await dbFetch(coachesUrl);
