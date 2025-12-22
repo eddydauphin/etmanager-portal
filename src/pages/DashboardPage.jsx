@@ -130,10 +130,12 @@ function TrainingMaterialsSection({ clientId = null }) {
 
   const loadTrainingMaterialsData = async () => {
     try {
-      // Load competencies with training developer info
-      const competencies = await dbFetch(
-        'competencies?select=id,name,training_developer_id,is_active,training_developer:training_developer_id(id,full_name,email)'
-      );
+      // Load competencies with training developer info - FILTER BY CLIENT
+      let competenciesUrl = 'competencies?select=id,name,training_developer_id,is_active,client_id,training_developer:training_developer_id(id,full_name,email)';
+      if (clientId) {
+        competenciesUrl += `&client_id=eq.${clientId}`;
+      }
+      const competencies = await dbFetch(competenciesUrl);
       
       // Load training modules
       let modulesUrl = 'training_modules?select=id,status,title';
@@ -143,7 +145,12 @@ function TrainingMaterialsSection({ clientId = null }) {
       const modules = await dbFetch(modulesUrl) || [];
       
       // Load competency_modules junction table to get module-competency links
-      const competencyModules = await dbFetch('competency_modules?select=module_id,competency_id') || [];
+      // Filter by competency IDs from the filtered competencies
+      const competencyIds = competencies?.map(c => c.id) || [];
+      let competencyModules = [];
+      if (competencyIds.length > 0) {
+        competencyModules = await dbFetch(`competency_modules?select=module_id,competency_id&competency_id=in.(${competencyIds.join(',')})`) || [];
+      }
       
       // Calculate stats by status
       const published = modules.filter(m => m.status === 'published').length;
@@ -1541,7 +1548,9 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
 
 // Team Lead Dashboard - sees all team coaching and training
 function TeamLeadDashboard() {
-  const { profile, clientId } = useAuth();
+  const { profile, clientId: authClientId } = useAuth();
+  // Use clientId from auth context, fallback to profile.client_id
+  const clientId = authClientId || profile?.client_id;
   const [stats, setStats] = useState({
     teamMembers: 0,
     competenciesAssigned: 0,
@@ -1978,7 +1987,9 @@ function SuperAdminDashboard() {
 
 // Client Admin Dashboard
 function ClientAdminDashboard() {
-  const { profile, clientId } = useAuth();
+  const { profile, clientId: authClientId } = useAuth();
+  // Use clientId from auth context, fallback to profile.client_id
+  const clientId = authClientId || profile?.client_id;
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({
     networkCount: 0,
