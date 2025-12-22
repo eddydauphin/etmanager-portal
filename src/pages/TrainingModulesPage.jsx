@@ -121,12 +121,18 @@ export default function TrainingModulesPage() {
     try {
       let url = 'training_modules?select=*,clients(name),competency_modules(competency_id,target_level,competencies(name)),module_questions(id),module_slides(id)&order=created_at.desc';
       
-      // Filter based on current user's role
+      // Filter based on current user's role - CRITICAL: Users must only see their own organization
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
         // Client admin sees modules for their organization
         url += `&client_id=eq.${currentProfile.client_id}`;
       } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
         // Department lead sees modules for their organization (same as client admin for modules)
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
+        // Team lead sees modules for their organization
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'trainee' && currentProfile?.client_id) {
+        // Trainees see modules for their organization (filtered further by assignment elsewhere)
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
       // Super admin sees all modules (no additional filter)
@@ -165,7 +171,14 @@ export default function TrainingModulesPage() {
 
   const loadClients = async () => {
     try {
-      const data = await dbFetch('clients?select=id,name&order=name.asc');
+      let url = 'clients?select=id,name&order=name.asc';
+      
+      // Filter based on current user's role - non-super_admin should only see their own client
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&id=eq.${currentProfile.client_id}`;
+      }
+      
+      const data = await dbFetch(url);
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
@@ -176,13 +189,19 @@ export default function TrainingModulesPage() {
     try {
       let url = 'profiles?select=id,full_name,email,role,client_id,department,line,clients!profiles_client_id_fkey(name)&role=eq.trainee&order=full_name.asc';
       
-      // Filter based on current user's role
+      // Filter based on current user's role - CRITICAL: Users must only see their own organization
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
         // Client admin sees all trainees in their organization
         url += `&client_id=eq.${currentProfile.client_id}`;
       } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
         // Department lead sees only trainees in their department
         url += `&client_id=eq.${currentProfile.client_id}&department=eq.${currentProfile.department}`;
+      } else if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
+        // Team lead sees only trainees in their organization
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'trainee' && currentProfile?.client_id) {
+        // Trainees should only see their own organization (if they have assign rights)
+        url += `&client_id=eq.${currentProfile.client_id}`;
       }
       // Super admin sees all trainees (no additional filter)
       
