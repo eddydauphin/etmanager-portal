@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 
 export default function ReportsPage() {
-  const { profile, clientId } = useAuth();
+  const { profile, clientId: authClientId } = useAuth();
+  // Use clientId from auth context, fallback to profile.client_id
+  const clientId = authClientId || profile?.client_id;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedClient, setSelectedClient] = useState('all');
@@ -88,7 +90,15 @@ export default function ReportsPage() {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const clientFilter = selectedClient !== 'all' ? selectedClient : null;
+      // CRITICAL: Non-super_admin users MUST always use their client_id
+      let clientFilter;
+      if (profile?.role === 'super_admin') {
+        clientFilter = selectedClient !== 'all' ? selectedClient : null;
+      } else {
+        // For all other roles, always use their client_id regardless of selection
+        clientFilter = clientId || profile?.client_id;
+      }
+      
       const dateLimit = new Date();
       dateLimit.setDate(dateLimit.getDate() - parseInt(dateRange));
 
@@ -363,28 +373,38 @@ export default function ReportsPage() {
 
   const loadCompetencyStats = async (clientFilter) => {
     try {
-      // Get trainees for client filter
-      let traineeIds = [];
+      // If we have a client filter, only get competencies for trainees in that client
       if (clientFilter) {
         const trainees = await dbFetch(`profiles?select=id&role=eq.trainee&client_id=eq.${clientFilter}`);
-        traineeIds = trainees?.map(t => t.id) || [];
+        const traineeIds = trainees?.map(t => t.id) || [];
+        
+        // If no trainees in this client, return empty stats
+        if (traineeIds.length === 0) {
+          setCompetencyStats({ total: 0, achieved: 0, inProgress: 0 });
+          return;
+        }
+        
+        // Get competencies only for these trainees
+        const competencies = await dbFetch(
+          `user_competencies?select=id,status,user_id&user_id=in.(${traineeIds.join(',')})`
+        );
+        
+        const filtered = competencies || [];
+        setCompetencyStats({
+          total: filtered.length,
+          achieved: filtered.filter(c => c.status === 'achieved').length,
+          inProgress: filtered.filter(c => c.status === 'in_progress' || c.status === 'not_started' || c.status === 'assigned').length
+        });
+      } else {
+        // Super admin with no filter - get all
+        const competencies = await dbFetch('user_competencies?select=id,status,user_id');
+        const filtered = competencies || [];
+        setCompetencyStats({
+          total: filtered.length,
+          achieved: filtered.filter(c => c.status === 'achieved').length,
+          inProgress: filtered.filter(c => c.status === 'in_progress' || c.status === 'not_started' || c.status === 'assigned').length
+        });
       }
-      
-      // Get all user competencies
-      let compUrl = 'user_competencies?select=id,status,user_id';
-      const competencies = await dbFetch(compUrl);
-      
-      // Filter by client if needed
-      let filtered = competencies || [];
-      if (clientFilter && traineeIds.length > 0) {
-        filtered = competencies?.filter(c => traineeIds.includes(c.user_id)) || [];
-      }
-      
-      setCompetencyStats({
-        total: filtered.length,
-        achieved: filtered.filter(c => c.status === 'achieved').length,
-        inProgress: filtered.filter(c => c.status === 'in_progress' || c.status === 'not_started' || c.status === 'assigned').length
-      });
     } catch (err) {
       console.error('Error loading competency stats:', err);
     }

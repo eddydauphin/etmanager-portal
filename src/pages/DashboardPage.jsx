@@ -130,12 +130,22 @@ function TrainingMaterialsSection({ clientId = null }) {
 
   const loadTrainingMaterialsData = async () => {
     try {
-      // Load competencies with training developer info - FILTER BY CLIENT
-      let competenciesUrl = 'competencies?select=id,name,training_developer_id,is_active,client_id,training_developer:training_developer_id(id,full_name,email)';
+      // Load competencies with training developer info and client associations
+      let competenciesUrl = 'competencies?select=id,name,training_developer_id,is_active,client_id,competency_clients(client_id),training_developer:training_developer_id(id,full_name,email)';
+      let competencies = await dbFetch(competenciesUrl);
+      
+      // Transform to include client_ids from junction table
+      competencies = (competencies || []).map(comp => ({
+        ...comp,
+        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
+      }));
+      
+      // Filter by client if specified (using junction table for multi-client support)
       if (clientId) {
-        competenciesUrl += `&client_id=eq.${clientId}`;
+        competencies = competencies.filter(comp => 
+          comp.client_ids?.includes(clientId)
+        );
       }
-      const competencies = await dbFetch(competenciesUrl);
       
       // Load training modules
       let modulesUrl = 'training_modules?select=id,status,title';

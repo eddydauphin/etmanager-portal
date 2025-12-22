@@ -108,9 +108,9 @@ export default function UsersPage() {
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
       
-      // If team lead, only show trainees that report to them
-      if (currentProfile?.role === 'team_lead') {
-        url += `&or=(id.eq.${currentProfile.id},reports_to_id.eq.${currentProfile.id})`;
+      // If team lead, filter by client AND show only trainees that report to them (plus themselves)
+      if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}&or=(id.eq.${currentProfile.id},reports_to_id.eq.${currentProfile.id})`;
       }
 
       const data = await dbFetch(url);
@@ -122,7 +122,14 @@ export default function UsersPage() {
 
   const loadClients = async () => {
     try {
-      const data = await dbFetch('clients?select=id,name,code&is_active=eq.true&order=name.asc');
+      let url = 'clients?select=id,name,code&is_active=eq.true&order=name.asc';
+      
+      // Non-super_admin should only see their own client
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&id=eq.${currentProfile.client_id}`;
+      }
+      
+      const data = await dbFetch(url);
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
@@ -133,8 +140,8 @@ export default function UsersPage() {
     try {
       let url = 'profiles?select=id,full_name,email,client_id&role=eq.team_lead&is_active=eq.true&order=full_name.asc';
       
-      // If client admin, only show team leads from their client
-      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+      // All non-super_admin should only see team leads from their client
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
       

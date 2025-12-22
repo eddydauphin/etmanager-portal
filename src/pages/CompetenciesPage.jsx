@@ -342,13 +342,24 @@ export default function CompetenciesPage() {
 
   const loadCompetencies = async () => {
     try {
+      // Fetch competencies with their client associations via junction table
       const data = await dbFetch('competencies?select=*,competency_categories(name,color),competency_clients(client_id,clients(id,name)),owner:owner_id(id,full_name),training_developer:training_developer_id(id,full_name)&order=name.asc');
+      
       // Transform data to include client names array
-      const transformed = (data || []).map(comp => ({
+      let transformed = (data || []).map(comp => ({
         ...comp,
         client_names: comp.competency_clients?.map(cc => cc.clients?.name).filter(Boolean) || [],
         client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
       }));
+      
+      // CRITICAL: Filter by client access for non-super_admin users
+      // This checks the junction table (competency_clients) to support multi-client sharing
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        transformed = transformed.filter(comp => 
+          comp.client_ids?.includes(currentProfile.client_id)
+        );
+      }
+      
       setCompetencies(transformed);
     } catch (error) {
       console.error('Error loading competencies:', error);
@@ -357,7 +368,15 @@ export default function CompetenciesPage() {
 
   const loadCategories = async () => {
     try {
-      const data = await dbFetch('competency_categories?select=*&order=name.asc');
+      let url = 'competency_categories?select=*&order=name.asc';
+      
+      // Filter by client for non-super_admin users
+      // Include categories where client_id matches OR client_id is null (global categories)
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&or=(client_id.eq.${currentProfile.client_id},client_id.is.null)`;
+      }
+      
+      const data = await dbFetch(url);
       setCategories(data || []);
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -366,7 +385,14 @@ export default function CompetenciesPage() {
 
   const loadClients = async () => {
     try {
-      const data = await dbFetch('clients?select=id,name&order=name.asc');
+      let url = 'clients?select=id,name&order=name.asc';
+      
+      // Non-super_admin should only see their own client
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&id=eq.${currentProfile.client_id}`;
+      }
+      
+      const data = await dbFetch(url);
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
@@ -377,9 +403,12 @@ export default function CompetenciesPage() {
     try {
       // Load ALL users from the organization (anyone can be a training developer)
       let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
-      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+      
+      // CRITICAL: Filter by client for all non-super_admin users
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
+      
       const data = await dbFetch(url);
       setUsers(data || []);
     } catch (error) {
@@ -391,11 +420,18 @@ export default function CompetenciesPage() {
   const loadTrainees = async () => {
     try {
       let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      
+      // CRITICAL: Always filter by client for non-super_admin
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
-      } else if (currentProfile?.role === 'team_lead') {
-        url += `&reports_to_id=eq.${currentProfile.id}`;
+      } else if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
+        // Team lead: filter by client AND reports_to
+        url += `&client_id=eq.${currentProfile.client_id}&reports_to_id=eq.${currentProfile.id}`;
+      } else if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        // Any other non-super_admin role
+        url += `&client_id=eq.${currentProfile.client_id}`;
       }
+      
       const data = await dbFetch(url);
       setTrainees(data || []);
     } catch (error) {

@@ -108,9 +108,12 @@ export default function DevelopmentActivitiesPage() {
       // Filter by client for non-super admins
       if (profile?.role === 'client_admin' && profile?.client_id) {
         url += `&client_id=eq.${profile.client_id}`;
-      } else if (profile?.role === 'team_lead') {
-        // Team leads see activities they assigned or where they're the coach
-        url += `&or=(assigned_by.eq.${profile.id},coach_id.eq.${profile.id})`;
+      } else if (profile?.role === 'team_lead' && profile?.client_id) {
+        // Team leads see activities in their client that they assigned or where they're the coach
+        url += `&client_id=eq.${profile.client_id}&or=(assigned_by.eq.${profile.id},coach_id.eq.${profile.id})`;
+      } else if (profile?.role !== 'super_admin' && profile?.client_id) {
+        // Any other non-super_admin role
+        url += `&client_id=eq.${profile.client_id}`;
       }
       
       const data = await dbFetch(url);
@@ -126,8 +129,12 @@ export default function DevelopmentActivitiesPage() {
       
       if (profile?.role === 'client_admin' && profile?.client_id) {
         url += `&client_id=eq.${profile.client_id}`;
-      } else if (profile?.role === 'team_lead') {
-        url += `&or=(reports_to_id.eq.${profile.id},id.eq.${profile.id})`;
+      } else if (profile?.role === 'team_lead' && profile?.client_id) {
+        // Team lead: filter by client AND reports_to (plus self)
+        url += `&client_id=eq.${profile.client_id}&or=(reports_to_id.eq.${profile.id},id.eq.${profile.id})`;
+      } else if (profile?.role !== 'super_admin' && profile?.client_id) {
+        // Any other non-super_admin role
+        url += `&client_id=eq.${profile.client_id}`;
       }
       
       const data = await dbFetch(url);
@@ -139,9 +146,25 @@ export default function DevelopmentActivitiesPage() {
 
   const loadCompetencies = async () => {
     try {
-      let url = 'competencies?select=id,name,category&is_active=eq.true&order=name.asc';
+      // Fetch competencies with their client associations via junction table
+      let url = 'competencies?select=id,name,category,client_id,competency_clients(client_id)&is_active=eq.true&order=name.asc';
       const data = await dbFetch(url);
-      setCompetencies(data || []);
+      
+      // Transform to include client_ids from junction table
+      let transformed = (data || []).map(comp => ({
+        ...comp,
+        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
+      }));
+      
+      // CRITICAL: Filter by client access for non-super_admin users
+      // This checks the junction table (competency_clients) to support multi-client sharing
+      if (profile?.role !== 'super_admin' && profile?.client_id) {
+        transformed = transformed.filter(comp => 
+          comp.client_ids?.includes(profile.client_id)
+        );
+      }
+      
+      setCompetencies(transformed);
     } catch (error) {
       console.error('Error loading competencies:', error);
     }
