@@ -146,22 +146,30 @@ export default function TrainingModulesPage() {
 
   const loadCompetencies = async () => {
     try {
-      let url = 'competencies?select=*&is_active=eq.true&order=name.asc';
+      // Fetch competencies with their client associations via junction table
+      let url = 'competencies?select=*,competency_clients(client_id)&is_active=eq.true&order=name.asc';
       
-      // Filter based on current user's role
-      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
-        url += `&client_id=eq.${currentProfile.client_id}`;
-      } else if (currentProfile?.role === 'department_lead' && currentProfile?.client_id) {
-        url += `&client_id=eq.${currentProfile.client_id}`;
-      } else if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
-        url += `&client_id=eq.${currentProfile.client_id}`;
-      } else if (currentProfile?.role === 'trainee') {
-        // Trainees only see competencies they're assigned to develop
+      // Trainees only see competencies they're assigned to develop (regardless of client)
+      if (currentProfile?.role === 'trainee') {
         url += `&training_developer_id=eq.${currentProfile.id}`;
       }
-      // Super admin sees all competencies
       
-      const data = await dbFetch(url);
+      let data = await dbFetch(url);
+      
+      // Transform to include client_ids from junction table
+      data = (data || []).map(comp => ({
+        ...comp,
+        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
+      }));
+      
+      // Filter by client access for non-super_admin, non-trainee users
+      // This checks the junction table (competency_clients) to support multi-client sharing
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.role !== 'trainee' && currentProfile?.client_id) {
+        data = data.filter(comp => 
+          comp.client_ids?.includes(currentProfile.client_id)
+        );
+      }
+      
       console.log('Loaded competencies for role', currentProfile?.role, ':', data);
       setCompetencies(data || []);
     } catch (error) {
