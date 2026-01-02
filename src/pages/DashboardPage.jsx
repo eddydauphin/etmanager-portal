@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import {
@@ -2217,6 +2217,7 @@ function ClientAdminDashboard() {
 // Trainee Dashboard
 function TraineeDashboard() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     competenciesTotal: 0,
     competenciesAchieved: 0,
@@ -2302,6 +2303,7 @@ function TraineeDashboard() {
             subtitle="In progress"
             icon={Target}
             color="blue"
+            onClick={() => navigate('/my-progress')}
           />
           <StatCard 
             title="Training Pending" 
@@ -2309,6 +2311,7 @@ function TraineeDashboard() {
             subtitle={`${stats.trainingCompleted} completed`}
             icon={GraduationCap}
             color="amber"
+            onClick={() => navigate('/my-training')}
           />
           <StatCard 
             title="Active Coaching" 
@@ -2316,6 +2319,7 @@ function TraineeDashboard() {
             subtitle="Sessions in progress"
             icon={Users}
             color="purple"
+            onClick={() => navigate('/my-plan')}
           />
           <StatCard 
             title="Skills Achieved" 
@@ -2323,6 +2327,7 @@ function TraineeDashboard() {
             subtitle={`of ${stats.competenciesTotal} total`}
             icon={CheckCircle}
             color="green"
+            onClick={() => navigate('/my-progress')}
           />
         </div>
       </div>
