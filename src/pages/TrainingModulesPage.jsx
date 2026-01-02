@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { supabase } from '../lib/supabase';
 import {
   BookOpen,
   Plus,
@@ -25,6 +26,7 @@ import {
   CheckCircle,
   XCircle,
   Volume2,
+  Mic,
   Globe,
   ClipboardList,
   RotateCcw,
@@ -88,6 +90,10 @@ export default function TrainingModulesPage() {
   
   // Dropdown
   const [openDropdown, setOpenDropdown] = useState(null);
+  
+  // Audio generation state
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [audioProgress, setAudioProgress] = useState({ current: 0, total: 0, status: '' });
 
   const languages = [
     { code: 'en', label: 'English' },
@@ -735,6 +741,124 @@ export default function TrainingModulesPage() {
     setOpenDropdown(null);
   };
 
+  // Generate Audio for all slides in a module
+  const handleGenerateAudio = async (module) => {
+    setOpenDropdown(null);
+    
+    // Check if module has audio enabled
+    if (!module.has_audio) {
+      alert('Audio is not enabled for this module.');
+      return;
+    }
+    
+    setGeneratingAudio(true);
+    setAudioProgress({ current: 0, total: 0, status: 'Loading slides...' });
+    
+    try {
+      // Load slides for this module
+      const slides = await dbFetch(`module_slides?module_id=eq.${module.id}&order=slide_number.asc`);
+      
+      if (!slides || slides.length === 0) {
+        alert('No slides found for this module.');
+        setGeneratingAudio(false);
+        return;
+      }
+      
+      // Filter slides that have audio_script but no audio_url
+      const slidesNeedingAudio = slides.filter(s => s.audio_script && !s.audio_url);
+      
+      if (slidesNeedingAudio.length === 0) {
+        alert('All slides already have audio generated, or no audio scripts exist.');
+        setGeneratingAudio(false);
+        return;
+      }
+      
+      setAudioProgress({ current: 0, total: slidesNeedingAudio.length, status: 'Starting audio generation...' });
+      
+      // Generate audio for each slide
+      for (let i = 0; i < slidesNeedingAudio.length; i++) {
+        const slide = slidesNeedingAudio[i];
+        setAudioProgress({ 
+          current: i + 1, 
+          total: slidesNeedingAudio.length, 
+          status: `Generating audio for slide ${slide.slide_number}: ${slide.title}...` 
+        });
+        
+        try {
+          // Call the generate-audio API
+          const response = await fetch('/api/generate-audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: slide.audio_script,
+              language: module.audio_language || 'en'
+            })
+          });
+          
+          if (!response.ok) {
+            console.error(`Failed to generate audio for slide ${slide.id}`);
+            continue;
+          }
+          
+          const { audio, contentType } = await response.json();
+          
+          // Convert base64 to blob
+          const byteCharacters = atob(audio);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let j = 0; j < byteCharacters.length; j++) {
+            byteNumbers[j] = byteCharacters.charCodeAt(j);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: contentType || 'audio/mpeg' });
+          
+          // Upload to Supabase storage
+          const fileName = `${module.id}/${slide.id}.mp3`;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('audio')
+            .upload(fileName, blob, {
+              contentType: 'audio/mpeg',
+              upsert: true
+            });
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            continue;
+          }
+          
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('audio')
+            .getPublicUrl(fileName);
+          
+          const audioUrl = urlData.publicUrl;
+          
+          // Update slide with audio URL
+          await dbFetch(`module_slides?id=eq.${slide.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ audio_url: audioUrl })
+          });
+          
+        } catch (slideError) {
+          console.error(`Error processing slide ${slide.id}:`, slideError);
+        }
+      }
+      
+      setAudioProgress({ current: slidesNeedingAudio.length, total: slidesNeedingAudio.length, status: 'Complete!' });
+      
+      // Reload modules to update the UI
+      await loadModules();
+      
+      alert(`Audio generation complete! Generated audio for ${slidesNeedingAudio.length} slides.`);
+      
+    } catch (error) {
+      console.error('Error generating audio:', error);
+      alert('Error generating audio: ' + error.message);
+    } finally {
+      setGeneratingAudio(false);
+      setAudioProgress({ current: 0, total: 0, status: '' });
+    }
+  };
+
   const getLevelName = (level) => {
     const names = {
       1: 'Awareness',
@@ -821,6 +945,32 @@ export default function TrainingModulesPage() {
           Create Module
         </button>
       </div>
+
+      {/* Audio Generation Progress */}
+      {generatingAudio && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-orange-600 animate-spin" />
+            <div className="flex-1">
+              <p className="font-medium text-orange-800">Generating Audio...</p>
+              <p className="text-sm text-orange-600">{audioProgress.status}</p>
+              {audioProgress.total > 0 && (
+                <div className="mt-2">
+                  <div className="h-2 bg-orange-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                      style={{ width: `${(audioProgress.current / audioProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-orange-600 mt-1">
+                    {audioProgress.current} of {audioProgress.total} slides
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1043,6 +1193,17 @@ export default function TrainingModulesPage() {
                         >
                           <Users className="w-4 h-4" />
                           Assign Users
+                        </button>
+                      )}
+                      
+                      {module.has_audio && (
+                        <button
+                          onClick={() => handleGenerateAudio(module)}
+                          disabled={generatingAudio}
+                          className="w-full px-4 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <Mic className="w-4 h-4" />
+                          {generatingAudio ? 'Generating...' : 'Generate Audio'}
                         </button>
                       )}
                       
