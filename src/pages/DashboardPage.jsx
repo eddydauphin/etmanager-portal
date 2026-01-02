@@ -1,6 +1,6 @@
 // ============================================================================
-// E&T MANAGER - DASHBOARD PAGE
-// Role-based dashboard with real stats, quick actions, and coaching overview
+// E&T MANAGER - UNIFIED DASHBOARD
+// Combined Dashboard + Reports with layouts, KPIs, actions, and scope filtering
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -36,7 +36,6 @@ import {
   FileText,
   FileCheck,
   FileClock,
-  // Layout icons
   LayoutDashboard,
   LayoutGrid,
   Boxes,
@@ -54,7 +53,14 @@ import {
   Layout,
   AlertTriangle,
   Play,
-  UserPlus
+  UserPlus,
+  Filter,
+  Download,
+  Eye,
+  Settings,
+  XCircle,
+  UserCheck,
+  Search
 } from 'lucide-react';
 
 // ============================================================================
@@ -62,29 +68,29 @@ import {
 // ============================================================================
 
 const dashboardLayouts = {
-  classic: {
-    name: 'Classic',
-    icon: LayoutDashboard,
-    description: 'Traditional with sidebar KPIs',
+  executive: {
+    name: 'Executive',
+    icon: Briefcase,
+    description: 'High-level KPIs & actions',
     preview: '📊'
   },
-  magazine: {
-    name: 'Magazine',
-    icon: LayoutGrid,
-    description: 'Visual card-based',
-    preview: '📰'
+  operational: {
+    name: 'Operational',
+    icon: LayoutDashboard,
+    description: 'Team management focus',
+    preview: '👥'
+  },
+  analytics: {
+    name: 'Analytics',
+    icon: BarChart3,
+    description: 'Detailed metrics & charts',
+    preview: '📈'
   },
   command: {
     name: 'Command Center',
     icon: Boxes,
-    description: 'Dense monitoring',
+    description: 'Dense monitoring view',
     preview: '🖥️'
-  },
-  focus: {
-    name: 'Focus',
-    icon: Target,
-    description: 'Minimal, priority-first',
-    preview: '🎯'
   },
   custom: {
     name: 'Custom',
@@ -96,16 +102,65 @@ const dashboardLayouts = {
 
 // Available widgets for custom layout
 const availableWidgets = {
-  welcome: { name: 'Welcome Card', icon: Heart, category: 'Overview', size: 'large' },
-  kpiStrip: { name: 'KPI Strip', icon: BarChart3, category: 'Metrics', size: 'full' },
-  teamStatus: { name: 'Team Status', icon: Users, category: 'People', size: 'medium' },
+  welcome: { name: 'Welcome Banner', icon: Heart, category: 'Overview', size: 'large' },
   quickActions: { name: 'Quick Actions', icon: Zap, category: 'Actions', size: 'medium' },
+  kpiStrip: { name: 'KPI Overview', icon: BarChart3, category: 'Metrics', size: 'full' },
+  teamStatus: { name: 'Team Status', icon: Users, category: 'People', size: 'medium' },
   trainingProgress: { name: 'Training Progress', icon: TrendingUp, category: 'Training', size: 'medium' },
+  competencyRing: { name: 'Competency Chart', icon: Target, category: 'Competencies', size: 'medium' },
+  modulePerformance: { name: 'Module Performance', icon: BookOpen, category: 'Training', size: 'large' },
   recentActivity: { name: 'Recent Activity', icon: Activity, category: 'Activity', size: 'medium' },
-  competencyRing: { name: 'Competency Ring', icon: Target, category: 'Competencies', size: 'medium' },
   coachingOverview: { name: 'Coaching Overview', icon: MessageSquare, category: 'Coaching', size: 'medium' },
-  leaderboard: { name: 'Leaderboard', icon: Trophy, category: 'Engagement', size: 'medium' },
+  overdueAlerts: { name: 'Overdue Alerts', icon: AlertTriangle, category: 'Alerts', size: 'small' },
+  traineeTable: { name: 'Trainee Progress Table', icon: Users, category: 'Reports', size: 'large' },
 };
+
+// ============================================================================
+// LAYOUT PREFERENCE HOOKS
+// ============================================================================
+
+function useLayoutPreferences(userId) {
+  const [currentLayout, setCurrentLayout] = useState('executive');
+  const [activeWidgets, setActiveWidgets] = useState([
+    'welcome', 'quickActions', 'kpiStrip', 'teamStatus', 
+    'trainingProgress', 'competencyRing', 'recentActivity'
+  ]);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (userId) loadPreferences();
+  }, [userId]);
+
+  const loadPreferences = () => {
+    try {
+      const savedLayout = localStorage.getItem(`unified_dashboard_layout_${userId}`);
+      const savedWidgets = localStorage.getItem(`unified_dashboard_widgets_${userId}`);
+      if (savedLayout) setCurrentLayout(savedLayout);
+      if (savedWidgets) setActiveWidgets(JSON.parse(savedWidgets));
+    } catch (error) {
+      console.log('Using default layout preferences');
+    }
+    setPrefsLoaded(true);
+  };
+
+  const savePreferences = (layout, widgets) => {
+    if (!userId) return;
+    localStorage.setItem(`unified_dashboard_layout_${userId}`, layout);
+    localStorage.setItem(`unified_dashboard_widgets_${userId}`, JSON.stringify(widgets));
+  };
+
+  const handleLayoutChange = (newLayout) => {
+    setCurrentLayout(newLayout);
+    savePreferences(newLayout, activeWidgets);
+  };
+
+  const handleWidgetsChange = (newWidgets) => {
+    setActiveWidgets(newWidgets);
+    savePreferences(currentLayout, newWidgets);
+  };
+
+  return { currentLayout, activeWidgets, prefsLoaded, handleLayoutChange, handleWidgetsChange };
+}
 
 // ============================================================================
 // LAYOUT SELECTOR COMPONENT
@@ -152,826 +207,130 @@ function LayoutSelector({ currentLayout, onLayoutChange, showSelector, setShowSe
 }
 
 // ============================================================================
-// LAYOUT PREFERENCE HOOKS
+// SCOPE SELECTOR COMPONENT
 // ============================================================================
 
-function useLayoutPreferences(userId) {
-  const [currentLayout, setCurrentLayout] = useState('classic');
-  const [activeWidgets, setActiveWidgets] = useState(['welcome', 'kpiStrip', 'quickActions', 'teamStatus', 'trainingProgress', 'recentActivity']);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
-
-  // Load preferences on mount
-  useEffect(() => {
-    if (userId) {
-      loadPreferences();
-    }
-  }, [userId]);
-
-  const loadPreferences = async () => {
-    try {
-      // Try localStorage first (faster)
-      const savedLayout = localStorage.getItem(`dashboard_layout_${userId}`);
-      const savedWidgets = localStorage.getItem(`dashboard_widgets_${userId}`);
-      
-      if (savedLayout) setCurrentLayout(savedLayout);
-      if (savedWidgets) {
-        try {
-          setActiveWidgets(JSON.parse(savedWidgets));
-        } catch (e) {}
-      }
-    } catch (error) {
-      console.log('Using default layout preferences');
-    }
-    setPrefsLoaded(true);
-  };
-
-  const savePreferences = (layout, widgets) => {
-    if (!userId) return;
-    
-    // Save to localStorage
-    localStorage.setItem(`dashboard_layout_${userId}`, layout);
-    localStorage.setItem(`dashboard_widgets_${userId}`, JSON.stringify(widgets));
-  };
-
-  const handleLayoutChange = (newLayout) => {
-    setCurrentLayout(newLayout);
-    savePreferences(newLayout, activeWidgets);
-  };
-
-  const handleWidgetsChange = (newWidgets) => {
-    setActiveWidgets(newWidgets);
-    savePreferences(currentLayout, newWidgets);
-  };
-
-  return {
-    currentLayout,
-    activeWidgets,
-    prefsLoaded,
-    handleLayoutChange,
-    handleWidgetsChange
-  };
-}
-
-// Stat Card Component
-function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick }) {
-  const colorClasses = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    red: 'bg-red-50 text-red-600',
-    purple: 'bg-purple-50 text-purple-600',
-    amber: 'bg-amber-50 text-amber-600'
-  };
-
-  return (
-    <div 
-      className={`bg-white rounded-xl shadow-sm p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
-          {subtitle && (
-            <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
-          )}
-          {trend !== undefined && trend !== null && (
-            <p className={`text-sm mt-2 ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-              {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'} {Math.abs(trend)}% from last month
-            </p>
-          )}
-        </div>
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
-          <Icon className="w-6 h-6" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Quick Action Card
-function QuickAction({ title, description, href, icon: Icon }) {
-  return (
-    <Link
-      to={href}
-      className="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow"
-    >
-      <div className="p-3 bg-blue-50 rounded-lg">
-        <Icon className="w-5 h-5 text-blue-600" />
-      </div>
-      <div className="flex-1">
-        <h3 className="font-medium text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500">{description}</p>
-      </div>
-      <ArrowRight className="w-5 h-5 text-gray-400" />
-    </Link>
-  );
-}
-
-// Quick Action Button (onClick instead of navigation)
-function QuickActionButton({ title, description, onClick, icon: Icon }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow text-left w-full"
-    >
-      <div className="p-3 bg-blue-50 rounded-lg">
-        <Icon className="w-5 h-5 text-blue-600" />
-      </div>
-      <div className="flex-1">
-        <h3 className="font-medium text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500">{description}</p>
-      </div>
-      <ArrowRight className="w-5 h-5 text-gray-400" />
-    </button>
-  );
-}
-
-// Training Materials KPI Section
-// Training Modules KPI Section - Admin view of all training modules
-function TrainingMaterialsSection({ clientId = null }) {
-  const [stats, setStats] = useState({
-    total: 0,
-    published: 0,
-    pendingApproval: 0,
-    inDevelopment: 0
-  });
-  const [developers, setDevelopers] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadTrainingMaterialsData();
-  }, [clientId]);
-
-  const loadTrainingMaterialsData = async () => {
-    try {
-      // Load competencies with training developer info and client associations
-      let competenciesUrl = 'competencies?select=id,name,training_developer_id,is_active,client_id,competency_clients(client_id),training_developer:training_developer_id(id,full_name,email)';
-      let competencies = await dbFetch(competenciesUrl);
-      
-      // Transform to include client_ids from junction table
-      competencies = (competencies || []).map(comp => ({
-        ...comp,
-        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
-      }));
-      
-      // Filter by client if specified (using junction table for multi-client support)
-      if (clientId) {
-        competencies = competencies.filter(comp => 
-          comp.client_ids?.includes(clientId)
-        );
-      }
-      
-      // Load training modules
-      let modulesUrl = 'training_modules?select=id,status,title';
-      if (clientId) {
-        modulesUrl += `&client_id=eq.${clientId}`;
-      }
-      const modules = await dbFetch(modulesUrl) || [];
-      
-      // Load competency_modules junction table to get module-competency links
-      // Filter by competency IDs from the filtered competencies
-      const competencyIds = competencies?.map(c => c.id) || [];
-      let competencyModules = [];
-      if (competencyIds.length > 0) {
-        competencyModules = await dbFetch(`competency_modules?select=module_id,competency_id&competency_id=in.(${competencyIds.join(',')})`) || [];
-      }
-      
-      // Calculate stats by status
-      const published = modules.filter(m => m.status === 'published').length;
-      const pendingApproval = modules.filter(m => m.status === 'pending' || m.status === 'content_approved').length;
-      const inDevelopment = modules.filter(m => m.status === 'draft').length;
-      
-      setStats({
-        total: modules.length,
-        published,
-        pendingApproval,
-        inDevelopment
-      });
-
-      // Get published module IDs
-      const publishedModuleIds = new Set(
-        modules.filter(m => m.status === 'published').map(m => m.id)
-      );
-
-      // Create a set of competency IDs that have published training
-      const competenciesWithPublishedTraining = new Set(
-        competencyModules
-          .filter(cm => publishedModuleIds.has(cm.module_id))
-          .map(cm => cm.competency_id)
-      );
-
-      // Group competencies by training developer
-      const developerMap = {};
-      competencies?.forEach(comp => {
-        if (comp.training_developer_id && comp.training_developer) {
-          if (!developerMap[comp.training_developer_id]) {
-            developerMap[comp.training_developer_id] = {
-              user: comp.training_developer,
-              competencies: [],
-              completed: 0,
-              pending: 0
-            };
-          }
-          developerMap[comp.training_developer_id].competencies.push(comp);
-          
-          if (competenciesWithPublishedTraining.has(comp.id)) {
-            developerMap[comp.training_developer_id].completed++;
-          } else {
-            developerMap[comp.training_developer_id].pending++;
-          }
-        }
-      });
-
-      setDevelopers(Object.values(developerMap));
-    } catch (error) {
-      console.error('Error loading training materials data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate total pending across all developers
-  const totalPending = developers.reduce((sum, d) => sum + d.pending, 0);
-  const totalCompleted = developers.reduce((sum, d) => sum + d.completed, 0);
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="h-20 bg-gray-100 rounded"></div>
-            <div className="h-20 bg-gray-100 rounded"></div>
-            <div className="h-20 bg-gray-100 rounded"></div>
-            <div className="h-20 bg-gray-100 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-blue-500" />
-          Training Modules
-        </h2>
-        <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700">
-          Manage →
-        </Link>
-      </div>
-
-      {/* Module Status KPIs */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <Link to="/training" className="text-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-          <p className="text-2xl font-bold text-green-600">{stats.published}</p>
-          <p className="text-xs text-gray-600">Published</p>
-        </Link>
-        <Link to="/training" className="text-center p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
-          <p className="text-2xl font-bold text-amber-600">{stats.pendingApproval}</p>
-          <p className="text-xs text-gray-600">Pending Approval</p>
-        </Link>
-        <Link to="/training" className="text-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-          <p className="text-2xl font-bold text-blue-600">{stats.inDevelopment}</p>
-          <p className="text-xs text-gray-600">In Development</p>
-        </Link>
-        <div className="text-center p-3 bg-gray-50 rounded-lg">
-          <p className="text-2xl font-bold text-gray-700">{stats.total}</p>
-          <p className="text-xs text-gray-600">Total</p>
-        </div>
-      </div>
-
-      {/* Development Assignments Summary */}
-      {developers.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-700">Development Assignments</h3>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="text-green-600 font-medium">{totalCompleted} completed</span>
-              <span className="text-amber-600 font-medium">{totalPending} pending</span>
-            </div>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {developers.map((dev) => (
-              <div key={dev.user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{dev.user.full_name || dev.user.email}</p>
-                    <p className="text-xs text-gray-500">{dev.competencies.length} competencies assigned</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-green-600 font-medium">{dev.completed} done</span>
-                  {dev.pending > 0 && (
-                    <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
-                      {dev.pending} pending
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {developers.length === 0 && stats.total === 0 && (
-        <p className="text-sm text-gray-500 text-center py-4">
-          No training modules yet. Create modules and assign developers.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// My Development Tasks - Competencies where user is assigned to CREATE training materials
-function MyTrainingDevelopmentSection({ profile }) {
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (profile?.id) {
-      loadMyAssignments();
-    }
-  }, [profile]);
-
-  const loadMyAssignments = async () => {
-    try {
-      // Get competencies where current user is the training developer
-      const competencies = await dbFetch(
-        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
-      );
-      
-      if (!competencies || competencies.length === 0) {
-        setAssignments([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get competency_modules to check which competencies have modules
-      const competencyModules = await dbFetch('competency_modules?select=competency_id,module_id');
-      
-      // Get all modules to check their status
-      const modules = await dbFetch('training_modules?select=id,title,status');
-      
-      // Create a map of module status by id
-      const moduleStatusMap = {};
-      modules?.forEach(m => {
-        moduleStatusMap[m.id] = m.status;
-      });
-      
-      // Enrich competencies with module status
-      const enriched = competencies.map(comp => {
-        // Find modules linked to this competency
-        const linkedModuleIds = competencyModules
-          ?.filter(cm => cm.competency_id === comp.id)
-          .map(cm => cm.module_id) || [];
-        
-        const relatedModules = linkedModuleIds.map(id => ({
-          id,
-          status: moduleStatusMap[id]
-        })).filter(m => m.status);
-        
-        const hasPublished = relatedModules.some(m => 
-          m.status === 'published' || m.status === 'content_approved'
-        );
-        const hasDraft = relatedModules.some(m => 
-          m.status === 'draft' || m.status === 'pending'
-        );
-        
-        return {
-          ...comp,
-          modules: relatedModules,
-          status: hasPublished ? 'published' : hasDraft ? 'in_progress' : 'not_started'
-        };
-      });
-
-      setAssignments(enriched);
-    } catch (error) {
-      console.error('Error loading training development assignments:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return null;
-  }
-
-  if (assignments.length === 0) {
-    return null;
-  }
-
-  const pending = assignments.filter(a => a.status !== 'published');
-  const completed = assignments.filter(a => a.status === 'published');
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-500" />
-            My Development Tasks
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">Competencies you're assigned to create training materials for</p>
-        </div>
-        <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700">
-          Create Materials →
-        </Link>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="text-center p-2 bg-gray-50 rounded-lg">
-          <p className="text-xl font-bold text-gray-900">{assignments.length}</p>
-          <p className="text-xs text-gray-500">Assigned</p>
-        </div>
-        <div className="text-center p-2 bg-amber-50 rounded-lg">
-          <p className="text-xl font-bold text-amber-600">{pending.length}</p>
-          <p className="text-xs text-gray-500">To Create</p>
-        </div>
-        <div className="text-center p-2 bg-green-50 rounded-lg">
-          <p className="text-xl font-bold text-green-600">{completed.length}</p>
-          <p className="text-xs text-gray-500">Published</p>
-        </div>
-      </div>
-
-      {/* Pending Items */}
-      {pending.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-700">Competencies needing training materials:</p>
-          {pending.slice(0, 5).map(item => (
-            <Link
-              key={item.id}
-              to="/training"
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
-            >
-              <div className="flex items-center gap-2">
-                {item.competency_categories?.color && (
-                  <div 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.competency_categories.color }}
-                  />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.competency_categories?.name || 'Uncategorized'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  item.status === 'in_progress' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {item.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                </span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </div>
-            </Link>
-          ))}
-          {pending.length > 5 && (
-            <p className="text-xs text-gray-500 text-center">
-              +{pending.length - 5} more pending
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Create Development Activity Modal
-function CreateDevelopmentModal({ isOpen, onClose, profile, onSuccess }) {
-  const [users, setUsers] = useState([]);
-  const [coaches, setCoaches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+function ScopeSelector({ scope, setScope, clients, users, teamLeads, profile }) {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
-  const [formData, setFormData] = useState({
-    type: '',
-    title: '',
-    description: '',
-    trainee_ids: [],
-    coach_id: '',
-    start_date: new Date().toISOString().split('T')[0],
-    due_date: ''
-  });
+  const filteredUsers = users.filter(u => 
+    u.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // Load trainees
-      let usersUrl = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
-      if (profile?.role === 'client_admin' && profile?.client_id) {
-        usersUrl += `&client_id=eq.${profile.client_id}`;
-      } else if (profile?.role === 'team_lead') {
-        usersUrl += `&reports_to_id=eq.${profile.id}`;
-      }
-      const usersData = await dbFetch(usersUrl);
-      setUsers(usersData || []);
-
-      // Load coaches (non-trainees) - MUST FILTER BY CLIENT
-      let coachesUrl = 'profiles?select=id,full_name,email,role&is_active=eq.true&role=neq.trainee&order=full_name.asc';
-      // All non-super_admin roles should only see coaches from their organization
-      if (profile?.role !== 'super_admin' && profile?.client_id) {
-        coachesUrl += `&client_id=eq.${profile.client_id}`;
-      }
-      const coachesData = await dbFetch(coachesUrl);
-      setCoaches(coachesData || []);
-    } catch (err) {
-      console.error('Error loading data:', err);
-    } finally {
-      setLoading(false);
-    }
+  const getScopeLabel = () => {
+    if (scope.type === 'organization') return scope.clientId === 'all' ? 'All Organizations' : clients.find(c => c.id === scope.clientId)?.name || 'Organization';
+    if (scope.type === 'team_lead') return `Team: ${teamLeads.find(t => t.id === scope.userId)?.full_name || 'Team Lead'}`;
+    if (scope.type === 'user') return users.find(u => u.id === scope.userId)?.full_name || 'User';
+    return 'Select Scope';
   };
-
-  const handleSubmit = async () => {
-    setError('');
-    
-    if (!formData.type) {
-      setError('Please select an activity type');
-      return;
-    }
-    if (formData.trainee_ids.length === 0) {
-      setError('Please select at least one user');
-      return;
-    }
-    if (!formData.coach_id) {
-      setError('Please select a coach');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const clientId = profile?.client_id || users.find(u => formData.trainee_ids.includes(u.id))?.client_id;
-
-      for (const traineeId of formData.trainee_ids) {
-        await dbFetch('development_activities', {
-          method: 'POST',
-          body: JSON.stringify({
-            type: 'coaching',
-            title: formData.title || (formData.type === 'grow_doing' ? 'Grow through doing' : 'Learn through others'),
-            description: formData.description || (formData.type === 'grow_doing' 
-              ? 'Development through initiatives, projects, and hands-on experience'
-              : 'Development through feedback, coaching, and mentoring'),
-            trainee_id: traineeId,
-            assigned_by: profile.id,
-            coach_id: formData.coach_id,
-            start_date: formData.start_date,
-            due_date: formData.due_date || null,
-            status: 'pending',
-            client_id: clientId
-          })
-        });
-      }
-
-      // Reset and close
-      setFormData({
-        type: '',
-        title: '',
-        description: '',
-        trainee_ids: [],
-        coach_id: '',
-        start_date: new Date().toISOString().split('T')[0],
-        due_date: ''
-      });
-      onClose();
-      if (onSuccess) onSuccess();
-    } catch (err) {
-      console.error('Error creating activity:', err);
-      setError(err.message || 'Failed to create activity');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <ClipboardList className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Create Development Activity</h2>
-              <p className="text-sm text-gray-500">Assign coaching or development task</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+    <div className="relative">
+      <button
+        onClick={() => setShowDropdown(!showDropdown)}
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+      >
+        <Filter className="w-4 h-4 text-gray-500" />
+        <span className="font-medium text-gray-700 text-sm">{getScopeLabel()}</span>
+        <ChevronDown className="w-4 h-4 text-gray-400" />
+      </button>
 
-        <div className="p-4 space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {error}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            </div>
-          ) : (
-            <>
-              {/* Activity Type Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Activity Type *
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, type: 'grow_doing' })}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      formData.type === 'grow_doing'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <Rocket className={`w-6 h-6 mb-2 ${formData.type === 'grow_doing' ? 'text-blue-600' : 'text-gray-400'}`} />
-                    <p className="font-medium text-gray-900">Grow through doing</p>
-                    <p className="text-xs text-gray-500 mt-1">Initiatives, projects, hands-on</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, type: 'learn_others' })}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      formData.type === 'learn_others'
-                        ? 'border-purple-500 bg-purple-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <Lightbulb className={`w-6 h-6 mb-2 ${formData.type === 'learn_others' ? 'text-purple-600' : 'text-gray-400'}`} />
-                    <p className="font-medium text-gray-900">Learn through others</p>
-                    <p className="text-xs text-gray-500 mt-1">Feedback, coaching, mentoring</p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Title (Optional) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title (Optional)
-                </label>
+      {showDropdown && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
+          <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-96 overflow-hidden">
+            {/* Search */}
+            <div className="p-3 border-b border-gray-100">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g., Q1 Project Leadership"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
                 />
               </div>
+            </div>
 
-              {/* Description (Optional) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description (Optional)
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={2}
-                  placeholder="Brief description of the activity..."
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Select Users */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Users *
-                </label>
-                <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
-                  {users.filter(u => u.role === 'trainee' || u.role === 'team_lead').length === 0 ? (
-                    <p className="p-4 text-sm text-gray-500 text-center">No users available</p>
-                  ) : (
-                    users.filter(u => u.role === 'trainee' || u.role === 'team_lead').map(user => (
-                      <label
-                        key={user.id}
-                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
-                          formData.trainee_ids.includes(user.id) ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.trainee_ids.includes(user.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, trainee_ids: [...formData.trainee_ids, user.id] });
-                            } else {
-                              setFormData({ ...formData, trainee_ids: formData.trainee_ids.filter(id => id !== user.id) });
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 rounded border-gray-300"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </div>
-                {formData.trainee_ids.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">{formData.trainee_ids.length} user(s) selected</p>
-                )}
-              </div>
-
-              {/* Select Coach */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Coach *
-                </label>
-                <select
-                  value={formData.coach_id}
-                  onChange={(e) => setFormData({ ...formData, coach_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select a coach...</option>
-                  {coaches.map(coach => (
-                    <option key={coach.id} value={coach.id}>{coach.full_name}</option>
+            <div className="overflow-y-auto max-h-72">
+              {/* Organization Section */}
+              {profile?.role === 'super_admin' && (
+                <div className="p-2 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase px-2 py-1">Organization</p>
+                  <button
+                    onClick={() => { setScope({ type: 'organization', clientId: 'all' }); setShowDropdown(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${scope.type === 'organization' && scope.clientId === 'all' ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50'}`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    All Organizations
+                  </button>
+                  {clients.map(client => (
+                    <button
+                      key={client.id}
+                      onClick={() => { setScope({ type: 'organization', clientId: client.id }); setShowDropdown(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${scope.type === 'organization' && scope.clientId === client.id ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50'}`}
+                    >
+                      <Building2 className="w-4 h-4" />
+                      {client.name}
+                    </button>
                   ))}
-                </select>
-              </div>
-
-              {/* Timeline */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Due Date (Optional)
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+              )}
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Create Activity
-          </button>
-        </div>
-      </div>
+              {/* Team Leads Section */}
+              {teamLeads.length > 0 && (
+                <div className="p-2 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase px-2 py-1">Team Leads</p>
+                  {teamLeads.filter(t => t.full_name?.toLowerCase().includes(searchTerm.toLowerCase())).map(lead => (
+                    <button
+                      key={lead.id}
+                      onClick={() => { setScope({ type: 'team_lead', userId: lead.id }); setShowDropdown(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${scope.type === 'team_lead' && scope.userId === lead.id ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50'}`}
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      {lead.full_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Individual Users Section */}
+              <div className="p-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase px-2 py-1">Individual Users</p>
+                {filteredUsers.slice(0, 20).map(user => (
+                  <button
+                    key={user.id}
+                    onClick={() => { setScope({ type: 'user', userId: user.id }); setShowDropdown(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${scope.type === 'user' && scope.userId === user.id ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50'}`}
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="truncate">{user.full_name}</span>
+                    <span className="text-xs text-gray-400 ml-auto">{user.role}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-// Progress Ring Component
-function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#3B82F6' }) {
+// ============================================================================
+// PROGRESS RING COMPONENT
+// ============================================================================
+
+function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#8B5CF6' }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (percentage / 100) * circumference;
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
+      <svg className="transform -rotate-90" width={size} height={size}>
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -1000,416 +359,650 @@ function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#3B82
   );
 }
 
-// My Coachees Component - For coaches to see their assigned trainees
-function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
-  const [coachingActivities, setCoachingActivities] = useState([]);
+// ============================================================================
+// QUICK ACTION BUTTON
+// ============================================================================
+
+function QuickActionCard({ icon: Icon, label, description, onClick, primary = false, color = 'purple' }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`p-4 rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md ${
+        primary 
+          ? `bg-gradient-to-br from-${color}-500 to-${color}-600 text-white` 
+          : 'bg-white border border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <Icon className={`w-6 h-6 mb-2 ${primary ? 'text-white/80' : 'text-gray-400'}`} />
+      <p className={`font-medium ${primary ? 'text-white' : 'text-gray-900'}`}>{label}</p>
+      {description && <p className={`text-xs mt-1 ${primary ? 'text-white/70' : 'text-gray-500'}`}>{description}</p>}
+    </button>
+  );
+}
+
+// ============================================================================
+// MAIN DASHBOARD COMPONENT
+// ============================================================================
+
+export default function DashboardPage() {
+  const { profile, isSuperAdmin, isClientAdmin, clientId: authClientId } = useAuth();
+  const navigate = useNavigate();
+  const clientId = authClientId || profile?.client_id;
+
+  // Layout state
+  const { currentLayout, activeWidgets, handleLayoutChange, handleWidgetsChange } = useLayoutPreferences(profile?.id);
+  const [showLayoutSelector, setShowLayoutSelector] = useState(false);
+  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
+
+  // Scope state
+  const [scope, setScope] = useState({ type: 'organization', clientId: clientId || 'all' });
+  const [clients, setClients] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [teamLeads, setTeamLeads] = useState([]);
+
+  // Data states
   const [loading, setLoading] = useState(true);
-  const [showActivityModal, setShowActivityModal] = useState(false);
-  const [showValidateModal, setShowValidateModal] = useState(false);
-  const [showTraineeModal, setShowTraineeModal] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState(null);
-  const [selectedTrainee, setSelectedTrainee] = useState(null);
-  const [traineeCompetencies, setTraineeCompetencies] = useState([]);
-  const [selectedCompetency, setSelectedCompetency] = useState(null);
-  const [feedback, setFeedback] = useState([]);
-  const [newComment, setNewComment] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [loadingCompetencies, setLoadingCompetencies] = useState(false);
-  
-  // Validation form state
-  const [validateForm, setValidateForm] = useState({
-    achieved_level: 3,
-    notes: ''
+  const [refreshing, setRefreshing] = useState(false);
+  const [dateRange, setDateRange] = useState('30');
+
+  // KPI Stats
+  const [stats, setStats] = useState({
+    totalTrainees: 0,
+    activeTrainees: 0,
+    totalModules: 0,
+    publishedModules: 0,
+    totalAssignments: 0,
+    completedAssignments: 0,
+    passRate: 0,
+    avgScore: 0,
+    overdueCount: 0,
+    inProgressCount: 0
   });
 
-  useEffect(() => {
-    loadCoachingActivities();
-  }, [profile, showAll, clientId]);
+  // Additional data
+  const [competencyStats, setCompetencyStats] = useState({ total: 0, achieved: 0, inProgress: 0 });
+  const [coachingStats, setCoachingStats] = useState({ total: 0, active: 0, completed: 0, overdue: 0 });
+  const [traineeProgress, setTraineeProgress] = useState([]);
+  const [moduleStats, setModuleStats] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
 
-  const loadCoachingActivities = async () => {
+  // Modal states
+  const [showDevModal, setShowDevModal] = useState(false);
+
+  // ============================================================================
+  // DATA LOADING
+  // ============================================================================
+
+  useEffect(() => {
+    if (profile) {
+      loadInitialData();
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (profile) {
+      loadScopedData();
+    }
+  }, [scope, dateRange, profile]);
+
+  const loadInitialData = async () => {
     try {
-      let url = `development_activities?type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),coach:coach_id(id,full_name),competencies(id,name)&order=created_at.desc`;
-      
-      if (showAll && clientId) {
-        url += `&client_id=eq.${clientId}`;
-      } else if (showAll) {
-        // Super Admin - see all
-      } else {
-        url += `&coach_id=eq.${profile.id}`;
+      // Load clients
+      let clientsData = [];
+      if (isSuperAdmin) {
+        clientsData = await dbFetch('clients?select=id,name,code&order=name.asc') || [];
+      } else if (clientId) {
+        clientsData = await dbFetch(`clients?select=id,name,code&id=eq.${clientId}`) || [];
       }
-      
-      const data = await dbFetch(url);
-      setCoachingActivities(data || []);
+      setClients(clientsData);
+
+      // Load all users for scope selector
+      let usersUrl = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      if (!isSuperAdmin && clientId) {
+        usersUrl += `&client_id=eq.${clientId}`;
+      }
+      const usersData = await dbFetch(usersUrl) || [];
+      setAllUsers(usersData);
+      setTeamLeads(usersData.filter(u => u.role === 'team_lead'));
+
+      // Set initial scope based on role
+      if (profile?.role === 'team_lead') {
+        setScope({ type: 'team_lead', userId: profile.id });
+      } else if (!isSuperAdmin && clientId) {
+        setScope({ type: 'organization', clientId: clientId });
+      }
     } catch (error) {
-      console.error('Error loading coaching activities:', error);
+      console.error('Error loading initial data:', error);
+    }
+  };
+
+  const loadScopedData = async () => {
+    setLoading(true);
+    try {
+      // Determine which users to include based on scope
+      let targetUserIds = [];
+      let targetClientId = null;
+
+      if (scope.type === 'organization') {
+        targetClientId = scope.clientId === 'all' ? null : scope.clientId;
+      } else if (scope.type === 'team_lead') {
+        // Get team members for this team lead
+        const teamData = await dbFetch(`profiles?select=id&reports_to_id=eq.${scope.userId}&is_active=eq.true`);
+        targetUserIds = teamData?.map(t => t.id) || [];
+      } else if (scope.type === 'user') {
+        targetUserIds = [scope.userId];
+      }
+
+      await Promise.all([
+        loadOverviewStats(targetClientId, targetUserIds),
+        loadTraineeProgress(targetClientId, targetUserIds),
+        loadModuleStats(targetClientId),
+        loadRecentActivity(targetClientId, targetUserIds),
+        loadCompetencyStats(targetClientId, targetUserIds),
+        loadCoachingStats(targetClientId, targetUserIds),
+        loadTeamMembers(targetClientId, targetUserIds)
+      ]);
+    } catch (error) {
+      console.error('Error loading scoped data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadFeedback = async (activityId) => {
+  const loadOverviewStats = async (targetClientId, targetUserIds) => {
     try {
-      const data = await dbFetch(
-        `activity_feedback?activity_id=eq.${activityId}&select=*,author:author_id(full_name,role)&order=created_at.desc`
-      );
-      setFeedback(data || []);
-    } catch (error) {
-      console.error('Error loading feedback:', error);
-    }
-  };
-
-  const loadTraineeCompetencies = async (traineeId) => {
-    setLoadingCompetencies(true);
-    try {
-      const data = await dbFetch(
-        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_categories(name,color))&order=created_at.desc`
-      );
-      setTraineeCompetencies(data || []);
-    } catch (error) {
-      console.error('Error loading trainee competencies:', error);
-    } finally {
-      setLoadingCompetencies(false);
-    }
-  };
-
-  const openActivityModal = async (activity) => {
-    setSelectedActivity(activity);
-    await loadFeedback(activity.id);
-    setShowActivityModal(true);
-  };
-
-  const openTraineeModal = async (trainee) => {
-    setSelectedTrainee(trainee);
-    await loadTraineeCompetencies(trainee.id);
-    setShowTraineeModal(true);
-  };
-
-  const openValidateModal = (activity = null, competency = null) => {
-    if (activity) {
-      setSelectedActivity(activity);
-      setSelectedCompetency(null);
-      setValidateForm({
-        achieved_level: activity.target_level || 3,
-        notes: ''
-      });
-    } else if (competency) {
-      setSelectedActivity(null);
-      setSelectedCompetency(competency);
-      setValidateForm({
-        achieved_level: competency.target_level || competency.current_level + 1 || 3,
-        notes: ''
-      });
-    }
-    setShowValidateModal(true);
-  };
-
-  const handleAddComment = async () => {
-    if (!newComment.trim() || !selectedActivity) return;
-    
-    setSubmittingComment(true);
-    try {
-      await dbFetch('activity_feedback', {
-        method: 'POST',
-        body: JSON.stringify({
-          activity_id: selectedActivity.id,
-          author_id: profile.id,
-          author_role: showAll ? 'manager' : 'coach',
-          feedback_type: 'progress',
-          content: newComment
-        })
-      });
+      // Get trainees
+      let traineeUrl = 'profiles?select=id&role=eq.trainee&is_active=eq.true';
+      if (targetClientId) traineeUrl += `&client_id=eq.${targetClientId}`;
+      const trainees = await dbFetch(traineeUrl) || [];
       
-      setNewComment('');
-      await loadFeedback(selectedActivity.id);
-    } catch (error) {
-      console.error('Error adding comment:', error);
-    } finally {
-      setSubmittingComment(false);
-    }
-  };
-
-  const handleValidateActivity = async () => {
-    if (!selectedActivity) return;
-    
-    setUpdatingStatus(true);
-    try {
-      // Update activity status
-      await dbFetch(`development_activities?id=eq.${selectedActivity.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: 'validated',
-          validated_at: new Date().toISOString(),
-          validated_by: profile.id
-        })
-      });
-      
-      // Update competency level if linked
-      if (selectedActivity.competency_id && selectedActivity.trainee?.id) {
-        const existingComp = await dbFetch(
-          `user_competencies?user_id=eq.${selectedActivity.trainee.id}&competency_id=eq.${selectedActivity.competency_id}`
-        );
-        
-        if (existingComp && existingComp.length > 0) {
-          await dbFetch(`user_competencies?id=eq.${existingComp[0].id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              current_level: validateForm.achieved_level,
-              status: validateForm.achieved_level >= existingComp[0].target_level ? 'achieved' : 'in_progress',
-              updated_at: new Date().toISOString()
-            })
-          });
-        }
+      let relevantTraineeIds = trainees.map(t => t.id);
+      if (targetUserIds.length > 0) {
+        relevantTraineeIds = relevantTraineeIds.filter(id => targetUserIds.includes(id));
       }
-      
-      // Add validation feedback
-      await dbFetch('activity_feedback', {
-        method: 'POST',
-        body: JSON.stringify({
-          activity_id: selectedActivity.id,
-          author_id: profile.id,
-          author_role: showAll ? 'manager' : 'coach',
-          feedback_type: 'validation',
-          content: validateForm.notes || `Validated at Level ${validateForm.achieved_level}`
-        })
+
+      // Get modules
+      let moduleUrl = 'training_modules?select=id,status';
+      if (targetClientId) moduleUrl += `&client_id=eq.${targetClientId}`;
+      const modules = await dbFetch(moduleUrl) || [];
+
+      // Get training assignments
+      const allTraining = await dbFetch('user_training?select=id,status,best_score,due_date,user_id') || [];
+      let filteredTraining = allTraining;
+      if (relevantTraineeIds.length > 0) {
+        filteredTraining = allTraining.filter(t => relevantTraineeIds.includes(t.user_id));
+      } else if (targetClientId) {
+        filteredTraining = allTraining.filter(t => relevantTraineeIds.includes(t.user_id));
+      }
+
+      const completed = filteredTraining.filter(a => a.status === 'passed');
+      const inProgress = filteredTraining.filter(a => a.status === 'in_progress' || a.status === 'pending');
+      const overdue = filteredTraining.filter(a => 
+        a.due_date && new Date(a.due_date) < new Date() && a.status !== 'passed'
+      );
+
+      const completedWithScores = completed.filter(a => a.best_score !== null);
+      const passRate = completedWithScores.length > 0
+        ? (completedWithScores.filter(a => a.best_score >= 80).length / completedWithScores.length) * 100
+        : 0;
+      const avgScore = completedWithScores.length > 0
+        ? completedWithScores.reduce((sum, a) => sum + a.best_score, 0) / completedWithScores.length
+        : 0;
+
+      setStats({
+        totalTrainees: relevantTraineeIds.length,
+        activeTrainees: new Set(filteredTraining.map(t => t.user_id)).size,
+        totalModules: modules.length,
+        publishedModules: modules.filter(m => m.status === 'published').length,
+        totalAssignments: filteredTraining.length,
+        completedAssignments: completed.length,
+        passRate: Math.round(passRate),
+        avgScore: Math.round(avgScore),
+        overdueCount: overdue.length,
+        inProgressCount: inProgress.length
       });
-      
-      setShowValidateModal(false);
-      setShowActivityModal(false);
-      await loadCoachingActivities();
     } catch (error) {
-      console.error('Error validating:', error);
-    } finally {
-      setUpdatingStatus(false);
+      console.error('Error loading overview stats:', error);
     }
   };
 
-  const handleValidateCompetency = async () => {
-    if (!selectedCompetency || !selectedTrainee) return;
-    
-    setUpdatingStatus(true);
+  const loadTraineeProgress = async (targetClientId, targetUserIds) => {
     try {
-      // Update competency level directly
-      await dbFetch(`user_competencies?id=eq.${selectedCompetency.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          current_level: validateForm.achieved_level,
-          status: validateForm.achieved_level >= selectedCompetency.target_level ? 'achieved' : 'in_progress',
-          validated_at: new Date().toISOString(),
-          validated_by: profile.id,
-          updated_at: new Date().toISOString()
-        })
-      });
-
-      // Create a validation record in development_activities for tracking
-      await dbFetch('development_activities', {
-        method: 'POST',
-        body: JSON.stringify({
-          type: 'coaching',
-          title: `Direct Validation: ${selectedCompetency.competencies?.name || 'Competency'}`,
-          description: validateForm.notes || `Competency validated at Level ${validateForm.achieved_level}`,
-          trainee_id: selectedTrainee.id,
-          assigned_by: profile.id,
-          coach_id: profile.id,
-          competency_id: selectedCompetency.competency_id,
-          target_level: validateForm.achieved_level,
-          status: 'validated',
-          validated_at: new Date().toISOString(),
-          validated_by: profile.id,
-          client_id: clientId || profile.client_id
-        })
-      });
+      let traineeUrl = 'profiles?select=id,full_name,email,department&role=eq.trainee&is_active=eq.true';
+      if (targetClientId) traineeUrl += `&client_id=eq.${targetClientId}`;
+      let trainees = await dbFetch(traineeUrl) || [];
       
-      setShowValidateModal(false);
-      await loadTraineeCompetencies(selectedTrainee.id);
-      await loadCoachingActivities();
+      if (targetUserIds.length > 0) {
+        trainees = trainees.filter(t => targetUserIds.includes(t.id));
+      }
+
+      const allTraining = await dbFetch('user_training?select=id,status,best_score,due_date,user_id') || [];
+
+      const progressData = trainees.map(trainee => {
+        const training = allTraining.filter(t => t.user_id === trainee.id);
+        const completed = training.filter(t => t.status === 'passed');
+        const overdue = training.filter(t => 
+          t.due_date && new Date(t.due_date) < new Date() && t.status !== 'passed'
+        );
+        const scores = completed.filter(t => t.best_score).map(t => t.best_score);
+        const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+
+        return {
+          id: trainee.id,
+          name: trainee.full_name,
+          department: trainee.department,
+          total: training.length,
+          completed: completed.length,
+          completionRate: training.length > 0 ? Math.round((completed.length / training.length) * 100) : 0,
+          avgScore,
+          overdue: overdue.length
+        };
+      });
+
+      progressData.sort((a, b) => b.overdue - a.overdue || a.completionRate - b.completionRate);
+      setTraineeProgress(progressData.slice(0, 20));
     } catch (error) {
-      console.error('Error validating competency:', error);
-    } finally {
-      setUpdatingStatus(false);
+      console.error('Error loading trainee progress:', error);
     }
   };
 
-  const getStatusInfo = (activity) => {
-    const today = new Date();
-    const dueDate = activity.due_date ? new Date(activity.due_date) : null;
-    const daysLeft = dueDate ? Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24)) : null;
-    
-    if (activity.status === 'validated') {
-      return { color: 'bg-green-100 text-green-700', label: 'Completed', icon: '✅' };
+  const loadModuleStats = async (targetClientId) => {
+    try {
+      let moduleUrl = 'training_modules?select=id,title,status,pass_score&status=eq.published';
+      if (targetClientId) moduleUrl += `&client_id=eq.${targetClientId}`;
+      const modules = await dbFetch(moduleUrl) || [];
+
+      const allTraining = await dbFetch('user_training?select=id,status,best_score,attempts_count,module_id') || [];
+
+      const moduleData = modules.map(module => {
+        const assignments = allTraining.filter(t => t.module_id === module.id);
+        const completed = assignments.filter(a => a.status === 'passed');
+        const passed = completed.filter(a => a.best_score >= (module.pass_score || 80));
+        const avgScore = completed.length > 0
+          ? Math.round(completed.reduce((sum, a) => sum + (a.best_score || 0), 0) / completed.length)
+          : 0;
+
+        return {
+          id: module.id,
+          title: module.title,
+          assigned: assignments.length,
+          completed: completed.length,
+          passed: passed.length,
+          passRate: completed.length > 0 ? Math.round((passed.length / completed.length) * 100) : 0,
+          avgScore,
+          completionRate: assignments.length > 0 ? Math.round((completed.length / assignments.length) * 100) : 0
+        };
+      });
+
+      moduleData.sort((a, b) => b.assigned - a.assigned);
+      setModuleStats(moduleData.slice(0, 10));
+    } catch (error) {
+      console.error('Error loading module stats:', error);
     }
-    if (activity.status === 'completed') {
-      return { color: 'bg-purple-100 text-purple-700', label: 'Ready to Review', icon: '🔍' };
-    }
-    if (dueDate && daysLeft < 0) {
-      return { color: 'bg-red-100 text-red-700', label: 'Overdue', icon: '🔴' };
-    }
-    if (dueDate && daysLeft <= 7) {
-      return { color: 'bg-amber-100 text-amber-700', label: 'Due Soon', icon: '🟡' };
-    }
-    if (activity.status === 'in_progress') {
-      return { color: 'bg-blue-100 text-blue-700', label: 'In Progress', icon: '🔵' };
-    }
-    return { color: 'bg-gray-100 text-gray-600', label: 'Pending', icon: '⚪' };
   };
 
-  const getLevelColor = (current, target) => {
-    if (current >= target) return 'text-green-600';
-    if (current >= target - 1) return 'text-amber-600';
-    return 'text-gray-600';
+  const loadRecentActivity = async (targetClientId, targetUserIds) => {
+    try {
+      let activities = await dbFetch('user_training?select=id,status,completed_at,best_score,user_id,module_id&status=eq.passed&order=completed_at.desc&limit=20') || [];
+      
+      if (targetUserIds.length > 0) {
+        activities = activities.filter(a => targetUserIds.includes(a.user_id));
+      }
+
+      const enriched = await Promise.all(activities.slice(0, 10).map(async (a) => {
+        const [userInfo, moduleInfo] = await Promise.all([
+          dbFetch(`profiles?select=full_name&id=eq.${a.user_id}`),
+          dbFetch(`training_modules?select=title&id=eq.${a.module_id}`)
+        ]);
+        return {
+          id: a.id,
+          trainee: userInfo?.[0]?.full_name || 'Unknown',
+          module: moduleInfo?.[0]?.title || 'Unknown',
+          score: a.best_score || 0,
+          passed: (a.best_score || 0) >= 80,
+          date: a.completed_at
+        };
+      }));
+
+      setRecentActivity(enriched);
+    } catch (error) {
+      console.error('Error loading recent activity:', error);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-100 rounded"></div>
-            <div className="h-20 bg-gray-100 rounded"></div>
+  const loadCompetencyStats = async (targetClientId, targetUserIds) => {
+    try {
+      let competencies = await dbFetch('user_competencies?select=id,status,user_id') || [];
+      
+      if (targetUserIds.length > 0) {
+        competencies = competencies.filter(c => targetUserIds.includes(c.user_id));
+      }
+
+      setCompetencyStats({
+        total: competencies.length,
+        achieved: competencies.filter(c => c.status === 'achieved').length,
+        inProgress: competencies.filter(c => c.status !== 'achieved').length
+      });
+    } catch (error) {
+      console.error('Error loading competency stats:', error);
+    }
+  };
+
+  const loadCoachingStats = async (targetClientId, targetUserIds) => {
+    try {
+      let coachingUrl = 'development_activities?select=id,status,due_date,trainee_id&type=eq.coaching';
+      if (targetClientId) coachingUrl += `&client_id=eq.${targetClientId}`;
+      let coaching = await dbFetch(coachingUrl) || [];
+
+      if (targetUserIds.length > 0) {
+        coaching = coaching.filter(c => targetUserIds.includes(c.trainee_id));
+      }
+
+      const overdue = coaching.filter(c => {
+        if (!c.due_date || c.status === 'validated') return false;
+        return new Date(c.due_date) < new Date();
+      }).length;
+
+      setCoachingStats({
+        total: coaching.length,
+        active: coaching.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length,
+        completed: coaching.filter(c => c.status === 'validated').length,
+        overdue
+      });
+    } catch (error) {
+      console.error('Error loading coaching stats:', error);
+    }
+  };
+
+  const loadTeamMembers = async (targetClientId, targetUserIds) => {
+    try {
+      if (targetUserIds.length > 0) {
+        const members = await dbFetch(`profiles?select=id,full_name,email,role&id=in.(${targetUserIds.join(',')})&is_active=eq.true`) || [];
+        setTeamMembers(members);
+      } else {
+        let url = 'profiles?select=id,full_name,email,role&role=eq.trainee&is_active=eq.true&limit=10';
+        if (targetClientId) url += `&client_id=eq.${targetClientId}`;
+        const members = await dbFetch(url) || [];
+        setTeamMembers(members);
+      }
+    } catch (error) {
+      console.error('Error loading team members:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadScopedData();
+    setRefreshing(false);
+  };
+
+  // ============================================================================
+  // CALCULATED VALUES
+  // ============================================================================
+
+  const completionRate = stats.totalAssignments > 0 
+    ? Math.round((stats.completedAssignments / stats.totalAssignments) * 100) 
+    : 0;
+
+  const competencyRate = competencyStats.total > 0
+    ? Math.round((competencyStats.achieved / competencyStats.total) * 100)
+    : 0;
+
+  // ============================================================================
+  // LAYOUT RENDERERS
+  // ============================================================================
+
+  // EXECUTIVE LAYOUT - High-level KPIs & actions
+  const ExecutiveLayout = () => (
+    <div className="space-y-6">
+      {/* Welcome Banner */}
+      <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 rounded-2xl p-8 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="relative z-10">
+          <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <h2 className="text-3xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
+          <p className="text-white/80 mt-2">
+            {stats.overdueCount > 0 
+              ? `${stats.overdueCount} training item${stats.overdueCount > 1 ? 's' : ''} need attention.`
+              : 'All training is on track!'}
+          </p>
+          <div className="flex gap-6 mt-6">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+              <div><p className="text-2xl font-bold">{stats.totalTrainees}</p><p className="text-xs text-white/70">Trainees</p></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div><p className="text-2xl font-bold">{stats.completedAssignments}</p><p className="text-xs text-white/70">Completed</p></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Target className="w-5 h-5" />
+              </div>
+              <div><p className="text-2xl font-bold">{stats.avgScore}%</p><p className="text-xs text-white/70">Avg Score</p></div>
+            </div>
           </div>
         </div>
       </div>
-    );
-  }
 
-  if (coachingActivities.length === 0) {
-    return null;
-  }
+      {/* Quick Actions */}
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-amber-500" /> Quick Actions
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <QuickActionCard icon={UserPlus} label="Add User" description="New trainee" onClick={() => navigate('/users?action=add')} primary />
+          <QuickActionCard icon={GraduationCap} label="Assign Training" description="Create assignment" onClick={() => navigate('/training')} />
+          <QuickActionCard icon={MessageSquare} label="Coaching" description="Development activity" onClick={() => navigate('/development')} />
+          <QuickActionCard icon={BookOpen} label="Create Module" description="New training" onClick={() => navigate('/training?action=create')} />
+          <QuickActionCard icon={BarChart3} label="Export Report" description="Download data" onClick={() => {}} />
+        </div>
+      </div>
 
-  // Group by trainee
-  const traineeMap = {};
-  coachingActivities.forEach(activity => {
-    const traineeId = activity.trainee?.id;
-    if (traineeId) {
-      if (!traineeMap[traineeId]) {
-        traineeMap[traineeId] = {
-          trainee: activity.trainee,
-          activities: []
-        };
-      }
-      traineeMap[traineeId].activities.push(activity);
-    }
-  });
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {[
+          { icon: Users, label: 'Trainees', value: stats.totalTrainees, sub: `${stats.activeTrainees} active`, color: 'blue' },
+          { icon: BookOpen, label: 'Modules', value: stats.totalModules, sub: `${stats.publishedModules} published`, color: 'indigo' },
+          { icon: Target, label: 'Competencies', value: competencyStats.total, sub: `${competencyStats.achieved} achieved`, color: 'green' },
+          { icon: MessageSquare, label: 'Coaching', value: coachingStats.total, sub: `${coachingStats.active} active`, color: 'purple' },
+          { icon: Clock, label: 'Training', value: stats.totalAssignments, sub: `${stats.inProgressCount} pending`, color: 'amber' },
+          { icon: AlertTriangle, label: 'Overdue', value: stats.overdueCount, sub: 'items', color: stats.overdueCount > 0 ? 'red' : 'green' },
+        ].map((kpi, i) => (
+          <div key={i} className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100`}>
+            <div className="flex items-center gap-2 text-gray-500 mb-1">
+              <kpi.icon className="w-4 h-4" />
+              <span className="text-xs font-medium">{kpi.label}</span>
+            </div>
+            <p className={`text-2xl font-bold ${kpi.color === 'red' && stats.overdueCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{kpi.value}</p>
+            <p className="text-xs text-gray-500">{kpi.sub}</p>
+          </div>
+        ))}
+      </div>
 
-  const stats = {
-    total: coachingActivities.length,
-    pending: coachingActivities.filter(a => a.status === 'pending' || a.status === 'in_progress').length,
-    readyToReview: coachingActivities.filter(a => a.status === 'completed').length,
-    completed: coachingActivities.filter(a => a.status === 'validated').length,
-    overdue: coachingActivities.filter(a => {
-      if (!a.due_date || a.status === 'validated') return false;
-      return new Date(a.due_date) < new Date();
-    }).length
-  };
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Training Completion</h3>
+          <ProgressRing percentage={completionRate} color="#10B981" />
+          <p className="text-sm text-gray-600 mt-4">{stats.completedAssignments} of {stats.totalAssignments}</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Pass Rate</h3>
+          <ProgressRing percentage={stats.passRate} color="#F59E0B" />
+          <p className="text-sm text-gray-600 mt-4">Avg Score: {stats.avgScore}%</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Competency Achievement</h3>
+          <ProgressRing percentage={competencyRate} color="#3B82F6" />
+          <p className="text-sm text-gray-600 mt-4">{competencyStats.achieved} of {competencyStats.total}</p>
+        </div>
+      </div>
 
-  return (
-    <>
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-purple-500" />
-            {showAll ? 'All Coaching Activities' : 'My Coachees'}
-          </h2>
-          <Link to="/development" className="text-sm text-blue-600 hover:text-blue-700">
-            View all →
-          </Link>
+      {/* Tables Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Trainee Progress */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-green-500" /> Trainee Progress
+          </h3>
+          <div className="overflow-x-auto max-h-64">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="text-left py-2 px-3 font-medium text-gray-600">Trainee</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-600">Progress</th>
+                  <th className="text-center py-2 px-3 font-medium text-gray-600">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {traineeProgress.slice(0, 8).map(t => (
+                  <tr key={t.id} className="hover:bg-gray-50">
+                    <td className="py-2 px-3 font-medium text-gray-900 truncate max-w-[150px]">{t.name}</td>
+                    <td className="py-2 px-3 text-center">{t.completed}/{t.total} ({t.completionRate}%)</td>
+                    <td className="py-2 px-3 text-center">
+                      {t.overdue > 0 ? (
+                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">{t.overdue} overdue</span>
+                      ) : t.completionRate === 100 ? (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Complete</span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">In Progress</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          <div className="text-center p-2 bg-gray-50 rounded-lg">
-            <p className="text-xl font-bold text-gray-900">{stats.total}</p>
-            <p className="text-xs text-gray-500">Total</p>
-          </div>
-          <div className="text-center p-2 bg-amber-50 rounded-lg">
-            <p className="text-xl font-bold text-amber-600">{stats.pending}</p>
-            <p className="text-xs text-gray-500">In Progress</p>
-          </div>
-          <div className="text-center p-2 bg-purple-50 rounded-lg">
-            <p className="text-xl font-bold text-purple-600">{stats.readyToReview}</p>
-            <p className="text-xs text-gray-500">To Review</p>
-          </div>
-          <div className="text-center p-2 bg-green-50 rounded-lg">
-            <p className="text-xl font-bold text-green-600">{stats.completed}</p>
-            <p className="text-xs text-gray-500">Completed</p>
-          </div>
-        </div>
-
-        {stats.overdue > 0 && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="text-sm text-red-700">
-              <strong>{stats.overdue}</strong> coaching {stats.overdue === 1 ? 'activity is' : 'activities are'} overdue
-            </span>
-          </div>
-        )}
-
-        {/* Coachee List */}
-        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {Object.values(traineeMap).map(({ trainee, activities }) => {
-            const pendingCount = activities.filter(a => a.status !== 'validated').length;
-            const readyCount = activities.filter(a => a.status === 'completed').length;
-            
-            return (
-              <div key={trainee.id} className="border border-gray-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div 
-                    className="flex items-center gap-2 cursor-pointer hover:opacity-80"
-                    onClick={() => openTraineeModal(trainee)}
-                  >
-                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{trainee.full_name}</p>
-                      <p className="text-xs text-gray-500">{trainee.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => openTraineeModal(trainee)}
-                      className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                    >
-                      View All Competencies
-                    </button>
-                    {readyCount > 0 && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                        {readyCount} to review
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-500">{pendingCount} active</span>
-                  </div>
+        {/* Recent Activity */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-orange-500" /> Recent Completions
+          </h3>
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {recentActivity.map(a => (
+              <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-900 truncate">{a.trainee}</p>
+                  <p className="text-sm text-gray-500 truncate">{a.module}</p>
                 </div>
-                
-                <div className="space-y-2">
-                  {activities.filter(a => a.status !== 'validated').slice(0, 3).map(activity => {
-                    const statusInfo = getStatusInfo(activity);
-                    return (
-                      <div 
-                        key={activity.id}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100"
-                        onClick={() => openActivityModal(activity)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{statusInfo.icon}</span>
-                          <span className="text-sm text-gray-700">{activity.competencies?.name || activity.title}</span>
-                          {activity.target_level && (
-                            <span className="text-xs text-gray-400">→ L{activity.target_level}</span>
-                          )}
-                          {showAll && activity.coach && (
-                            <span className="text-xs text-gray-400">• Coach: {activity.coach.full_name}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-xs ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                          <ChevronRight className="w-4 h-4 text-gray-400" />
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center gap-2 ml-4">
+                  <span className={`font-bold ${a.passed ? 'text-green-600' : 'text-red-600'}`}>{a.score}%</span>
+                  {a.passed ? <CheckCircle className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-500" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Module Performance */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-blue-500" /> Module Performance
+        </h3>
+        <div className="space-y-3">
+          {moduleStats.slice(0, 5).map(m => (
+            <div key={m.id} className="flex items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 truncate">{m.title}</p>
+                <p className="text-sm text-gray-500">{m.completed}/{m.assigned} completed • {m.passRate}% pass rate</p>
+              </div>
+              <div className="w-32 bg-gray-200 rounded-full h-2">
+                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${m.completionRate}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // OPERATIONAL LAYOUT - Team management focus
+  const OperationalLayout = () => (
+    <div className="space-y-6">
+      {/* Header with Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Operations Dashboard</h1>
+          <p className="text-gray-600">Manage your team and track progress</p>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={() => navigate('/users?action=add')} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700">
+            <UserPlus className="w-4 h-4" /> Add User
+          </button>
+          <button onClick={() => navigate('/training')} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+            <GraduationCap className="w-4 h-4" /> Assign Training
+          </button>
+          <button onClick={() => navigate('/development')} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+            <MessageSquare className="w-4 h-4" /> Coaching
+          </button>
+        </div>
+      </div>
+
+      {/* Status Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className={`p-4 rounded-xl border-2 ${stats.overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className={`w-5 h-5 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`} />
+            <span className="font-medium text-gray-700">Overdue</span>
+          </div>
+          <p className={`text-3xl font-bold mt-2 ${stats.overdueCount > 0 ? 'text-red-700' : 'text-green-700'}`}>{stats.overdueCount}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-blue-50 border-2 border-blue-200">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            <span className="font-medium text-gray-700">In Progress</span>
+          </div>
+          <p className="text-3xl font-bold mt-2 text-blue-700">{stats.inProgressCount}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-emerald-50 border-2 border-emerald-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-emerald-600" />
+            <span className="font-medium text-gray-700">Completed</span>
+          </div>
+          <p className="text-3xl font-bold mt-2 text-emerald-700">{stats.completedAssignments}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-purple-50 border-2 border-purple-200">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-purple-600" />
+            <span className="font-medium text-gray-700">Coaching</span>
+          </div>
+          <p className="text-3xl font-bold mt-2 text-purple-700">{coachingStats.active}</p>
+        </div>
+      </div>
+
+      {/* Team Members Grid */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" /> Team Members ({stats.totalTrainees})
+          </h3>
+          <button onClick={() => navigate('/users')} className="text-sm text-purple-600 hover:underline">View All →</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {teamMembers.slice(0, 9).map(member => {
+            const progress = traineeProgress.find(t => t.id === member.id);
+            return (
+              <div key={member.id} className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => navigate(`/users`)}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-fuchsia-500 flex items-center justify-center text-white font-bold">
+                    {member.full_name?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{member.full_name}</p>
+                    <p className="text-xs text-gray-500">{progress ? `${progress.completionRate}% complete` : 'No training'}</p>
+                  </div>
+                  {progress?.overdue > 0 && (
+                    <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">{progress.overdue}</span>
+                  )}
                 </div>
               </div>
             );
@@ -1417,710 +1010,291 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
         </div>
       </div>
 
-      {/* Activity Detail Modal */}
-      {showActivityModal && selectedActivity && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">{selectedActivity.title}</h2>
-                <p className="text-sm text-gray-500">Trainee: {selectedActivity.trainee?.full_name}</p>
+      {/* Progress and Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Training Progress</h3>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Overall Completion</span>
+                <span className="font-semibold">{completionRate}%</span>
               </div>
-              <button
-                onClick={() => setShowActivityModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full" style={{ width: `${completionRate}%` }} />
+              </div>
             </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Status & Actions */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">Status:</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusInfo(selectedActivity).color}`}>
-                    {getStatusInfo(selectedActivity).label}
-                  </span>
-                </div>
-                {selectedActivity.status !== 'validated' && (
-                  <button
-                    onClick={() => openValidateModal(selectedActivity)}
-                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-                  >
-                    ✓ Validate Competency
-                  </button>
-                )}
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Competency Achievement</span>
+                <span className="font-semibold">{competencyRate}%</span>
               </div>
-
-              {/* Details */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Trainee</p>
-                  <p className="font-medium">{selectedActivity.trainee?.full_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Coach</p>
-                  <p className="font-medium">{selectedActivity.coach?.full_name || 'Not assigned'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Due Date</p>
-                  <p className="font-medium">
-                    {selectedActivity.due_date 
-                      ? new Date(selectedActivity.due_date).toLocaleDateString() 
-                      : 'No due date'}
-                  </p>
-                </div>
-                {selectedActivity.competencies?.name && (
-                  <div>
-                    <p className="text-sm text-gray-500">Competency</p>
-                    <p className="font-medium">{selectedActivity.competencies.name}</p>
-                  </div>
-                )}
-                {selectedActivity.target_level && (
-                  <div>
-                    <p className="text-sm text-gray-500">Target Level</p>
-                    <p className="font-medium">Level {selectedActivity.target_level}</p>
-                  </div>
-                )}
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full" style={{ width: `${competencyRate}%` }} />
               </div>
-
-              {selectedActivity.objectives && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Objectives</p>
-                  <p className="text-gray-700">{selectedActivity.objectives}</p>
-                </div>
-              )}
-
-              {/* Comments Section */}
-              <div className="border-t border-gray-200 pt-4">
-                <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Comments & Progress ({feedback.length})
-                </h3>
-
-                {/* Add Comment */}
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Add feedback..."
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                  />
-                  <button
-                    onClick={handleAddComment}
-                    disabled={!newComment.trim() || submittingComment}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {submittingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </button>
-                </div>
-
-                {/* Comments List */}
-                {feedback.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No comments yet</p>
-                ) : (
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {feedback.map(fb => (
-                      <div key={fb.id} className="p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{fb.author?.full_name || 'Unknown'}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-xs ${
-                              fb.author_role === 'coach' ? 'bg-purple-100 text-purple-700' :
-                              fb.author_role === 'coachee' ? 'bg-blue-100 text-blue-700' :
-                              fb.author_role === 'manager' ? 'bg-amber-100 text-amber-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {fb.author_role}
-                            </span>
-                            {fb.feedback_type === 'validation' && (
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-                                validated
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-400">
-                            {new Date(fb.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700">{fb.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Pass Rate</span>
+                <span className="font-semibold">{stats.passRate}%</span>
+              </div>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full" style={{ width: `${stats.passRate}%` }} />
               </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Trainee Competencies Modal */}
-      {showTraineeModal && selectedTrainee && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-purple-600" />
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+          <div className="space-y-3">
+            {recentActivity.slice(0, 5).map(a => (
+              <div key={a.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{a.trainee}</p>
+                  <p className="text-xs text-gray-500 truncate">{a.module}</p>
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">{selectedTrainee.full_name}</h2>
-                  <p className="text-sm text-gray-500">All Competencies</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowTraineeModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {loadingCompetencies ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                </div>
-              ) : traineeCompetencies.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No competencies assigned yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {traineeCompetencies.map(comp => (
-                    <div key={comp.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center gap-3">
-                        {comp.competencies?.competency_categories?.color && (
-                          <div 
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: comp.competencies.competency_categories.color }}
-                          />
-                        )}
-                        <div>
-                          <p className="font-medium text-gray-900">{comp.competencies?.name || 'Unknown'}</p>
-                          <p className="text-xs text-gray-500">
-                            {comp.competencies?.competency_categories?.name || 'Uncategorized'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className={`font-bold ${getLevelColor(comp.current_level, comp.target_level)}`}>
-                            L{comp.current_level || 0} → L{comp.target_level}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {comp.status === 'achieved' ? '✅ Achieved' : 'In progress'}
-                          </p>
-                        </div>
-                        {comp.current_level < comp.target_level && (
-                          <button
-                            onClick={() => openValidateModal(null, comp)}
-                            className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-                          >
-                            Validate
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Validation Modal */}
-      {showValidateModal && (selectedActivity || selectedCompetency) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Validate Competency</h2>
-                  <p className="text-sm text-gray-500">
-                    {selectedActivity?.competencies?.name || selectedCompetency?.competencies?.name || 'Competency'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowValidateModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              {/* Trainee Info */}
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">Trainee</p>
-                <p className="font-medium">
-                  {selectedActivity?.trainee?.full_name || selectedTrainee?.full_name}
-                </p>
-              </div>
-
-              {/* Achieved Level Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Achieved Level
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map(level => (
-                    <button
-                      key={level}
-                      onClick={() => setValidateForm({ ...validateForm, achieved_level: level })}
-                      className={`flex-1 py-3 rounded-lg border-2 font-bold transition-all ${
-                        validateForm.achieved_level === level
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      L{level}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Target: Level {selectedActivity?.target_level || selectedCompetency?.target_level || '?'}
-                </p>
-              </div>
-
-              {/* Validation Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Validation Notes (Optional)
-                </label>
-                <textarea
-                  value={validateForm.notes}
-                  onChange={(e) => setValidateForm({ ...validateForm, notes: e.target.value })}
-                  rows={3}
-                  placeholder="Add notes about this validation..."
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={() => setShowValidateModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={selectedActivity ? handleValidateActivity : handleValidateCompetency}
-                disabled={updatingStatus}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                {updatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                Confirm Validation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// Team Lead Dashboard - sees all team coaching and training
-function TeamLeadDashboard() {
-  const { profile, clientId: authClientId } = useAuth();
-  const navigate = useNavigate();
-  const clientId = authClientId || profile?.client_id;
-  
-  // Layout preferences
-  const { currentLayout, activeWidgets, handleLayoutChange, handleWidgetsChange } = useLayoutPreferences(profile?.id);
-  const [showLayoutSelector, setShowLayoutSelector] = useState(false);
-  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
-  
-  const [stats, setStats] = useState({
-    teamMembers: 0,
-    competenciesAssigned: 0,
-    competenciesAchieved: 0,
-    trainingPending: 0,
-    trainingCompleted: 0,
-    coachingActive: 0,
-    coachingOverdue: 0
-  });
-  const [teamMembersList, setTeamMembersList] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showDevModal, setShowDevModal] = useState(false);
-
-  useEffect(() => {
-    if (profile?.id) {
-      loadData();
-    }
-  }, [profile, clientId]);
-
-  async function loadData() {
-    try {
-      console.log('TeamLeadDashboard: Loading data for profile:', profile.id);
-      
-      const teamMembers = await dbFetch(
-        `profiles?select=id,full_name,email&reports_to_id=eq.${profile.id}&is_active=eq.true`
-      );
-      console.log('TeamLeadDashboard: Team members found:', teamMembers);
-      setTeamMembersList(teamMembers || []);
-      
-      const teamIds = teamMembers?.map(m => m.id) || [];
-      console.log('TeamLeadDashboard: Team IDs:', teamIds);
-
-      if (teamIds.length > 0) {
-        const teamIdList = teamIds.join(',');
-        console.log('TeamLeadDashboard: Team ID list:', teamIdList);
-
-        const competencies = await dbFetch(
-          `user_competencies?select=id,status&user_id=in.(${teamIdList})`
-        );
-        console.log('TeamLeadDashboard: Competencies:', competencies);
-        const compAssigned = competencies?.length || 0;
-        const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
-
-        const training = await dbFetch(
-          `user_training?select=id,status&user_id=in.(${teamIdList})`
-        );
-        console.log('TeamLeadDashboard: Training:', training);
-        const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
-        const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
-        console.log('TeamLeadDashboard: Training pending:', trainingPending, 'completed:', trainingCompleted);
-
-        const coaching = await dbFetch(
-          `development_activities?select=id,status,due_date&trainee_id=in.(${teamIdList})&type=eq.coaching`
-        );
-        const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
-        const coachingOverdue = coaching?.filter(c => {
-          if (!c.due_date || c.status === 'validated') return false;
-          return new Date(c.due_date) < new Date();
-        }).length || 0;
-
-        setStats({
-          teamMembers: teamIds.length,
-          competenciesAssigned: compAssigned,
-          competenciesAchieved: compAchieved,
-          trainingPending,
-          trainingCompleted,
-          coachingActive,
-          coachingOverdue
-        });
-
-        const recentTraining = await dbFetch(
-          `user_training?select=id,status,completed_at,user_id,module_id&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
-        );
-        console.log('TeamLeadDashboard: Recent training:', recentTraining);
-        
-        if (recentTraining && recentTraining.length > 0) {
-          const enrichedTraining = await Promise.all(recentTraining.map(async (t) => {
-            const [userInfo, moduleInfo] = await Promise.all([
-              dbFetch(`profiles?select=full_name&id=eq.${t.user_id}`),
-              dbFetch(`training_modules?select=title&id=eq.${t.module_id}`)
-            ]);
-            return {
-              ...t,
-              trainee_name: userInfo?.[0]?.full_name || 'Unknown',
-              module_title: moduleInfo?.[0]?.title || 'Unknown'
-            };
-          }));
-          setRecentActivity(enrichedTraining);
-        } else {
-          setRecentActivity([]);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading team lead data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  const competencyProgress = stats.competenciesAssigned > 0 
-    ? Math.round((stats.competenciesAchieved / stats.competenciesAssigned) * 100) 
-    : 0;
-
-  // ============================================================================
-  // LAYOUT RENDERERS
-  // ============================================================================
-
-  // CLASSIC LAYOUT
-  const ClassicLayout = () => (
-    <div className="space-y-8">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Team Lead Dashboard</h1>
-        <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Team Members" 
-          value={stats.teamMembers}
-          subtitle="Active trainees"
-          icon={Users}
-          color="blue"
-        />
-        <StatCard 
-          title="Competencies" 
-          value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`}
-          subtitle={`${competencyProgress}% achieved`}
-          icon={Target}
-          color="green"
-        />
-        <StatCard 
-          title="Training" 
-          value={stats.trainingPending}
-          subtitle={`Pending (${stats.trainingCompleted} completed)`}
-          icon={GraduationCap}
-          color="amber"
-        />
-        <StatCard 
-          title="Coaching" 
-          value={stats.coachingActive}
-          subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : 'Active sessions'}
-          icon={Users}
-          color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
-        />
-      </div>
-
-      {/* Team Progress Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Team Competency Progress</h3>
-          <ProgressRing percentage={competencyProgress} color="#10B981" />
-          <p className="text-sm text-gray-600 mt-4">
-            {stats.competenciesAchieved} of {stats.competenciesAssigned} competencies achieved
-          </p>
-        </div>
-
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Recent Training Completions</h3>
-          {recentActivity.length === 0 ? (
-            <p className="text-gray-400 text-sm">No recent completions</p>
-          ) : (
-            <div className="space-y-3">
-              {recentActivity.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">{item.trainee_name}</p>
-                      <p className="text-sm text-gray-500">{item.module_title}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* All Team Coaching Activities */}
-      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
-
-      {/* Training Materials KPI */}
-      <TrainingMaterialsSection clientId={clientId} />
-
-      {/* My Training Development Tasks */}
-      <MyTrainingDevelopmentSection profile={profile} />
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <QuickAction
-            title="View My Team"
-            description="See team members and progress"
-            href="/users"
-            icon={Users}
-          />
-          <QuickActionButton
-            title="Development Activities"
-            description="Assign coaching & development"
-            onClick={() => setShowDevModal(true)}
-            icon={ClipboardList}
-          />
-          <QuickAction
-            title="Assign Training"
-            description="Schedule training for team"
-            href="/training"
-            icon={GraduationCap}
-          />
-          <QuickAction
-            title="View Reports"
-            description="Team analytics"
-            href="/reports"
-            icon={BarChart3}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  // MAGAZINE LAYOUT - Visual, card-based
-  const MagazineLayout = () => (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 rounded-2xl p-8 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-        <div className="relative z-10">
-          <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-          <h2 className="text-3xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
-          <p className="text-white/80 mt-2">
-            {stats.coachingOverdue > 0 
-              ? `${stats.coachingOverdue} coaching session${stats.coachingOverdue > 1 ? 's' : ''} need attention.`
-              : 'Your team is doing great!'}
-          </p>
-        </div>
-      </div>
-
-      {/* Big Visual KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: Users, value: stats.teamMembers, label: 'Team Members', color: 'blue' },
-          { icon: Target, value: `${competencyProgress}%`, label: 'Competency Progress', color: 'emerald' },
-          { icon: GraduationCap, value: stats.trainingCompleted, label: 'Training Done', color: 'amber' },
-          { icon: MessageSquare, value: stats.coachingActive, label: 'Active Coaching', color: stats.coachingOverdue > 0 ? 'red' : 'purple' },
-        ].map((card, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 text-center hover:shadow-lg transition-all cursor-pointer">
-            <div className={`w-16 h-16 mx-auto bg-gradient-to-br from-${card.color}-400 to-${card.color}-600 rounded-2xl flex items-center justify-center mb-3`}>
-              <card.icon className="w-8 h-8 text-white" />
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{card.value}</p>
-            <p className="text-sm text-gray-500">{card.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-green-600" /> Recent Activity
-          </h3>
-          {recentActivity.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">No recent activity</p>
-          ) : (
-            <div className="space-y-3">
-              {recentActivity.map(item => (
-                <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
-                    <CheckCircle className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm"><span className="font-medium">{item.trainee_name}</span> completed <span className="font-medium">{item.module_title}</span></p>
-                  </div>
-                  <span className="text-xs text-gray-400">{item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        {/* Team Status */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600" /> Team Members
-          </h3>
-          <div className="space-y-2">
-            {teamMembersList.slice(0, 5).map(member => (
-              <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
-                  {member.full_name?.charAt(0) || '?'}
-                </div>
-                <span className="text-sm text-gray-700 truncate">{member.full_name}</span>
+                <span className="text-sm font-semibold text-green-600">{a.score}%</span>
               </div>
             ))}
-            {teamMembersList.length > 5 && (
-              <button onClick={() => navigate('/users')} className="w-full text-sm text-purple-600 hover:underline py-2">
-                View all {teamMembersList.length} members →
-              </button>
-            )}
           </div>
         </div>
-      </div>
-
-      {/* Quick Actions as Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: UserPlus, label: 'Add Member', path: '/users?action=add' },
-          { icon: GraduationCap, label: 'Assign Training', path: '/training' },
-          { icon: ClipboardList, label: 'Development', onClick: () => setShowDevModal(true) },
-          { icon: BarChart3, label: 'Reports', path: '/reports' },
-        ].map((action, i) => (
-          <button 
-            key={i}
-            onClick={action.onClick || (() => navigate(action.path))}
-            className="p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all text-center"
-          >
-            <action.icon className="w-6 h-6 mx-auto mb-2 text-purple-600" />
-            <p className="text-sm font-medium text-gray-700">{action.label}</p>
-          </button>
-        ))}
       </div>
     </div>
   );
 
-  // COMMAND CENTER LAYOUT - Dense, monitoring style
+  // ANALYTICS LAYOUT - Detailed metrics
+  const AnalyticsLayout = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <BarChart3 className="w-7 h-7 text-blue-600" />
+            Analytics Dashboard
+          </h1>
+          <p className="text-gray-500">Detailed metrics and performance insights</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+          <button onClick={handleRefresh} disabled={refreshing} className="p-2 hover:bg-gray-100 rounded-lg">
+            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {[
+          { icon: Users, label: 'Trainees', value: stats.totalTrainees, sub: `${stats.activeTrainees} with training` },
+          { icon: BookOpen, label: 'Modules', value: stats.totalModules, sub: `${stats.publishedModules} published` },
+          { icon: Target, label: 'Competencies', value: competencyStats.total, sub: `${competencyStats.achieved} achieved (${competencyRate}%)` },
+          { icon: MessageSquare, label: 'Coaching', value: coachingStats.total, sub: `${coachingStats.active} active, ${coachingStats.completed} done` },
+          { icon: Clock, label: 'Training', value: stats.totalAssignments, sub: `${stats.inProgressCount} pending` },
+          { icon: AlertTriangle, label: 'Overdue', value: stats.overdueCount, sub: 'training items', danger: stats.overdueCount > 0 },
+        ].map((kpi, i) => (
+          <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 text-gray-500 mb-1">
+              <kpi.icon className="w-4 h-4" />
+              <span className="text-xs font-medium">{kpi.label}</span>
+            </div>
+            <p className={`text-2xl font-bold ${kpi.danger ? 'text-red-600' : 'text-gray-900'}`}>{kpi.value}</p>
+            <p className="text-xs text-gray-500">{kpi.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-500" /> Training Completion
+          </h3>
+          <ProgressRing percentage={completionRate} color="#10B981" />
+          <p className="text-sm text-gray-600 mt-4">{stats.completedAssignments} of {stats.totalAssignments} completed</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" /> Pass Rate
+          </h3>
+          <ProgressRing percentage={stats.passRate} color="#F59E0B" />
+          <p className="text-sm text-gray-600 mt-4">Average Score: {stats.avgScore}%</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Target className="w-5 h-5 text-blue-500" /> Competency Achievement
+          </h3>
+          <ProgressRing percentage={competencyRate} color="#3B82F6" />
+          <p className="text-sm text-gray-600 mt-4">{competencyStats.achieved} of {competencyStats.total} achieved</p>
+        </div>
+      </div>
+
+      {/* Module Performance Table */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-blue-500" /> Module Performance Details
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Module</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Assigned</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Completed</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Completion %</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Pass Rate</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-600">Avg Score</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {moduleStats.map(m => (
+                <tr key={m.id} className="hover:bg-gray-50">
+                  <td className="py-3 px-4 font-medium text-gray-900">{m.title}</td>
+                  <td className="py-3 px-4 text-center">{m.assigned}</td>
+                  <td className="py-3 px-4 text-center">{m.completed}</td>
+                  <td className="py-3 px-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-16 bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${m.completionRate >= 80 ? 'bg-green-500' : m.completionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${m.completionRate}%` }} />
+                      </div>
+                      <span>{m.completionRate}%</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`font-medium ${m.passRate >= 80 ? 'text-green-600' : m.passRate >= 60 ? 'text-orange-600' : 'text-red-600'}`}>{m.passRate}%</span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`font-medium ${m.avgScore >= 80 ? 'text-green-600' : m.avgScore >= 60 ? 'text-orange-600' : 'text-red-600'}`}>{m.avgScore}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Trainee Progress Table */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Users className="w-5 h-5 text-green-500" /> Trainee Progress
+          {traineeProgress.filter(t => t.overdue > 0).length > 0 && (
+            <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
+              {traineeProgress.filter(t => t.overdue > 0).length} need attention
+            </span>
+          )}
+        </h3>
+        <div className="overflow-x-auto max-h-96">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="text-left py-2 px-3 font-medium text-gray-600">Trainee</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-600">Progress</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-600">Score</th>
+                <th className="text-center py-2 px-3 font-medium text-gray-600">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {traineeProgress.map(t => (
+                <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="py-2 px-3">
+                    <p className="font-medium text-gray-900">{t.name}</p>
+                    <p className="text-xs text-gray-500">{t.department}</p>
+                  </td>
+                  <td className="py-2 px-3 text-center">{t.completed}/{t.total} ({t.completionRate}%)</td>
+                  <td className="py-2 px-3 text-center">
+                    <span className={`font-medium ${t.avgScore >= 80 ? 'text-green-600' : t.avgScore >= 60 ? 'text-orange-600' : 'text-gray-600'}`}>
+                      {t.avgScore > 0 ? `${t.avgScore}%` : '-'}
+                    </span>
+                  </td>
+                  <td className="py-2 px-3 text-center">
+                    {t.overdue > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
+                        <AlertTriangle className="w-3 h-3" /> {t.overdue} overdue
+                      </span>
+                    ) : t.completionRate === 100 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                        <CheckCircle className="w-3 h-3" /> Complete
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                        <Clock className="w-3 h-3" /> In Progress
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  // COMMAND CENTER LAYOUT - Dense monitoring
   const CommandLayout = () => (
     <div className="space-y-4 bg-slate-900 -m-6 p-6 min-h-screen">
       {/* Status Bar */}
       <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-between text-white">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full ${stats.coachingOverdue === 0 ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
-            <span className="text-sm">System Status: {stats.coachingOverdue === 0 ? 'All Clear' : 'Attention Needed'}</span>
+            <span className={`w-3 h-3 rounded-full ${stats.overdueCount === 0 ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
+            <span className="text-sm">System Status: {stats.overdueCount === 0 ? 'All Clear' : 'Attention Needed'}</span>
           </div>
-          <div className="text-sm text-slate-400">Team Lead: {profile?.full_name}</div>
+          <div className="text-sm text-slate-400">User: {profile?.full_name}</div>
         </div>
-        <div className="text-sm text-slate-400">{new Date().toLocaleTimeString()}</div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-slate-400">{new Date().toLocaleTimeString()}</span>
+          <button onClick={handleRefresh} disabled={refreshing} className="p-2 hover:bg-slate-700 rounded-lg">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
       
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         {[
-          { label: 'TEAM', value: stats.teamMembers, color: 'blue' },
-          { label: 'COMP DONE', value: stats.competenciesAchieved, color: 'emerald' },
-          { label: 'COMP TOTAL', value: stats.competenciesAssigned, color: 'slate' },
-          { label: 'TRAINING', value: stats.trainingCompleted, color: 'amber' },
-          { label: 'PENDING', value: stats.trainingPending, color: 'orange' },
-          { label: 'OVERDUE', value: stats.coachingOverdue, color: stats.coachingOverdue > 0 ? 'red' : 'emerald' },
+          { label: 'TRAINEES', value: stats.totalTrainees },
+          { label: 'ACTIVE', value: stats.activeTrainees },
+          { label: 'MODULES', value: stats.publishedModules },
+          { label: 'COMPLETED', value: stats.completedAssignments },
+          { label: 'PENDING', value: stats.inProgressCount },
+          { label: 'OVERDUE', value: stats.overdueCount, danger: stats.overdueCount > 0 },
+          { label: 'PASS RATE', value: `${stats.passRate}%` },
+          { label: 'AVG SCORE', value: `${stats.avgScore}%` },
         ].map((m, i) => (
-          <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wider">{m.label}</p>
-            <p className={`text-2xl font-bold text-${m.color}-400 font-mono mt-1`}>{m.value}</p>
+            <p className={`text-xl font-bold font-mono mt-1 ${m.danger ? 'text-red-400' : 'text-slate-200'}`}>{m.value}</p>
           </div>
         ))}
       </div>
       
-      {/* Three Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-slate-800 rounded-xl overflow-hidden">
+      {/* Main Panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="lg:col-span-2 bg-slate-800 rounded-xl overflow-hidden">
           <div className="bg-slate-700 px-4 py-2 border-b border-slate-600">
-            <h3 className="text-sm font-semibold text-slate-300 font-mono">TEAM ROSTER</h3>
+            <h3 className="text-sm font-semibold text-slate-300 font-mono">TRAINEE STATUS</h3>
           </div>
-          <div className="p-4 max-h-64 overflow-y-auto">
-            {teamMembersList.map(m => (
-              <div key={m.id} className="flex items-center justify-between py-2 border-b border-slate-700 last:border-0">
-                <span className="text-sm text-slate-300">{m.full_name}</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <div className="p-4 max-h-72 overflow-y-auto">
+            {traineeProgress.map(t => (
+              <div key={t.id} className="flex items-center justify-between py-2 border-b border-slate-700 last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${t.overdue > 0 ? 'bg-red-500' : t.completionRate === 100 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <span className="text-sm text-slate-300 truncate max-w-[150px]">{t.name}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-mono text-slate-500">{t.completed}/{t.total}</span>
+                  <span className="text-xs font-mono text-slate-400">{t.completionRate}%</span>
+                </div>
               </div>
             ))}
           </div>
@@ -2128,14 +1302,14 @@ function TeamLeadDashboard() {
         
         <div className="bg-slate-800 rounded-xl overflow-hidden">
           <div className="bg-slate-700 px-4 py-2 border-b border-slate-600">
-            <h3 className="text-sm font-semibold text-slate-300 font-mono">RECENT COMPLETIONS</h3>
+            <h3 className="text-sm font-semibold text-slate-300 font-mono">RECENT EVENTS</h3>
           </div>
-          <div className="p-4 max-h-64 overflow-y-auto">
-            {recentActivity.map(item => (
-              <div key={item.id} className="flex items-center gap-2 py-2 border-b border-slate-700 last:border-0">
+          <div className="p-4 max-h-72 overflow-y-auto">
+            {recentActivity.map(a => (
+              <div key={a.id} className="flex items-center gap-2 py-2 border-b border-slate-700 last:border-0">
                 <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm text-slate-300 truncate flex-1">{item.trainee_name}</span>
-                <span className="text-xs text-slate-500">{item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}</span>
+                <span className="text-sm text-slate-300 truncate flex-1">{a.trainee}</span>
+                <span className="text-xs font-mono text-emerald-400">{a.score}%</span>
               </div>
             ))}
           </div>
@@ -2143,16 +1317,17 @@ function TeamLeadDashboard() {
         
         <div className="bg-slate-800 rounded-xl overflow-hidden">
           <div className="bg-slate-700 px-4 py-2 border-b border-slate-600">
-            <h3 className="text-sm font-semibold text-slate-300 font-mono">ACTIONS</h3>
+            <h3 className="text-sm font-semibold text-slate-300 font-mono">QUICK ACTIONS</h3>
           </div>
           <div className="p-4 space-y-2">
             {[
-              { label: 'Add Team Member', path: '/users?action=add' },
+              { label: 'Add User', path: '/users?action=add' },
               { label: 'Assign Training', path: '/training' },
+              { label: 'Development', path: '/development' },
               { label: 'View Reports', path: '/reports' },
-              { label: 'Development', onClick: () => setShowDevModal(true) },
+              { label: 'Manage Modules', path: '/training' },
             ].map((a, i) => (
-              <button key={i} onClick={a.onClick || (() => navigate(a.path))} className="w-full p-2 rounded bg-slate-700 hover:bg-slate-600 text-left text-sm text-slate-300">
+              <button key={i} onClick={() => navigate(a.path)} className="w-full p-2 rounded bg-slate-700 hover:bg-slate-600 text-left text-sm text-slate-300">
                 {a.label}
               </button>
             ))}
@@ -2162,157 +1337,91 @@ function TeamLeadDashboard() {
     </div>
   );
 
-  // FOCUS LAYOUT - Minimal, priority-first
-  const FocusLayout = () => {
-    const priority = stats.coachingOverdue > 0 ? 'overdue' : stats.trainingPending > 0 ? 'pending' : 'complete';
-    
-    return (
-      <div className="max-w-2xl mx-auto space-y-8 py-8">
-        <div className="text-center">
-          <p className="text-sm text-gray-500 mb-2">Welcome back</p>
-          <h1 className="text-4xl font-bold text-gray-900">{profile?.full_name?.split(' ')[0]}</h1>
-        </div>
-        
-        {/* Main Focus Card */}
-        <div className={`rounded-3xl p-8 text-center text-white ${
-          priority === 'overdue' ? 'bg-gradient-to-br from-red-500 to-rose-600' :
-          priority === 'pending' ? 'bg-gradient-to-br from-amber-500 to-orange-600' :
-          'bg-gradient-to-br from-emerald-500 to-green-600'
-        }`}>
-          <div className="w-20 h-20 mx-auto bg-white/20 rounded-full flex items-center justify-center mb-4">
-            {priority === 'overdue' ? <AlertTriangle className="w-10 h-10" /> :
-             priority === 'pending' ? <Clock className="w-10 h-10" /> :
-             <CheckCircle className="w-10 h-10" />}
-          </div>
-          <p className="text-6xl font-bold mb-2">
-            {priority === 'overdue' ? stats.coachingOverdue :
-             priority === 'pending' ? stats.trainingPending :
-             stats.trainingCompleted}
-          </p>
-          <p className="text-xl text-white/90">
-            {priority === 'overdue' ? 'Coaching Overdue' :
-             priority === 'pending' ? 'Training Pending' :
-             'Training Completed'}
-          </p>
-          <p className="text-white/70 mt-4 max-w-sm mx-auto">
-            {priority === 'overdue' ? 'Address these coaching sessions first.' :
-             priority === 'pending' ? 'Your team has training in progress.' :
-             'Excellent! Your team is making great progress.'}
-          </p>
-        </div>
-        
-        {/* Simple Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            <p className="text-3xl font-bold text-gray-900">{stats.teamMembers}</p>
-            <p className="text-sm text-gray-500">Team Size</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            <p className="text-3xl font-bold text-gray-900">{competencyProgress}%</p>
-            <p className="text-sm text-gray-500">Competency</p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            <p className="text-3xl font-bold text-gray-900">{stats.coachingActive}</p>
-            <p className="text-sm text-gray-500">Coaching</p>
-          </div>
-        </div>
-        
-        {/* Simple Actions */}
-        <div className="flex justify-center gap-4">
-          <button onClick={() => navigate('/users')} className="px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800">
-            View Team
-          </button>
-          <button onClick={() => navigate('/training')} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50">
-            Training
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  // CUSTOM LAYOUT - User configurable widgets
+  // CUSTOM LAYOUT
   const CustomLayout = () => {
     const widgetComponents = {
       welcome: (
-        <div className="bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl p-6 text-white col-span-2">
+        <div className="bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl p-6 text-white md:col-span-2">
           <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           <h2 className="text-2xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
         </div>
       ),
+      quickActions: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Actions</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => navigate('/users?action=add')} className="p-2 bg-purple-50 rounded-lg text-sm text-purple-700">Add User</button>
+            <button onClick={() => navigate('/training')} className="p-2 bg-gray-50 rounded-lg text-sm text-gray-700">Training</button>
+          </div>
+        </div>
+      ),
       kpiStrip: (
-        <div className="grid grid-cols-4 gap-3 col-span-2">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600" />
-            <div><p className="text-xl font-bold text-blue-700">{stats.teamMembers}</p><p className="text-xs text-gray-500">Team</p></div>
-          </div>
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
-            <Target className="w-5 h-5 text-emerald-600" />
-            <div><p className="text-xl font-bold text-emerald-700">{competencyProgress}%</p><p className="text-xs text-gray-500">Progress</p></div>
-          </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-amber-600" />
-            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Done</p></div>
-          </div>
-          <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'} border rounded-xl p-3 flex items-center gap-2`}>
-            <MessageSquare className={`w-5 h-5 ${stats.coachingOverdue > 0 ? 'text-red-600' : 'text-purple-600'}`} />
-            <div><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
-          </div>
+        <div className="grid grid-cols-4 gap-3 md:col-span-2">
+          {[
+            { icon: Users, value: stats.totalTrainees, label: 'Trainees' },
+            { icon: CheckCircle, value: stats.completedAssignments, label: 'Completed' },
+            { icon: AlertTriangle, value: stats.overdueCount, label: 'Overdue', danger: stats.overdueCount > 0 },
+            { icon: Target, value: `${stats.avgScore}%`, label: 'Avg Score' },
+          ].map((k, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 flex items-center gap-2">
+              <k.icon className={`w-5 h-5 ${k.danger ? 'text-red-600' : 'text-gray-400'}`} />
+              <div><p className={`text-xl font-bold ${k.danger ? 'text-red-700' : 'text-gray-900'}`}>{k.value}</p><p className="text-xs text-gray-500">{k.label}</p></div>
+            </div>
+          ))}
         </div>
       ),
       teamStatus: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team</h3>
           <div className="space-y-2">
-            {teamMembersList.slice(0, 4).map(m => (
+            {teamMembers.slice(0, 5).map(m => (
               <div key={m.id} className="flex items-center gap-2 text-sm"><span className="w-2 h-2 rounded-full bg-emerald-500" />{m.full_name}</div>
             ))}
           </div>
         </div>
       ),
-      quickActions: (
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Actions</h3>
-          <div className="space-y-2">
-            <button onClick={() => navigate('/users?action=add')} className="w-full p-2 bg-gray-50 rounded-lg text-sm text-left hover:bg-gray-100">Add Member</button>
-            <button onClick={() => navigate('/training')} className="w-full p-2 bg-gray-50 rounded-lg text-sm text-left hover:bg-gray-100">Training</button>
-          </div>
-        </div>
-      ),
       trainingProgress: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Progress</h3>
+          <h3 className="font-semibold text-gray-900 mb-3"><TrendingUp className="w-4 h-4 text-blue-600 inline mr-2" />Progress</h3>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full" style={{ width: `${competencyProgress}%` }} />
+            <div className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full" style={{ width: `${completionRate}%` }} />
           </div>
-          <p className="text-xs text-gray-500 mt-2">{competencyProgress}% competency achieved</p>
+          <p className="text-xs text-gray-500 mt-2">{completionRate}% training completed</p>
+        </div>
+      ),
+      competencyRing: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+          <ProgressRing percentage={competencyRate} color="#3B82F6" size={80} />
+          <p className="text-sm text-gray-600 mt-2">{competencyStats.achieved}/{competencyStats.total} competencies</p>
         </div>
       ),
       recentActivity: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Activity className="w-4 h-4 text-green-600" /> Recent</h3>
+          <h3 className="font-semibold text-gray-900 mb-3"><Activity className="w-4 h-4 text-green-600 inline mr-2" />Recent</h3>
           <div className="space-y-2">
-            {recentActivity.slice(0, 3).map(item => (
-              <div key={item.id} className="flex items-center gap-2 text-sm">
+            {recentActivity.slice(0, 4).map(a => (
+              <div key={a.id} className="flex items-center gap-2 text-sm">
                 <CheckCircle className="w-4 h-4 text-green-500" />
-                <span className="truncate">{item.trainee_name}</span>
+                <span className="truncate">{a.trainee}</span>
               </div>
             ))}
           </div>
         </div>
       ),
-      competencyRing: (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
-          <ProgressRing percentage={competencyProgress} color="#10B981" size={80} />
-          <p className="text-sm text-gray-600 mt-2">{stats.competenciesAchieved}/{stats.competenciesAssigned}</p>
-        </div>
-      ),
       coachingOverview: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Coaching</h3>
+          <h3 className="font-semibold text-gray-900 mb-3"><MessageSquare className="w-4 h-4 text-purple-600 inline mr-2" />Coaching</h3>
           <div className="grid grid-cols-2 gap-2 text-center">
-            <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{stats.coachingActive}</p><p className="text-xs text-gray-500">Active</p></div>
-            <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50' : 'bg-emerald-50'} rounded-lg p-2`}><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{stats.coachingOverdue}</p><p className="text-xs text-gray-500">Overdue</p></div>
+            <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{coachingStats.active}</p><p className="text-xs text-gray-500">Active</p></div>
+            <div className={`${coachingStats.overdue > 0 ? 'bg-red-50' : 'bg-emerald-50'} rounded-lg p-2`}><p className={`text-xl font-bold ${coachingStats.overdue > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{coachingStats.overdue}</p><p className="text-xs text-gray-500">Overdue</p></div>
           </div>
+        </div>
+      ),
+      overdueAlerts: (
+        <div className={`rounded-xl border p-4 ${stats.overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+          <AlertTriangle className={`w-6 h-6 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-emerald-600'} mb-2`} />
+          <p className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{stats.overdueCount}</p>
+          <p className="text-xs text-gray-600">Overdue Items</p>
         </div>
       ),
     };
@@ -2320,7 +1429,7 @@ function TeamLeadDashboard() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Your Dashboard</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Your Custom Dashboard</h2>
           <button onClick={() => setShowWidgetPicker(!showWidgetPicker)} className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200">
             <Plus className="w-4 h-4" /> Add Widget
           </button>
@@ -2332,7 +1441,7 @@ function TeamLeadDashboard() {
               <h3 className="font-semibold text-gray-900">Available Widgets</h3>
               <button onClick={() => setShowWidgetPicker(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5 text-gray-500" /></button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
               {Object.entries(availableWidgets).map(([id, widget]) => {
                 const isActive = activeWidgets.includes(id);
                 return (
@@ -2375,644 +1484,72 @@ function TeamLeadDashboard() {
   // MAIN RENDER
   // ============================================================================
 
+  if (loading && !stats.totalTrainees) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-500">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative">
-      {/* Layout Selector - Top Right */}
-      <div className="absolute top-0 right-0 z-10">
-        <LayoutSelector 
-          currentLayout={currentLayout}
-          onLayoutChange={handleLayoutChange}
-          showSelector={showLayoutSelector}
-          setShowSelector={setShowLayoutSelector}
+    <div className="relative min-h-screen">
+      {/* Top Controls Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        {/* Scope Selector */}
+        <ScopeSelector
+          scope={scope}
+          setScope={setScope}
+          clients={clients}
+          users={allUsers}
+          teamLeads={teamLeads}
+          profile={profile}
         />
+
+        {/* Right Controls */}
+        <div className="flex items-center gap-3">
+          {/* Date Range */}
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm shadow-sm"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+
+          {/* Refresh */}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 shadow-sm"
+          >
+            <RefreshCw className={`w-5 h-5 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+
+          {/* Layout Selector */}
+          <LayoutSelector
+            currentLayout={currentLayout}
+            onLayoutChange={handleLayoutChange}
+            showSelector={showLayoutSelector}
+            setShowSelector={setShowLayoutSelector}
+          />
+        </div>
       </div>
 
       {/* Render selected layout */}
-      <div className={currentLayout === 'command' ? '' : 'pt-2'}>
-        {currentLayout === 'classic' && <ClassicLayout />}
-        {currentLayout === 'magazine' && <MagazineLayout />}
+      <div className={currentLayout === 'command' ? '' : ''}>
+        {currentLayout === 'executive' && <ExecutiveLayout />}
+        {currentLayout === 'operational' && <OperationalLayout />}
+        {currentLayout === 'analytics' && <AnalyticsLayout />}
         {currentLayout === 'command' && <CommandLayout />}
-        {currentLayout === 'focus' && <FocusLayout />}
         {currentLayout === 'custom' && <CustomLayout />}
       </div>
-
-      {/* Create Development Modal */}
-      <CreateDevelopmentModal
-        isOpen={showDevModal}
-        onClose={() => setShowDevModal(false)}
-        profile={profile}
-        onSuccess={() => {}}
-      />
     </div>
   );
 }
-
-// Super Admin Dashboard
-function SuperAdminDashboard() {
-  const { profile } = useAuth();
-  const [clients, setClients] = useState([]);
-  const [stats, setStats] = useState({
-    userCount: 0,
-    networkCount: 0,
-    coachingActive: 0,
-    trainingPending: 0
-  });
-  const [loading, setLoading] = useState(true);
-  const [showDevModal, setShowDevModal] = useState(false);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
-    try {
-      // Load clients
-      const clientsData = await dbFetch('clients?select=*&order=name.asc');
-      setClients(clientsData || []);
-
-      // Count users (trainees)
-      const users = await dbFetch('profiles?select=id&role=eq.trainee');
-      
-      // Count networks
-      const networks = await dbFetch('expert_networks?select=id&is_active=eq.true');
-
-      // Count active coaching
-      const coaching = await dbFetch('development_activities?select=id&type=eq.coaching&status=neq.validated&status=neq.cancelled');
-
-      // Count pending training
-      const training = await dbFetch('user_training?select=id&status=in.(pending,in_progress)');
-
-      setStats({
-        userCount: users?.length || 0,
-        networkCount: networks?.length || 0,
-        coachingActive: coaching?.length || 0,
-        trainingPending: training?.length || 0
-      });
-
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  const activeClients = clients.filter(c => c.is_active).length;
-
-  return (
-    <div className="space-y-8">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Super Admin Dashboard</h1>
-        <p className="text-gray-600 mt-1">Manage all clients and system settings</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Active Clients" 
-          value={activeClients}
-          subtitle="Organizations"
-          icon={Building2}
-          color="blue"
-        />
-        <StatCard 
-          title="Total Trainees" 
-          value={stats.userCount}
-          subtitle="Across all clients"
-          icon={Users}
-          color="green"
-        />
-        <StatCard 
-          title="Active Coaching" 
-          value={stats.coachingActive}
-          subtitle="Sessions in progress"
-          icon={Target}
-          color="purple"
-        />
-        <StatCard 
-          title="Training Pending" 
-          value={stats.trainingPending}
-          subtitle="Awaiting completion"
-          icon={GraduationCap}
-          color="amber"
-        />
-      </div>
-
-      {/* My Coachees Section - Show if user is a coach */}
-      <MyCoacheesSection profile={profile} />
-
-      {/* Training Materials KPI */}
-      <TrainingMaterialsSection />
-
-      {/* My Training Development Tasks */}
-      <MyTrainingDevelopmentSection profile={profile} />
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <QuickAction
-            title="Add New Client"
-            description="Create a new organization"
-            href="/clients"
-            icon={Plus}
-          />
-          <QuickAction
-            title="Manage Users"
-            description="Add admins and trainees"
-            href="/users"
-            icon={Users}
-          />
-          <QuickActionButton
-            title="Development Activities"
-            description="Assign coaching & development"
-            onClick={() => setShowDevModal(true)}
-            icon={ClipboardList}
-          />
-          <QuickAction
-            title="View Reports"
-            description="Cross-client analytics"
-            href="/reports"
-            icon={BarChart3}
-          />
-        </div>
-      </div>
-
-      {/* Create Development Modal */}
-      <CreateDevelopmentModal
-        isOpen={showDevModal}
-        onClose={() => setShowDevModal(false)}
-        profile={profile}
-        onSuccess={() => {}}
-      />
-
-      {/* Client List */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Clients</h2>
-          <Link to="/clients" className="text-sm text-blue-600 hover:text-blue-700">
-            View all →
-          </Link>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {clients.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    No clients yet. <Link to="/clients" className="text-blue-600">Add your first client</Link>
-                  </td>
-                </tr>
-              ) : (
-                clients.slice(0, 5).map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{client.name}</p>
-                    </td>
-                    <td className="px-6 py-4 text-gray-500">{client.code}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        client.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {client.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 text-sm">
-                      {new Date(client.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Client Admin Dashboard
-function ClientAdminDashboard() {
-  const { profile, clientId: authClientId } = useAuth();
-  // Use clientId from auth context, fallback to profile.client_id
-  const clientId = authClientId || profile?.client_id;
-  const [users, setUsers] = useState([]);
-  const [stats, setStats] = useState({
-    networkCount: 0,
-    competenciesAssigned: 0,
-    competenciesAchieved: 0,
-    trainingPending: 0,
-    coachingActive: 0
-  });
-  const [loading, setLoading] = useState(true);
-  const [showDevModal, setShowDevModal] = useState(false);
-
-  useEffect(() => {
-    if (clientId) {
-      loadData();
-    } else {
-      setLoading(false);
-    }
-  }, [clientId]);
-
-  async function loadData() {
-    try {
-      // Load team members
-      const usersData = await dbFetch(`profiles?select=*&client_id=eq.${clientId}&is_active=eq.true&order=full_name.asc`);
-      setUsers(usersData || []);
-
-      const traineeIds = usersData?.filter(u => u.role === 'trainee').map(u => u.id) || [];
-
-      // Count networks
-      const networks = await dbFetch(`expert_networks?select=id&client_id=eq.${clientId}&is_active=eq.true`);
-
-      if (traineeIds.length > 0) {
-        const idList = traineeIds.join(',');
-
-        // Competencies
-        const competencies = await dbFetch(`user_competencies?select=id,status&user_id=in.(${idList})`);
-        const compAssigned = competencies?.length || 0;
-        const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
-
-        // Training
-        const training = await dbFetch(`user_training?select=id,status&user_id=in.(${idList})`);
-        const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
-
-        // Coaching
-        const coaching = await dbFetch(`development_activities?select=id&client_id=eq.${clientId}&type=eq.coaching&status=neq.validated&status=neq.cancelled`);
-
-        setStats({
-          networkCount: networks?.length || 0,
-          competenciesAssigned: compAssigned,
-          competenciesAchieved: compAchieved,
-          trainingPending,
-          coachingActive: coaching?.length || 0
-        });
-      } else {
-        setStats({
-          networkCount: networks?.length || 0,
-          competenciesAssigned: 0,
-          competenciesAchieved: 0,
-          trainingPending: 0,
-          coachingActive: 0
-        });
-      }
-
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  const traineeCount = users.filter(u => u.role === 'trainee').length;
-
-  return (
-    <div className="space-y-8">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Team Members" 
-          value={traineeCount}
-          subtitle="Active trainees"
-          icon={Users}
-          color="blue"
-        />
-        <StatCard 
-          title="Competencies" 
-          value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`}
-          subtitle="Achieved / Assigned"
-          icon={Target}
-          color="green"
-        />
-        <StatCard 
-          title="Training Pending" 
-          value={stats.trainingPending}
-          subtitle="Awaiting completion"
-          icon={GraduationCap}
-          color="amber"
-        />
-        <StatCard 
-          title="Active Coaching" 
-          value={stats.coachingActive}
-          subtitle="Sessions in progress"
-          icon={Users}
-          color="purple"
-        />
-      </div>
-
-      {/* My Coachees Section */}
-      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
-
-      {/* Training Materials KPI */}
-      <TrainingMaterialsSection clientId={clientId} />
-
-      {/* My Training Development Tasks */}
-      <MyTrainingDevelopmentSection profile={profile} />
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <QuickAction
-            title="Add Team Member"
-            description="Register a new trainee"
-            href="/users"
-            icon={Plus}
-          />
-          <QuickActionButton
-            title="Development Activities"
-            description="Assign coaching & development"
-            onClick={() => setShowDevModal(true)}
-            icon={ClipboardList}
-          />
-          <QuickAction
-            title="View Competencies"
-            description="See competency overview"
-            href="/competencies"
-            icon={Target}
-          />
-          <QuickAction
-            title="Assign Training"
-            description="Schedule training activities"
-            href="/training"
-            icon={GraduationCap}
-          />
-        </div>
-      </div>
-
-      {/* Create Development Modal */}
-      <CreateDevelopmentModal
-        isOpen={showDevModal}
-        onClose={() => setShowDevModal(false)}
-        profile={profile}
-        onSuccess={() => {}}
-      />
-
-      {/* Team Members */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Team Members</h2>
-          <Link to="/users" className="text-sm text-blue-600 hover:text-blue-700">
-            View all →
-          </Link>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {users.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    No team members yet. <Link to="/users" className="text-blue-600">Add your first team member</Link>
-                  </td>
-                </tr>
-              ) : (
-                users.filter(u => u.role === 'trainee').slice(0, 5).map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{user.full_name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 capitalize">{user.role?.replace('_', ' ')}</td>
-                    <td className="px-6 py-4 text-gray-500">{user.department || '-'}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Active
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Trainee Dashboard
-function TraineeDashboard() {
-  const { profile } = useAuth();
-  const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    competenciesTotal: 0,
-    competenciesAchieved: 0,
-    trainingPending: 0,
-    trainingCompleted: 0,
-    coachingActive: 0
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (profile?.id) {
-      loadData();
-    }
-  }, [profile]);
-
-  async function loadData() {
-    try {
-      console.log('TraineeDashboard: Loading data for user:', profile.id);
-      
-      // Competencies
-      const competencies = await dbFetch(`user_competencies?select=id,status,current_level,target_level&user_id=eq.${profile.id}`);
-      console.log('TraineeDashboard: Competencies:', competencies);
-      const compTotal = competencies?.length || 0;
-      const compAchieved = competencies?.filter(c => c.status === 'achieved' || c.current_level >= c.target_level).length || 0;
-      const compInProgress = competencies?.filter(c => c.status !== 'achieved' && c.current_level < c.target_level).length || 0;
-
-      // Training
-      const training = await dbFetch(`user_training?select=*&user_id=eq.${profile.id}`);
-      console.log('TraineeDashboard: Training assignments:', training);
-      const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'assigned').length || 0;
-      const trainingCompleted = training?.filter(t => t.status === 'passed' || t.status === 'completed').length || 0;
-
-      // Coaching
-      const coaching = await dbFetch(`development_activities?select=id,status,title&trainee_id=eq.${profile.id}&type=eq.coaching`);
-      console.log('TraineeDashboard: Coaching activities:', coaching);
-      const activeCoaching = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
-
-      setStats({
-        competenciesTotal: compTotal,
-        competenciesAchieved: compAchieved,
-        competenciesToDevelop: compInProgress,
-        trainingPending,
-        trainingCompleted,
-        coachingActive: activeCoaching
-      });
-    } catch (error) {
-      console.error('Error loading trainee data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
-  const overallProgress = stats.competenciesTotal > 0 
-    ? Math.round((stats.competenciesAchieved / stats.competenciesTotal) * 100) 
-    : 0;
-
-  return (
-    <div className="space-y-8">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {profile?.full_name?.split(' ')[0] || 'Trainee'}!</h1>
-        <p className="text-gray-600 mt-1">Track your progress and development</p>
-      </div>
-
-      {/* Progress Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Overall Progress</h3>
-          <ProgressRing percentage={overallProgress} />
-          <p className="text-sm text-gray-600 mt-4">
-            {stats.competenciesAchieved} of {stats.competenciesTotal} competencies achieved
-          </p>
-        </div>
-
-        <div className="lg:col-span-2 grid grid-cols-2 gap-4">
-          <StatCard 
-            title="Skills to Develop" 
-            value={stats.competenciesTotal - stats.competenciesAchieved}
-            subtitle="In progress"
-            icon={Target}
-            color="blue"
-            onClick={() => navigate('/my-progress')}
-          />
-          <StatCard 
-            title="Training Pending" 
-            value={stats.trainingPending}
-            subtitle={`${stats.trainingCompleted} completed`}
-            icon={GraduationCap}
-            color="amber"
-            onClick={() => navigate('/my-training')}
-          />
-          <StatCard 
-            title="Active Coaching" 
-            value={stats.coachingActive}
-            subtitle="Sessions in progress"
-            icon={Users}
-            color="purple"
-            onClick={() => navigate('/my-plan')}
-          />
-          <StatCard 
-            title="Skills Achieved" 
-            value={stats.competenciesAchieved}
-            subtitle={`of ${stats.competenciesTotal} total`}
-            icon={CheckCircle}
-            color="green"
-            onClick={() => navigate('/my-progress')}
-          />
-        </div>
-      </div>
-
-      {/* My Training Development Tasks (if assigned as training developer) */}
-      <MyTrainingDevelopmentSection profile={profile} />
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <QuickAction
-            title="View My Matrix"
-            description="See all competency levels"
-            href="/my-progress"
-            icon={Target}
-          />
-          <QuickAction
-            title="My Development Plan"
-            description="View your IDP & coaching"
-            href="/my-plan"
-            icon={ClipboardList}
-          />
-          <QuickAction
-            title="Start Training"
-            description="Continue learning"
-            href="/my-training"
-            icon={GraduationCap}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Loading skeleton
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-8 animate-pulse">
-      <div>
-        <div className="h-8 bg-gray-200 rounded w-48"></div>
-        <div className="h-4 bg-gray-200 rounded w-64 mt-2"></div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-xl shadow-sm p-6 h-32"></div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Main Dashboard component
-function DashboardPage() {
-  const { profile, isSuperAdmin, isClientAdmin, isTrainee, loading } = useAuth();
-
-  if (loading || !profile) {
-    return <DashboardSkeleton />;
-  }
-
-  if (isSuperAdmin) {
-    return <SuperAdminDashboard />;
-  }
-  
-  if (isClientAdmin) {
-    return <ClientAdminDashboard />;
-  }
-
-  // Team Lead gets their own dashboard
-  if (profile?.role === 'team_lead') {
-    return <TeamLeadDashboard />;
-  }
-  
-  if (isTrainee) {
-    return <TraineeDashboard />;
-  }
-
-  return <DashboardSkeleton />;
-}
-
-export default DashboardPage;
