@@ -24,6 +24,7 @@ import {
   Calendar,
   User,
   ChevronRight,
+  ChevronDown,
   X,
   Send,
   Loader2,
@@ -34,8 +35,182 @@ import {
   BookOpen,
   FileText,
   FileCheck,
-  FileClock
+  FileClock,
+  // Layout icons
+  LayoutDashboard,
+  LayoutGrid,
+  Boxes,
+  Grip,
+  Check,
+  Palette,
+  RefreshCw,
+  Zap,
+  Activity,
+  Trophy,
+  Flame,
+  Heart,
+  Coffee,
+  Briefcase,
+  Layout,
+  AlertTriangle,
+  Play,
+  UserPlus
 } from 'lucide-react';
+
+// ============================================================================
+// LAYOUT DEFINITIONS
+// ============================================================================
+
+const dashboardLayouts = {
+  classic: {
+    name: 'Classic',
+    icon: LayoutDashboard,
+    description: 'Traditional with sidebar KPIs',
+    preview: '📊'
+  },
+  magazine: {
+    name: 'Magazine',
+    icon: LayoutGrid,
+    description: 'Visual card-based',
+    preview: '📰'
+  },
+  command: {
+    name: 'Command Center',
+    icon: Boxes,
+    description: 'Dense monitoring',
+    preview: '🖥️'
+  },
+  focus: {
+    name: 'Focus',
+    icon: Target,
+    description: 'Minimal, priority-first',
+    preview: '🎯'
+  },
+  custom: {
+    name: 'Custom',
+    icon: Grip,
+    description: 'Build your own',
+    preview: '🛠️'
+  }
+};
+
+// Available widgets for custom layout
+const availableWidgets = {
+  welcome: { name: 'Welcome Card', icon: Heart, category: 'Overview', size: 'large' },
+  kpiStrip: { name: 'KPI Strip', icon: BarChart3, category: 'Metrics', size: 'full' },
+  teamStatus: { name: 'Team Status', icon: Users, category: 'People', size: 'medium' },
+  quickActions: { name: 'Quick Actions', icon: Zap, category: 'Actions', size: 'medium' },
+  trainingProgress: { name: 'Training Progress', icon: TrendingUp, category: 'Training', size: 'medium' },
+  recentActivity: { name: 'Recent Activity', icon: Activity, category: 'Activity', size: 'medium' },
+  competencyRing: { name: 'Competency Ring', icon: Target, category: 'Competencies', size: 'medium' },
+  coachingOverview: { name: 'Coaching Overview', icon: MessageSquare, category: 'Coaching', size: 'medium' },
+  leaderboard: { name: 'Leaderboard', icon: Trophy, category: 'Engagement', size: 'medium' },
+};
+
+// ============================================================================
+// LAYOUT SELECTOR COMPONENT
+// ============================================================================
+
+function LayoutSelector({ currentLayout, onLayoutChange, showSelector, setShowSelector }) {
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShowSelector(!showSelector)}
+        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+      >
+        <span className="text-lg">{dashboardLayouts[currentLayout]?.preview}</span>
+        <span className="font-medium text-gray-700 text-sm hidden sm:inline">{dashboardLayouts[currentLayout]?.name}</span>
+        <ChevronDown className="w-4 h-4 text-gray-400" />
+      </button>
+      
+      {showSelector && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowSelector(false)} />
+          <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-2 z-50">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2">Dashboard Style</p>
+            {Object.entries(dashboardLayouts).map(([key, layout]) => (
+              <button
+                key={key}
+                onClick={() => { onLayoutChange(key); setShowSelector(false); }}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+                  currentLayout === key ? 'bg-purple-100 text-purple-700' : 'hover:bg-gray-50'
+                }`}
+              >
+                <span className="text-xl">{layout.preview}</span>
+                <div className="text-left flex-1">
+                  <p className="font-medium text-sm">{layout.name}</p>
+                  <p className="text-xs text-gray-500">{layout.description}</p>
+                </div>
+                {currentLayout === key && <Check className="w-4 h-4" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// LAYOUT PREFERENCE HOOKS
+// ============================================================================
+
+function useLayoutPreferences(userId) {
+  const [currentLayout, setCurrentLayout] = useState('classic');
+  const [activeWidgets, setActiveWidgets] = useState(['welcome', 'kpiStrip', 'quickActions', 'teamStatus', 'trainingProgress', 'recentActivity']);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // Load preferences on mount
+  useEffect(() => {
+    if (userId) {
+      loadPreferences();
+    }
+  }, [userId]);
+
+  const loadPreferences = async () => {
+    try {
+      // Try localStorage first (faster)
+      const savedLayout = localStorage.getItem(`dashboard_layout_${userId}`);
+      const savedWidgets = localStorage.getItem(`dashboard_widgets_${userId}`);
+      
+      if (savedLayout) setCurrentLayout(savedLayout);
+      if (savedWidgets) {
+        try {
+          setActiveWidgets(JSON.parse(savedWidgets));
+        } catch (e) {}
+      }
+    } catch (error) {
+      console.log('Using default layout preferences');
+    }
+    setPrefsLoaded(true);
+  };
+
+  const savePreferences = (layout, widgets) => {
+    if (!userId) return;
+    
+    // Save to localStorage
+    localStorage.setItem(`dashboard_layout_${userId}`, layout);
+    localStorage.setItem(`dashboard_widgets_${userId}`, JSON.stringify(widgets));
+  };
+
+  const handleLayoutChange = (newLayout) => {
+    setCurrentLayout(newLayout);
+    savePreferences(newLayout, activeWidgets);
+  };
+
+  const handleWidgetsChange = (newWidgets) => {
+    setActiveWidgets(newWidgets);
+    savePreferences(currentLayout, newWidgets);
+  };
+
+  return {
+    currentLayout,
+    activeWidgets,
+    prefsLoaded,
+    handleLayoutChange,
+    handleWidgetsChange
+  };
+}
 
 // Stat Card Component
 function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick }) {
@@ -1560,8 +1735,14 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
 // Team Lead Dashboard - sees all team coaching and training
 function TeamLeadDashboard() {
   const { profile, clientId: authClientId } = useAuth();
-  // Use clientId from auth context, fallback to profile.client_id
+  const navigate = useNavigate();
   const clientId = authClientId || profile?.client_id;
+  
+  // Layout preferences
+  const { currentLayout, activeWidgets, handleLayoutChange, handleWidgetsChange } = useLayoutPreferences(profile?.id);
+  const [showLayoutSelector, setShowLayoutSelector] = useState(false);
+  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
+  
   const [stats, setStats] = useState({
     teamMembers: 0,
     competenciesAssigned: 0,
@@ -1571,6 +1752,7 @@ function TeamLeadDashboard() {
     coachingActive: 0,
     coachingOverdue: 0
   });
+  const [teamMembersList, setTeamMembersList] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
@@ -1585,11 +1767,11 @@ function TeamLeadDashboard() {
     try {
       console.log('TeamLeadDashboard: Loading data for profile:', profile.id);
       
-      // Get team members who report to this team lead
       const teamMembers = await dbFetch(
         `profiles?select=id,full_name,email&reports_to_id=eq.${profile.id}&is_active=eq.true`
       );
       console.log('TeamLeadDashboard: Team members found:', teamMembers);
+      setTeamMembersList(teamMembers || []);
       
       const teamIds = teamMembers?.map(m => m.id) || [];
       console.log('TeamLeadDashboard: Team IDs:', teamIds);
@@ -1598,7 +1780,6 @@ function TeamLeadDashboard() {
         const teamIdList = teamIds.join(',');
         console.log('TeamLeadDashboard: Team ID list:', teamIdList);
 
-        // Get competencies stats
         const competencies = await dbFetch(
           `user_competencies?select=id,status&user_id=in.(${teamIdList})`
         );
@@ -1606,7 +1787,6 @@ function TeamLeadDashboard() {
         const compAssigned = competencies?.length || 0;
         const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
 
-        // Get training stats
         const training = await dbFetch(
           `user_training?select=id,status&user_id=in.(${teamIdList})`
         );
@@ -1615,7 +1795,6 @@ function TeamLeadDashboard() {
         const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
         console.log('TeamLeadDashboard: Training pending:', trainingPending, 'completed:', trainingCompleted);
 
-        // Get coaching stats
         const coaching = await dbFetch(
           `development_activities?select=id,status,due_date&trainee_id=in.(${teamIdList})&type=eq.coaching`
         );
@@ -1635,13 +1814,11 @@ function TeamLeadDashboard() {
           coachingOverdue
         });
 
-        // Get recent training completions - fetch separately and join manually
         const recentTraining = await dbFetch(
           `user_training?select=id,status,completed_at,user_id,module_id&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
         );
         console.log('TeamLeadDashboard: Recent training:', recentTraining);
         
-        // Enrich with user and module names
         if (recentTraining && recentTraining.length > 0) {
           const enrichedTraining = await Promise.all(recentTraining.map(async (t) => {
             const [userInfo, moduleInfo] = await Promise.all([
@@ -1674,7 +1851,12 @@ function TeamLeadDashboard() {
     ? Math.round((stats.competenciesAchieved / stats.competenciesAssigned) * 100) 
     : 0;
 
-  return (
+  // ============================================================================
+  // LAYOUT RENDERERS
+  // ============================================================================
+
+  // CLASSIC LAYOUT
+  const ClassicLayout = () => (
     <div className="space-y-8">
       {/* Welcome */}
       <div>
@@ -1765,7 +1947,7 @@ function TeamLeadDashboard() {
           <QuickAction
             title="View My Team"
             description="See team members and progress"
-            href="/my-team"
+            href="/users"
             icon={Users}
           />
           <QuickActionButton
@@ -1787,6 +1969,431 @@ function TeamLeadDashboard() {
             icon={BarChart3}
           />
         </div>
+      </div>
+    </div>
+  );
+
+  // MAGAZINE LAYOUT - Visual, card-based
+  const MagazineLayout = () => (
+    <div className="space-y-6">
+      {/* Welcome Banner */}
+      <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 rounded-2xl p-8 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10">
+          <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <h2 className="text-3xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
+          <p className="text-white/80 mt-2">
+            {stats.coachingOverdue > 0 
+              ? `${stats.coachingOverdue} coaching session${stats.coachingOverdue > 1 ? 's' : ''} need attention.`
+              : 'Your team is doing great!'}
+          </p>
+        </div>
+      </div>
+
+      {/* Big Visual KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { icon: Users, value: stats.teamMembers, label: 'Team Members', color: 'blue' },
+          { icon: Target, value: `${competencyProgress}%`, label: 'Competency Progress', color: 'emerald' },
+          { icon: GraduationCap, value: stats.trainingCompleted, label: 'Training Done', color: 'amber' },
+          { icon: MessageSquare, value: stats.coachingActive, label: 'Active Coaching', color: stats.coachingOverdue > 0 ? 'red' : 'purple' },
+        ].map((card, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 text-center hover:shadow-lg transition-all cursor-pointer">
+            <div className={`w-16 h-16 mx-auto bg-gradient-to-br from-${card.color}-400 to-${card.color}-600 rounded-2xl flex items-center justify-center mb-3`}>
+              <card.icon className="w-8 h-8 text-white" />
+            </div>
+            <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+            <p className="text-sm text-gray-500">{card.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-green-600" /> Recent Activity
+          </h3>
+          {recentActivity.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No recent activity</p>
+          ) : (
+            <div className="space-y-3">
+              {recentActivity.map(item => (
+                <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm"><span className="font-medium">{item.trainee_name}</span> completed <span className="font-medium">{item.module_title}</span></p>
+                  </div>
+                  <span className="text-xs text-gray-400">{item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Team Status */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" /> Team Members
+          </h3>
+          <div className="space-y-2">
+            {teamMembersList.slice(0, 5).map(member => (
+              <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
+                  {member.full_name?.charAt(0) || '?'}
+                </div>
+                <span className="text-sm text-gray-700 truncate">{member.full_name}</span>
+              </div>
+            ))}
+            {teamMembersList.length > 5 && (
+              <button onClick={() => navigate('/users')} className="w-full text-sm text-purple-600 hover:underline py-2">
+                View all {teamMembersList.length} members →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions as Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { icon: UserPlus, label: 'Add Member', path: '/users?action=add' },
+          { icon: GraduationCap, label: 'Assign Training', path: '/training' },
+          { icon: ClipboardList, label: 'Development', onClick: () => setShowDevModal(true) },
+          { icon: BarChart3, label: 'Reports', path: '/reports' },
+        ].map((action, i) => (
+          <button 
+            key={i}
+            onClick={action.onClick || (() => navigate(action.path))}
+            className="p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all text-center"
+          >
+            <action.icon className="w-6 h-6 mx-auto mb-2 text-purple-600" />
+            <p className="text-sm font-medium text-gray-700">{action.label}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // COMMAND CENTER LAYOUT - Dense, monitoring style
+  const CommandLayout = () => (
+    <div className="space-y-4 bg-slate-900 -m-6 p-6 min-h-screen">
+      {/* Status Bar */}
+      <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-between text-white">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <span className={`w-3 h-3 rounded-full ${stats.coachingOverdue === 0 ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
+            <span className="text-sm">System Status: {stats.coachingOverdue === 0 ? 'All Clear' : 'Attention Needed'}</span>
+          </div>
+          <div className="text-sm text-slate-400">Team Lead: {profile?.full_name}</div>
+        </div>
+        <div className="text-sm text-slate-400">{new Date().toLocaleTimeString()}</div>
+      </div>
+      
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'TEAM', value: stats.teamMembers, color: 'blue' },
+          { label: 'COMP DONE', value: stats.competenciesAchieved, color: 'emerald' },
+          { label: 'COMP TOTAL', value: stats.competenciesAssigned, color: 'slate' },
+          { label: 'TRAINING', value: stats.trainingCompleted, color: 'amber' },
+          { label: 'PENDING', value: stats.trainingPending, color: 'orange' },
+          { label: 'OVERDUE', value: stats.coachingOverdue, color: stats.coachingOverdue > 0 ? 'red' : 'emerald' },
+        ].map((m, i) => (
+          <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <p className="text-xs text-slate-400 font-mono uppercase tracking-wider">{m.label}</p>
+            <p className={`text-2xl font-bold text-${m.color}-400 font-mono mt-1`}>{m.value}</p>
+          </div>
+        ))}
+      </div>
+      
+      {/* Three Panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-700 px-4 py-2 border-b border-slate-600">
+            <h3 className="text-sm font-semibold text-slate-300 font-mono">TEAM ROSTER</h3>
+          </div>
+          <div className="p-4 max-h-64 overflow-y-auto">
+            {teamMembersList.map(m => (
+              <div key={m.id} className="flex items-center justify-between py-2 border-b border-slate-700 last:border-0">
+                <span className="text-sm text-slate-300">{m.full_name}</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="bg-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-700 px-4 py-2 border-b border-slate-600">
+            <h3 className="text-sm font-semibold text-slate-300 font-mono">RECENT COMPLETIONS</h3>
+          </div>
+          <div className="p-4 max-h-64 overflow-y-auto">
+            {recentActivity.map(item => (
+              <div key={item.id} className="flex items-center gap-2 py-2 border-b border-slate-700 last:border-0">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm text-slate-300 truncate flex-1">{item.trainee_name}</span>
+                <span className="text-xs text-slate-500">{item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="bg-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-700 px-4 py-2 border-b border-slate-600">
+            <h3 className="text-sm font-semibold text-slate-300 font-mono">ACTIONS</h3>
+          </div>
+          <div className="p-4 space-y-2">
+            {[
+              { label: 'Add Team Member', path: '/users?action=add' },
+              { label: 'Assign Training', path: '/training' },
+              { label: 'View Reports', path: '/reports' },
+              { label: 'Development', onClick: () => setShowDevModal(true) },
+            ].map((a, i) => (
+              <button key={i} onClick={a.onClick || (() => navigate(a.path))} className="w-full p-2 rounded bg-slate-700 hover:bg-slate-600 text-left text-sm text-slate-300">
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // FOCUS LAYOUT - Minimal, priority-first
+  const FocusLayout = () => {
+    const priority = stats.coachingOverdue > 0 ? 'overdue' : stats.trainingPending > 0 ? 'pending' : 'complete';
+    
+    return (
+      <div className="max-w-2xl mx-auto space-y-8 py-8">
+        <div className="text-center">
+          <p className="text-sm text-gray-500 mb-2">Welcome back</p>
+          <h1 className="text-4xl font-bold text-gray-900">{profile?.full_name?.split(' ')[0]}</h1>
+        </div>
+        
+        {/* Main Focus Card */}
+        <div className={`rounded-3xl p-8 text-center text-white ${
+          priority === 'overdue' ? 'bg-gradient-to-br from-red-500 to-rose-600' :
+          priority === 'pending' ? 'bg-gradient-to-br from-amber-500 to-orange-600' :
+          'bg-gradient-to-br from-emerald-500 to-green-600'
+        }`}>
+          <div className="w-20 h-20 mx-auto bg-white/20 rounded-full flex items-center justify-center mb-4">
+            {priority === 'overdue' ? <AlertTriangle className="w-10 h-10" /> :
+             priority === 'pending' ? <Clock className="w-10 h-10" /> :
+             <CheckCircle className="w-10 h-10" />}
+          </div>
+          <p className="text-6xl font-bold mb-2">
+            {priority === 'overdue' ? stats.coachingOverdue :
+             priority === 'pending' ? stats.trainingPending :
+             stats.trainingCompleted}
+          </p>
+          <p className="text-xl text-white/90">
+            {priority === 'overdue' ? 'Coaching Overdue' :
+             priority === 'pending' ? 'Training Pending' :
+             'Training Completed'}
+          </p>
+          <p className="text-white/70 mt-4 max-w-sm mx-auto">
+            {priority === 'overdue' ? 'Address these coaching sessions first.' :
+             priority === 'pending' ? 'Your team has training in progress.' :
+             'Excellent! Your team is making great progress.'}
+          </p>
+        </div>
+        
+        {/* Simple Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+            <p className="text-3xl font-bold text-gray-900">{stats.teamMembers}</p>
+            <p className="text-sm text-gray-500">Team Size</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+            <p className="text-3xl font-bold text-gray-900">{competencyProgress}%</p>
+            <p className="text-sm text-gray-500">Competency</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+            <p className="text-3xl font-bold text-gray-900">{stats.coachingActive}</p>
+            <p className="text-sm text-gray-500">Coaching</p>
+          </div>
+        </div>
+        
+        {/* Simple Actions */}
+        <div className="flex justify-center gap-4">
+          <button onClick={() => navigate('/users')} className="px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800">
+            View Team
+          </button>
+          <button onClick={() => navigate('/training')} className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50">
+            Training
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // CUSTOM LAYOUT - User configurable widgets
+  const CustomLayout = () => {
+    const widgetComponents = {
+      welcome: (
+        <div className="bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl p-6 text-white col-span-2">
+          <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <h2 className="text-2xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
+        </div>
+      ),
+      kpiStrip: (
+        <div className="grid grid-cols-4 gap-3 col-span-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            <div><p className="text-xl font-bold text-blue-700">{stats.teamMembers}</p><p className="text-xs text-gray-500">Team</p></div>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
+            <Target className="w-5 h-5 text-emerald-600" />
+            <div><p className="text-xl font-bold text-emerald-700">{competencyProgress}%</p><p className="text-xs text-gray-500">Progress</p></div>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-amber-600" />
+            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Done</p></div>
+          </div>
+          <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'} border rounded-xl p-3 flex items-center gap-2`}>
+            <MessageSquare className={`w-5 h-5 ${stats.coachingOverdue > 0 ? 'text-red-600' : 'text-purple-600'}`} />
+            <div><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
+          </div>
+        </div>
+      ),
+      teamStatus: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team</h3>
+          <div className="space-y-2">
+            {teamMembersList.slice(0, 4).map(m => (
+              <div key={m.id} className="flex items-center gap-2 text-sm"><span className="w-2 h-2 rounded-full bg-emerald-500" />{m.full_name}</div>
+            ))}
+          </div>
+        </div>
+      ),
+      quickActions: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Actions</h3>
+          <div className="space-y-2">
+            <button onClick={() => navigate('/users?action=add')} className="w-full p-2 bg-gray-50 rounded-lg text-sm text-left hover:bg-gray-100">Add Member</button>
+            <button onClick={() => navigate('/training')} className="w-full p-2 bg-gray-50 rounded-lg text-sm text-left hover:bg-gray-100">Training</button>
+          </div>
+        </div>
+      ),
+      trainingProgress: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Progress</h3>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full" style={{ width: `${competencyProgress}%` }} />
+          </div>
+          <p className="text-xs text-gray-500 mt-2">{competencyProgress}% competency achieved</p>
+        </div>
+      ),
+      recentActivity: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Activity className="w-4 h-4 text-green-600" /> Recent</h3>
+          <div className="space-y-2">
+            {recentActivity.slice(0, 3).map(item => (
+              <div key={item.id} className="flex items-center gap-2 text-sm">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="truncate">{item.trainee_name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+      competencyRing: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+          <ProgressRing percentage={competencyProgress} color="#10B981" size={80} />
+          <p className="text-sm text-gray-600 mt-2">{stats.competenciesAchieved}/{stats.competenciesAssigned}</p>
+        </div>
+      ),
+      coachingOverview: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Coaching</h3>
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{stats.coachingActive}</p><p className="text-xs text-gray-500">Active</p></div>
+            <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50' : 'bg-emerald-50'} rounded-lg p-2`}><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{stats.coachingOverdue}</p><p className="text-xs text-gray-500">Overdue</p></div>
+          </div>
+        </div>
+      ),
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Your Dashboard</h2>
+          <button onClick={() => setShowWidgetPicker(!showWidgetPicker)} className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200">
+            <Plus className="w-4 h-4" /> Add Widget
+          </button>
+        </div>
+        
+        {showWidgetPicker && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Available Widgets</h3>
+              <button onClick={() => setShowWidgetPicker(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {Object.entries(availableWidgets).map(([id, widget]) => {
+                const isActive = activeWidgets.includes(id);
+                return (
+                  <button key={id} onClick={() => {
+                    if (isActive) handleWidgetsChange(activeWidgets.filter(w => w !== id));
+                    else handleWidgetsChange([...activeWidgets, id]);
+                  }} className={`p-3 rounded-xl border-2 text-left ${isActive ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="flex items-center gap-2">
+                      <widget.icon className={`w-4 h-4 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                      {isActive && <Check className="w-4 h-4 text-purple-600 ml-auto" />}
+                    </div>
+                    <p className={`text-sm font-medium mt-1 ${isActive ? 'text-purple-700' : 'text-gray-700'}`}>{widget.name}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {activeWidgets.map(widgetId => {
+            const widget = widgetComponents[widgetId];
+            if (!widget) return null;
+            const size = availableWidgets[widgetId]?.size;
+            return (
+              <div key={widgetId} className={`relative group ${size === 'large' || size === 'full' ? 'md:col-span-2' : ''}`}>
+                {widget}
+                <button onClick={() => handleWidgetsChange(activeWidgets.filter(w => w !== widgetId))} className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================================================
+  // MAIN RENDER
+  // ============================================================================
+
+  return (
+    <div className="relative">
+      {/* Layout Selector - Top Right */}
+      <div className="absolute top-0 right-0 z-10">
+        <LayoutSelector 
+          currentLayout={currentLayout}
+          onLayoutChange={handleLayoutChange}
+          showSelector={showLayoutSelector}
+          setShowSelector={setShowLayoutSelector}
+        />
+      </div>
+
+      {/* Render selected layout */}
+      <div className={currentLayout === 'command' ? '' : 'pt-2'}>
+        {currentLayout === 'classic' && <ClassicLayout />}
+        {currentLayout === 'magazine' && <MagazineLayout />}
+        {currentLayout === 'command' && <CommandLayout />}
+        {currentLayout === 'focus' && <FocusLayout />}
+        {currentLayout === 'custom' && <CustomLayout />}
       </div>
 
       {/* Create Development Modal */}
