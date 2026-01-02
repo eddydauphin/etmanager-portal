@@ -206,14 +206,26 @@ function TrainingCard({ training, onStart, onContinue }) {
 }
 
 // Slide Viewer Component
-function SlideViewer({ slides, currentSlide, setCurrentSlide, hasAudio, onComplete }) {
+function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true); // User preference for audio
   const audioRef = useRef(null);
   
   const slide = slides[currentSlide];
   const isLastSlide = currentSlide === slides.length - 1;
   const isFirstSlide = currentSlide === 0;
+  
+  // Check if ANY slide in the module has audio
+  const moduleHasAudio = slides.some(s => s.audio_url);
+
+  // Stop audio when changing slides
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [currentSlide]);
 
   const playAudio = async () => {
     if (!slide?.audio_url) return;
@@ -239,6 +251,14 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, hasAudio, onComple
     setIsPlaying(false);
   };
 
+  const toggleAudioEnabled = () => {
+    if (audioEnabled && isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+    setAudioEnabled(!audioEnabled);
+  };
+
   // Parse content - handle both string and object formats
   const keyPoints = typeof slide?.content === 'string' 
     ? JSON.parse(slide.content)?.key_points || []
@@ -253,20 +273,55 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, hasAudio, onComple
             <p className="text-blue-100 text-sm">Slide {currentSlide + 1} of {slides.length}</p>
             <h2 className="text-xl font-semibold">{slide?.title}</h2>
           </div>
-          {hasAudio && slide?.audio_url && (
-            <button
-              onClick={playAudio}
-              disabled={audioLoading}
-              className="p-3 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
-            >
-              {audioLoading ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : isPlaying ? (
-                <Pause className="w-6 h-6" />
-              ) : (
-                <Volume2 className="w-6 h-6" />
+          
+          {/* Audio Controls */}
+          {moduleHasAudio && (
+            <div className="flex items-center gap-2">
+              {/* Audio Enable/Disable Toggle */}
+              <button
+                onClick={toggleAudioEnabled}
+                className={`p-2 rounded-full transition-colors ${
+                  audioEnabled 
+                    ? 'bg-white/20 hover:bg-white/30' 
+                    : 'bg-red-500/30 hover:bg-red-500/40'
+                }`}
+                title={audioEnabled ? 'Disable audio narration' : 'Enable audio narration'}
+              >
+                {audioEnabled ? (
+                  <Volume2 className="w-5 h-5" />
+                ) : (
+                  <VolumeX className="w-5 h-5" />
+                )}
+              </button>
+              
+              {/* Play/Pause Button - only show if audio enabled AND slide has audio */}
+              {audioEnabled && slide?.audio_url && (
+                <button
+                  onClick={playAudio}
+                  disabled={audioLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+                >
+                  {audioLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : isPlaying ? (
+                    <>
+                      <Pause className="w-5 h-5" />
+                      <span className="text-sm font-medium">Pause</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5" />
+                      <span className="text-sm font-medium">Play Audio</span>
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+              
+              {/* No audio for this slide indicator */}
+              {audioEnabled && !slide?.audio_url && (
+                <span className="text-xs text-blue-200 italic">No audio for this slide</span>
+              )}
+            </div>
           )}
         </div>
         {/* Progress bar */}
@@ -818,7 +873,6 @@ export default function MyTrainingPage() {
             slides={slides}
             currentSlide={currentSlide}
             setCurrentSlide={setCurrentSlide}
-            hasAudio={selectedTraining.training_modules?.has_audio}
             onComplete={handleSlidesComplete}
           />
         ) : mode === 'quiz' ? (
