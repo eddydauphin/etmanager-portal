@@ -27,6 +27,9 @@ import MyProgressPage from './pages/MyProgressPage';
 import MyPlanPage from './pages/MyPlanPage';
 import MyTrainingPage from './pages/MyTrainingPage';
 
+// Learning Dashboard
+import LearningDashboard from './pages/LearningDashboard';
+
 // Layout
 import Layout from './components/shared/Layout';
 
@@ -110,6 +113,13 @@ function AppRoutes() {
         {/* Common routes - All authenticated users */}
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="settings" element={<SettingsPage />} />
+
+        {/* Learning Dashboard - Admin & Team Lead */}
+        <Route path="learning" element={
+          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+            <LearningDashboard />
+          </ProtectedRoute>
+        } />
 
         {/* Super Admin only routes */}
         <Route path="clients" element={
