@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { dbFetch } from '../lib/db';
+import { getDefaultCapabilities, getAvailableCapabilitiesForRole } from '../components/shared/Layout';
 import {
   Users,
   Plus,
@@ -25,7 +26,11 @@ import {
   CheckCircle2,
   Hash,
   Briefcase,
-  Calendar
+  Calendar,
+  Settings2,
+  ToggleLeft,
+  ToggleRight,
+  Info
 } from 'lucide-react';
 
 export default function UsersPage() {
@@ -53,7 +58,7 @@ export default function UsersPage() {
   const [newUserCredentials, setNewUserCredentials] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   
-  // Form state - now includes employee fields
+  // Form state - now includes employee fields and capabilities
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
@@ -64,8 +69,10 @@ export default function UsersPage() {
     department: '',
     line: '',
     hire_date: '',
-    is_active: true
+    is_active: true,
+    capabilities: {}
   });
+  const [showCapabilities, setShowCapabilities] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -108,9 +115,9 @@ export default function UsersPage() {
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
       
-      // If team lead, filter by client AND show only trainees that report to them (plus themselves)
-      if (currentProfile?.role === 'team_lead' && currentProfile?.client_id) {
-        url += `&client_id=eq.${currentProfile.client_id}&or=(id.eq.${currentProfile.id},reports_to_id.eq.${currentProfile.id})`;
+      // If team lead, only show trainees that report to them
+      if (currentProfile?.role === 'team_lead') {
+        url += `&or=(id.eq.${currentProfile.id},reports_to_id.eq.${currentProfile.id})`;
       }
 
       const data = await dbFetch(url);
@@ -122,14 +129,7 @@ export default function UsersPage() {
 
   const loadClients = async () => {
     try {
-      let url = 'clients?select=id,name,code&is_active=eq.true&order=name.asc';
-      
-      // Non-super_admin should only see their own client
-      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
-        url += `&id=eq.${currentProfile.client_id}`;
-      }
-      
-      const data = await dbFetch(url);
+      const data = await dbFetch('clients?select=id,name,code&is_active=eq.true&order=name.asc');
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
@@ -140,8 +140,8 @@ export default function UsersPage() {
     try {
       let url = 'profiles?select=id,full_name,email,client_id&role=eq.team_lead&is_active=eq.true&order=full_name.asc';
       
-      // All non-super_admin should only see team leads from their client
-      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+      // If client admin, only show team leads from their client
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
         url += `&client_id=eq.${currentProfile.client_id}`;
       }
       
@@ -177,19 +177,22 @@ export default function UsersPage() {
     
     // Team leads can only create trainees that report to them
     const defaultReportsTo = currentProfile?.role === 'team_lead' ? currentProfile.id : '';
+    const defaultRole = (currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? 'trainee' : 'trainee';
     
     setFormData({
       email: '',
       full_name: '',
-      role: (currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? 'trainee' : 'trainee',
+      role: defaultRole,
       client_id: (currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? currentProfile.client_id : '',
       reports_to_id: defaultReportsTo,
       employee_number: '',
       department: '',
       line: '',
       hire_date: '',
-      is_active: true
+      is_active: true,
+      capabilities: getDefaultCapabilities(defaultRole)
     });
+    setShowCapabilities(false);
     setFormError('');
     setFormSuccess('');
     setShowModal(true);
@@ -208,12 +211,15 @@ export default function UsersPage() {
       department: user.department || '',
       line: user.line || '',
       hire_date: user.hire_date || '',
-      is_active: user.is_active !== false
+      is_active: user.is_active !== false,
+      capabilities: user.capabilities || getDefaultCapabilities(user.role || 'trainee')
     });
+    setShowCapabilities(false);
     setFormError('');
     setFormSuccess('');
     setShowModal(true);
     setOpenDropdown(null);
+  };
   };
 
   // Generate temporary password
@@ -281,6 +287,7 @@ export default function UsersPage() {
           line: formData.line || null,
           hire_date: formData.hire_date || null,
           is_active: formData.is_active,
+          capabilities: formData.capabilities || getDefaultCapabilities(formData.role),
           updated_at: new Date().toISOString()
         };
 
@@ -335,6 +342,7 @@ export default function UsersPage() {
               department: formData.department || null,
               line: formData.line || null,
               hire_date: formData.hire_date || null,
+              capabilities: formData.capabilities || getDefaultCapabilities(formData.role),
               must_change_password: true,
               is_active: true
             })
@@ -876,7 +884,7 @@ export default function UsersPage() {
                         name="role"
                         value="super_admin"
                         checked={formData.role === 'super_admin'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value, client_id: '', reports_to_id: '' })}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, client_id: '', reports_to_id: '', capabilities: getDefaultCapabilities(e.target.value) })}
                         className="sr-only"
                       />
                       <ShieldCheck className={`w-5 h-5 ${formData.role === 'super_admin' ? 'text-purple-600' : 'text-gray-400'}`} />
@@ -895,7 +903,7 @@ export default function UsersPage() {
                         name="role"
                         value="client_admin"
                         checked={formData.role === 'client_admin'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '' })}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '', capabilities: getDefaultCapabilities(e.target.value) })}
                         className="sr-only"
                       />
                       <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
@@ -914,7 +922,7 @@ export default function UsersPage() {
                         name="role"
                         value="team_lead"
                         checked={formData.role === 'team_lead'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '' })}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '', capabilities: getDefaultCapabilities(e.target.value) })}
                         className="sr-only"
                       />
                       <Users className={`w-5 h-5 ${formData.role === 'team_lead' ? 'text-orange-600' : 'text-gray-400'}`} />
@@ -931,7 +939,7 @@ export default function UsersPage() {
                       name="role"
                       value="trainee"
                       checked={formData.role === 'trainee'}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value, capabilities: getDefaultCapabilities(e.target.value) })}
                       className="sr-only"
                     />
                     <UserCheck className={`w-5 h-5 ${formData.role === 'trainee' ? 'text-green-600' : 'text-gray-400'}`} />
@@ -1075,6 +1083,93 @@ export default function UsersPage() {
                     </div>
                   </div>
                 </>
+              )}
+
+              {/* Capabilities Section */}
+              {(currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin') && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowCapabilities(!showCapabilities)}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="w-5 h-5 text-purple-600" />
+                      <span className="font-medium text-gray-900">Capabilities & Permissions</span>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showCapabilities ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showCapabilities && (
+                    <div className="p-4 space-y-4">
+                      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-blue-700">
+                          Enable or disable specific features for this user. These settings override role-based defaults.
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {getAvailableCapabilitiesForRole(formData.role).map(cap => {
+                          const isEnabled = formData.capabilities?.[cap.key] !== false && 
+                            (formData.capabilities?.[cap.key] === true || getDefaultCapabilities(formData.role)[cap.key]);
+                          const Icon = cap.icon;
+                          
+                          return (
+                            <label
+                              key={cap.key}
+                              className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                isEnabled 
+                                  ? 'border-purple-300 bg-purple-50' 
+                                  : 'border-gray-200 bg-white hover:border-gray-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={(e) => {
+                                  setFormData({
+                                    ...formData,
+                                    capabilities: {
+                                      ...formData.capabilities,
+                                      [cap.key]: e.target.checked
+                                    }
+                                  });
+                                }}
+                                className="sr-only"
+                              />
+                              <div className={`flex-shrink-0 ${isEnabled ? 'text-purple-600' : 'text-gray-400'}`}>
+                                {isEnabled ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <Icon className={`w-4 h-4 ${isEnabled ? 'text-purple-600' : 'text-gray-400'}`} />
+                                  <span className={`font-medium text-sm ${isEnabled ? 'text-purple-700' : 'text-gray-700'}`}>
+                                    {cap.label}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 truncate">{cap.description}</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ 
+                            ...formData, 
+                            capabilities: getDefaultCapabilities(formData.role) 
+                          })}
+                          className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                        >
+                          Reset to defaults
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Active Status - Only for editing */}

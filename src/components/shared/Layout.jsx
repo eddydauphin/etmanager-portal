@@ -19,6 +19,95 @@ import {
   ClipboardList
 } from 'lucide-react';
 
+// ============================================================================
+// CAPABILITY DEFINITIONS
+// ============================================================================
+
+const ALL_CAPABILITIES = {
+  dashboard: { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', description: 'View dashboard and KPIs' },
+  clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
+  users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
+  expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
+  competencies: { icon: Target, label: 'Competencies', path: '/competencies', description: 'Manage competency framework' },
+  profiles: { icon: FileText, label: 'Profiles', path: '/profiles', description: 'Manage competency profiles' },
+  development: { icon: ClipboardList, label: 'Development', path: '/development', description: 'Manage development activities' },
+  training: { icon: GraduationCap, label: 'Training', path: '/training', description: 'Manage training modules' },
+  reports: { icon: BarChart3, label: 'Reports', path: '/reports', description: 'View analytics and reports' },
+  settings: { icon: Settings, label: 'Settings', path: '/settings', description: 'Account settings' },
+  // Trainee-specific
+  my_progress: { icon: TrendingUp, label: 'My Progress', path: '/my-progress', description: 'View your progress', traineeOnly: true },
+  my_plan: { icon: FileText, label: 'My Plan', path: '/my-plan', description: 'View your development plan', traineeOnly: true },
+  my_training: { icon: BookOpen, label: 'My Training', path: '/my-training', description: 'Access your training', traineeOnly: true },
+};
+
+// Helper to check if user has capability
+export function hasCapability(profile, capability) {
+  if (!profile) return false;
+  
+  // Super admin always has all capabilities
+  if (profile.role === 'super_admin') return true;
+  
+  // Check capabilities object
+  if (profile.capabilities && typeof profile.capabilities === 'object') {
+    return profile.capabilities[capability] === true;
+  }
+  
+  // Fallback to role-based defaults if no capabilities set
+  return getDefaultCapabilities(profile.role)[capability] || false;
+}
+
+// Default capabilities by role (fallback)
+export function getDefaultCapabilities(role) {
+  switch (role) {
+    case 'super_admin':
+      return {
+        dashboard: true, clients: true, users: true, expert_network: true,
+        competencies: true, profiles: true, development: true, training: true,
+        reports: true, settings: true
+      };
+    case 'client_admin':
+      return {
+        dashboard: true, clients: false, users: true, expert_network: true,
+        competencies: true, profiles: true, development: true, training: true,
+        reports: true, settings: true
+      };
+    case 'team_lead':
+      return {
+        dashboard: true, clients: false, users: true, expert_network: false,
+        competencies: true, profiles: true, development: true, training: true,
+        reports: true, settings: true
+      };
+    case 'trainee':
+      return {
+        dashboard: true, clients: false, users: false, expert_network: false,
+        competencies: false, profiles: false, development: false, training: true,
+        reports: false, settings: true, my_progress: true, my_plan: true, my_training: true
+      };
+    default:
+      return { dashboard: true, settings: true };
+  }
+}
+
+// Get all available capabilities for a role (for the edit form)
+export function getAvailableCapabilitiesForRole(role) {
+  const capabilities = [];
+  
+  Object.entries(ALL_CAPABILITIES).forEach(([key, config]) => {
+    // Skip super admin only items for non-super admins
+    if (config.superAdminOnly && role !== 'super_admin') return;
+    // Skip trainee only items for non-trainees
+    if (config.traineeOnly && role !== 'trainee') return;
+    // Include trainee items only for trainees
+    if (!config.traineeOnly || role === 'trainee') {
+      if (!config.superAdminOnly || role === 'super_admin') {
+        capabilities.push({ key, ...config });
+      }
+    }
+  });
+  
+  return capabilities;
+}
+
 function Layout() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -30,60 +119,38 @@ function Layout() {
     navigate('/login');
   };
 
-  // Menu items based on role
+  // Build menu items based on capabilities
   const getMenuItems = () => {
     const role = profile?.role;
+    const items = [];
 
-    if (role === 'super_admin') {
-      return [
-        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/clients', icon: Building2, label: 'Clients' },
-        { to: '/users', icon: Users, label: 'Users' },
-        { to: '/expert-network', icon: Network, label: 'Expert Network' },
-        { to: '/competencies', icon: Target, label: 'Competencies' },
-        { to: '/profiles', icon: FileText, label: 'Profiles' },
-        { to: '/development', icon: ClipboardList, label: 'Development' },
-        { to: '/training', icon: GraduationCap, label: 'Training' },
-        { to: '/reports', icon: BarChart3, label: 'Reports' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
-      ];
-    }
+    // Define menu order
+    const menuOrder = role === 'trainee' 
+      ? ['dashboard', 'my_progress', 'my_plan', 'my_training', 'settings']
+      : ['dashboard', 'clients', 'users', 'expert_network', 'competencies', 'profiles', 'development', 'training', 'reports', 'settings'];
 
-    if (role === 'client_admin') {
-      return [
-        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/users', icon: Users, label: 'Team' },
-        { to: '/expert-network', icon: Network, label: 'Expert Network' },
-        { to: '/competencies', icon: Target, label: 'Competencies' },
-        { to: '/profiles', icon: FileText, label: 'Profiles' },
-        { to: '/development', icon: ClipboardList, label: 'Development' },
-        { to: '/training', icon: GraduationCap, label: 'Training' },
-        { to: '/reports', icon: BarChart3, label: 'Reports' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
-      ];
-    }
+    menuOrder.forEach(capKey => {
+      const config = ALL_CAPABILITIES[capKey];
+      if (!config) return;
 
-    if (role === 'team_lead') {
-      return [
-        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/users', icon: Users, label: 'My Team' },
-        { to: '/competencies', icon: Target, label: 'Competencies' },
-        { to: '/profiles', icon: FileText, label: 'Profiles' },
-        { to: '/development', icon: ClipboardList, label: 'Development' },
-        { to: '/training', icon: GraduationCap, label: 'Training' },
-        { to: '/reports', icon: BarChart3, label: 'Reports' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
-      ];
-    }
+      // Check if user has this capability
+      if (hasCapability(profile, capKey)) {
+        // Apply role-specific label changes
+        let label = config.label;
+        if (capKey === 'users') {
+          if (role === 'client_admin') label = 'Team';
+          else if (role === 'team_lead') label = 'My Team';
+        }
 
-    // trainee - now includes Dashboard
-    return [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/my-progress', icon: TrendingUp, label: 'My Progress' },
-      { to: '/my-plan', icon: FileText, label: 'My Plan' },
-      { to: '/my-training', icon: BookOpen, label: 'My Training' },
-      { to: '/settings', icon: Settings, label: 'Settings' },
-    ];
+        items.push({
+          to: config.path,
+          icon: config.icon,
+          label: label
+        });
+      }
+    });
+
+    return items;
   };
 
   const menuItems = getMenuItems();

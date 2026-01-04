@@ -1,6 +1,6 @@
 // ============================================================================
 // E&T MANAGER - MAIN APPLICATION
-// Routes and authentication wrapper
+// Routes and authentication wrapper with capability-based access control
 // ============================================================================
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -28,7 +28,7 @@ import MyPlanPage from './pages/MyPlanPage';
 import MyTrainingPage from './pages/MyTrainingPage';
 
 // Layout
-import Layout from './components/shared/Layout';
+import Layout, { hasCapability } from './components/shared/Layout';
 
 // Loading spinner
 function LoadingScreen() {
@@ -42,8 +42,8 @@ function LoadingScreen() {
   );
 }
 
-// Protected route wrapper
-function ProtectedRoute({ children, allowedRoles = [] }) {
+// Protected route wrapper with capability check
+function ProtectedRoute({ children, allowedRoles = [], requiredCapability = null }) {
   const { user, profile, loading, mustChangePassword } = useAuth();
 
   if (loading) {
@@ -59,8 +59,13 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     return <Navigate to="/change-password" replace />;
   }
 
-  // Check role if specified
-  if (allowedRoles.length > 0 && !allowedRoles.includes(profile?.role)) {
+  // Check capability first (more granular)
+  if (requiredCapability && !hasCapability(profile, requiredCapability)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Fallback to role check if no capability specified
+  if (!requiredCapability && allowedRoles.length > 0 && !allowedRoles.includes(profile?.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -84,8 +89,6 @@ function PublicRoute({ children }) {
 
 // App routes
 function AppRoutes() {
-  const { profile } = useAuth();
-  
   return (
     <Routes>
       {/* Public routes */}
@@ -104,94 +107,104 @@ function AppRoutes() {
           <Layout />
         </ProtectedRoute>
       }>
-        {/* Default redirect based on role */}
+        {/* Default redirect */}
         <Route index element={<Navigate to="/dashboard" replace />} />
         
-        {/* Common routes - All authenticated users */}
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        {/* Dashboard - everyone with capability */}
+        <Route path="dashboard" element={
+          <ProtectedRoute requiredCapability="dashboard">
+            <DashboardPage />
+          </ProtectedRoute>
+        } />
+        
+        {/* Settings - everyone with capability */}
+        <Route path="settings" element={
+          <ProtectedRoute requiredCapability="settings">
+            <SettingsPage />
+          </ProtectedRoute>
+        } />
 
-        {/* Super Admin only routes */}
+        {/* Clients - requires clients capability (typically super_admin only) */}
         <Route path="clients" element={
-          <ProtectedRoute allowedRoles={['super_admin']}>
+          <ProtectedRoute requiredCapability="clients">
             <ClientsPage />
           </ProtectedRoute>
         } />
 
-        {/* Users - Super Admin sees all, Client Admin sees their org, Team Lead sees their team */}
+        {/* Users - requires users capability */}
         <Route path="users" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+          <ProtectedRoute requiredCapability="users">
             <UsersPage />
           </ProtectedRoute>
         } />
 
-        {/* Expert Network - Super Admin & Client Admin */}
+        {/* Expert Network - requires expert_network capability */}
         <Route path="expert-network" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+          <ProtectedRoute requiredCapability="expert_network">
             <ExpertNetworkPage />
           </ProtectedRoute>
         } />
 
-        {/* Competencies - Super Admin, Client Admin & Team Lead */}
+        {/* Competencies - requires competencies capability */}
         <Route path="competencies" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+          <ProtectedRoute requiredCapability="competencies">
             <CompetenciesPage />
           </ProtectedRoute>
         } />
 
-        {/* Competency Profiles - Super Admin, Client Admin & Team Lead */}
+        {/* Competency Profiles - requires profiles capability */}
         <Route path="profiles" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+          <ProtectedRoute requiredCapability="profiles">
             <CompetencyProfilesPage />
           </ProtectedRoute>
         } />
 
-        {/* Development Activities - Super Admin, Client Admin & Team Lead */}
+        {/* Development Activities - requires development capability */}
         <Route path="development" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+          <ProtectedRoute requiredCapability="development">
             <DevelopmentActivitiesPage />
           </ProtectedRoute>
         } />
 
-        {/* Training - All roles can access (trainees need it for training development) */}
+        {/* Training - requires training capability */}
         <Route path="training" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead', 'trainee']}>
+          <ProtectedRoute requiredCapability="training">
             <TrainingModulesPage />
           </ProtectedRoute>
         } />
 
-        {/* Reports - Super Admin, Client Admin & Team Lead */}
+        {/* Reports - requires reports capability */}
         <Route path="reports" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin', 'team_lead']}>
+          <ProtectedRoute requiredCapability="reports">
             <ReportsPage />
           </ProtectedRoute>
         } />
 
-        {/* Trainees - Super Admin & Client Admin (legacy route) */}
+        {/* Legacy Trainees routes */}
         <Route path="trainees" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+          <ProtectedRoute requiredCapability="users">
             <TraineesPage />
           </ProtectedRoute>
         } />
         <Route path="trainees/:id" element={
-          <ProtectedRoute allowedRoles={['super_admin', 'client_admin']}>
+          <ProtectedRoute requiredCapability="users">
             <TraineeDetailPage />
           </ProtectedRoute>
         } />
         
-        {/* Trainee routes - their own views */}
+        {/* Trainee-specific routes */}
         <Route path="my-progress" element={
-          <ProtectedRoute allowedRoles={['trainee']}>
+          <ProtectedRoute requiredCapability="my_progress">
             <MyProgressPage />
           </ProtectedRoute>
         } />
         <Route path="my-plan" element={
-          <ProtectedRoute allowedRoles={['trainee']}>
+          <ProtectedRoute requiredCapability="my_plan">
             <MyPlanPage />
           </ProtectedRoute>
         } />
         <Route path="my-training" element={
-          <ProtectedRoute allowedRoles={['trainee']}>
+          <ProtectedRoute requiredCapability="my_training">
             <MyTrainingPage />
           </ProtectedRoute>
         } />
