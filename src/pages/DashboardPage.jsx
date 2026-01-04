@@ -2941,6 +2941,7 @@ function ClientAdminDashboard() {
   // Layout preferences
   const { currentLayout, activeWidgets, handleLayoutChange, handleWidgetsChange } = useLayoutPreferences(profile?.id);
   const [showLayoutSelector, setShowLayoutSelector] = useState(false);
+  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
   
   const [users, setUsers] = useState([]);
   const [clientName, setClientName] = useState('');
@@ -3224,8 +3225,182 @@ function ClientAdminDashboard() {
     </div>
   );
 
-  // CUSTOM LAYOUT - Configurable (same as Magazine for now)
-  const CustomLayout = () => <MagazineLayout />;
+  // CUSTOM LAYOUT - Configurable with widget picker
+  const CustomLayout = () => {
+    const widgetComponents = {
+      welcome: (
+        <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 rounded-2xl p-6 text-white col-span-2">
+          <p className="text-purple-200 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <h2 className="text-2xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
+          <p className="text-purple-200 mt-2">{stats.overdueCount === 0 ? 'All training is on track!' : `${stats.overdueCount} items need attention`}</p>
+        </div>
+      ),
+      kpiStrip: (
+        <div className="grid grid-cols-4 gap-3 col-span-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            <div><p className="text-xl font-bold text-blue-700">{traineeCount}</p><p className="text-xs text-gray-500">Trainees</p></div>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
+            <Target className="w-5 h-5 text-emerald-600" />
+            <div><p className="text-xl font-bold text-emerald-700">{avgScore}%</p><p className="text-xs text-gray-500">Progress</p></div>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-amber-600" />
+            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Completed</p></div>
+          </div>
+          <div className={`${stats.overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'} border rounded-xl p-3 flex items-center gap-2`}>
+            <MessageSquare className={`w-5 h-5 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-purple-600'}`} />
+            <div><p className={`text-xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
+          </div>
+        </div>
+      ),
+      teamStatus: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team Members</h3>
+          <div className="space-y-2">
+            {users.filter(u => u.role === 'trainee').slice(0, 5).map(m => (
+              <div key={m.id} className="flex items-center gap-2 text-sm"><span className="w-2 h-2 rounded-full bg-emerald-500" />{m.full_name}</div>
+            ))}
+            {traineeCount === 0 && <p className="text-sm text-gray-400">No trainees yet</p>}
+          </div>
+        </div>
+      ),
+      quickActions: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Quick Actions</h3>
+          <div className="space-y-2">
+            <button onClick={handleAddUser} className="w-full p-2 bg-blue-50 text-blue-700 rounded-lg text-sm text-left hover:bg-blue-100 font-medium">+ Add User</button>
+            <button onClick={handleAssignTraining} className="w-full p-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm text-left hover:bg-emerald-100 font-medium">Assign Training</button>
+            <button onClick={handleCoaching} className="w-full p-2 bg-purple-50 text-purple-700 rounded-lg text-sm text-left hover:bg-purple-100 font-medium">New Coaching</button>
+          </div>
+        </div>
+      ),
+      trainingProgress: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Training Progress</h3>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full" style={{ width: `${avgScore}%` }} />
+          </div>
+          <p className="text-xs text-gray-500 mt-2">{avgScore}% competency achieved</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-center text-sm">
+            <div className="bg-emerald-50 rounded-lg p-2"><span className="font-bold text-emerald-700">{stats.trainingCompleted}</span><span className="text-gray-500 ml-1">done</span></div>
+            <div className="bg-amber-50 rounded-lg p-2"><span className="font-bold text-amber-700">{stats.trainingPending}</span><span className="text-gray-500 ml-1">pending</span></div>
+          </div>
+        </div>
+      ),
+      recentActivity: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Activity className="w-4 h-4 text-green-600" /> Organization</h3>
+          <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
+        </div>
+      ),
+      competencyRing: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+          <h3 className="font-semibold text-gray-900 mb-3">Competency Progress</h3>
+          <ProgressRing percentage={avgScore} color="#10B981" size={80} />
+          <p className="text-sm text-gray-600 mt-2">{stats.competenciesAchieved}/{stats.competenciesAssigned} achieved</p>
+        </div>
+      ),
+      coachingOverview: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Coaching Overview</h3>
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{stats.coachingActive}</p><p className="text-xs text-gray-500">Active</p></div>
+            <div className={`${stats.overdueCount > 0 ? 'bg-red-50' : 'bg-emerald-50'} rounded-lg p-2`}><p className={`text-xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{stats.overdueCount}</p><p className="text-xs text-gray-500">Overdue</p></div>
+          </div>
+        </div>
+      ),
+      leaderboard: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-500" /> Summary</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+              <span className="text-sm text-gray-600">Modules</span>
+              <span className="font-bold text-gray-900">{stats.modulesCount}</span>
+            </div>
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+              <span className="text-sm text-gray-600">Networks</span>
+              <span className="font-bold text-gray-900">{stats.networkCount}</span>
+            </div>
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+              <span className="text-sm text-gray-600">Total Users</span>
+              <span className="font-bold text-gray-900">{users.length}</span>
+            </div>
+          </div>
+        </div>
+      ),
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Custom Dashboard</h1>
+            <p className="text-gray-600 mt-1">Build your own view, {profile?.full_name}</p>
+          </div>
+          <button onClick={() => setShowWidgetPicker(!showWidgetPicker)} className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium">
+            <Plus className="w-4 h-4" /> {showWidgetPicker ? 'Close' : 'Add Widget'}
+          </button>
+        </div>
+        
+        {showWidgetPicker && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Available Widgets</h3>
+              <button onClick={() => setShowWidgetPicker(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Object.entries(availableWidgets).map(([id, widget]) => {
+                const isActive = activeWidgets.includes(id);
+                return (
+                  <button key={id} onClick={() => {
+                    if (isActive) handleWidgetsChange(activeWidgets.filter(w => w !== id));
+                    else handleWidgetsChange([...activeWidgets, id]);
+                  }} className={`p-3 rounded-xl border-2 text-left transition-all ${isActive ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="flex items-center gap-2">
+                      <widget.icon className={`w-5 h-5 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                      {isActive && <Check className="w-4 h-4 text-purple-600 ml-auto" />}
+                    </div>
+                    <p className={`text-sm font-medium mt-2 ${isActive ? 'text-purple-700' : 'text-gray-700'}`}>{widget.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{widget.category}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        {activeWidgets.length === 0 ? (
+          <div className="text-center py-16 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+            <Grip className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-600">No widgets added yet</h3>
+            <p className="text-gray-500 mt-1">Click "Add Widget" to customize your dashboard</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeWidgets.map(widgetId => {
+              const widget = widgetComponents[widgetId];
+              if (!widget) return null;
+              const size = availableWidgets[widgetId]?.size;
+              return (
+                <div key={widgetId} className={`relative group ${size === 'large' || size === 'full' ? 'md:col-span-2' : ''}`}>
+                  {widget}
+                  <button 
+                    onClick={() => handleWidgetsChange(activeWidgets.filter(w => w !== widgetId))} 
+                    className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    title="Remove widget"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ============================================================================
   // MAIN RENDER
