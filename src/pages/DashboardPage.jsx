@@ -2611,9 +2611,12 @@ function SuperAdminDashboard() {
 // ============================================================================
 // ORGANIZATION HIERARCHY COMPONENT
 // Shows pyramid structure: Client Admin → Team Leads → Trainees
+// Collapsible - click to expand
 // ============================================================================
 
 function OrganizationHierarchy({ users, profile, clientName, hierarchySettings }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   // Separate users by role
   const clientAdmins = users.filter(u => u.role === 'client_admin');
   const categoryAdmins = users.filter(u => u.role === 'category_admin');
@@ -2635,86 +2638,119 @@ function OrganizationHierarchy({ users, profile, clientName, hierarchySettings }
   const unassignedTrainees = trainees.filter(t => !t.reports_to_id || !teamLeads.find(tl => tl.id === t.reports_to_id));
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+      {/* Clickable Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors rounded-xl"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
             <GitBranch className="w-5 h-5 text-purple-600" />
-            Organization Structure
-          </h2>
-          <p className="text-sm text-gray-500 mt-0.5">{clientName || 'My Organization'}</p>
+          </div>
+          <div className="text-left">
+            <h2 className="text-base font-semibold text-gray-900">My Organization</h2>
+            <p className="text-sm text-gray-500">{clientName || 'Organization Structure'} • {users.length} members</p>
+          </div>
         </div>
-        <div className="text-sm text-gray-500">
-          {users.length} total members
+        <div className="flex items-center gap-4">
+          {/* Quick Summary when collapsed */}
+          {!isExpanded && (
+            <div className="hidden sm:flex items-center gap-3 text-sm text-gray-500">
+              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                {clientAdmins.length} Admin{clientAdmins.length !== 1 ? 's' : ''}
+              </span>
+              {categoryAdmins.length > 0 && (
+                <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                  {categoryAdmins.length} Category
+                </span>
+              )}
+              {siteAdmins.length > 0 && (
+                <span className="px-2 py-1 bg-cyan-100 text-cyan-700 rounded-full text-xs font-medium">
+                  {siteAdmins.length} Site
+                </span>
+              )}
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                {teamLeads.length} Lead{teamLeads.length !== 1 ? 's' : ''}
+              </span>
+              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                {trainees.length} Trainee{trainees.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
+          <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
         </div>
-      </div>
+      </button>
 
-      {/* Pyramid Structure */}
-      <div className="flex flex-col items-center space-y-4">
-        
-        {/* Level 1: Client Admin(s) */}
-        <div className="flex flex-col items-center">
-          <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Administration</div>
-          <div className="flex flex-wrap justify-center gap-3">
-            {clientAdmins.map(admin => (
-              <div 
-                key={admin.id}
-                className="flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg"
-              >
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Crown className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-semibold">{admin.full_name}</p>
-                  <p className="text-xs text-purple-200">Client Admin</p>
-                </div>
+      {/* Expandable Content */}
+      {isExpanded && (
+        <div className="px-6 pb-6 pt-2 border-t border-gray-100">
+          {/* Pyramid Structure */}
+          <div className="flex flex-col items-center space-y-4">
+            
+            {/* Level 1: Client Admin(s) */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Administration</div>
+              <div className="flex flex-wrap justify-center gap-3">
+                {clientAdmins.map(admin => (
+                  <div 
+                    key={admin.id}
+                    className="flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg"
+                  >
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                      <Crown className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">{admin.full_name}</p>
+                      <p className="text-xs text-purple-200">Client Admin</p>
+                    </div>
+                  </div>
+                ))}
+                {clientAdmins.length === 0 && (
+                  <div className="px-4 py-3 bg-gray-100 text-gray-500 rounded-xl text-sm">
+                    No client admin assigned
+                  </div>
+                )}
               </div>
-            ))}
-            {clientAdmins.length === 0 && (
-              <div className="px-4 py-3 bg-gray-100 text-gray-500 rounded-xl text-sm">
-                No client admin assigned
+            </div>
+
+            {/* Connector Line to Category Admins */}
+            {categoryAdmins.length > 0 && (
+              <div className="flex flex-col items-center">
+                <div className="w-0.5 h-6 bg-gray-300"></div>
+                <ChevronDown className="w-4 h-4 text-gray-400 -mt-1" />
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Connector Line to Category Admins */}
-        {categoryAdmins.length > 0 && (
-          <div className="flex flex-col items-center">
-            <div className="w-0.5 h-6 bg-gray-300"></div>
-            <ChevronDown className="w-4 h-4 text-gray-400 -mt-1" />
-          </div>
-        )}
-
-        {/* Level 2: Category Admin(s) */}
-        {categoryAdmins.length > 0 && (
-          <div className="flex flex-col items-center">
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-              {hierarchySettings?.category_admin_label || 'Category Management'}
-            </div>
-            <div className="flex flex-wrap justify-center gap-3">
-              {categoryAdmins.map(catAdmin => (
-                <div 
-                  key={catAdmin.id}
-                  className="flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-xl shadow-md"
-                >
-                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <Briefcase className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{catAdmin.full_name}</p>
-                    <p className="text-xs text-indigo-200">
-                      {hierarchySettings?.category_admin_label || 'Category Admin'}
-                      {catAdmin.category ? ` • ${catAdmin.category}` : ''}
-                    </p>
-                  </div>
+            {/* Level 2: Category Admin(s) */}
+            {categoryAdmins.length > 0 && (
+              <div className="flex flex-col items-center">
+                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  {hierarchySettings?.category_admin_label || 'Category Management'}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <div className="flex flex-wrap justify-center gap-3">
+                  {categoryAdmins.map(catAdmin => (
+                    <div 
+                      key={catAdmin.id}
+                      className="flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-xl shadow-md"
+                    >
+                      <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                        <Briefcase className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">{catAdmin.full_name}</p>
+                        <p className="text-xs text-indigo-200">
+                          {hierarchySettings?.category_admin_label || 'Category Admin'}
+                          {catAdmin.category ? ` • ${catAdmin.category}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Connector Line to Site Admins */}
+            {/* Connector Line to Site Admins */}
         {siteAdmins.length > 0 && (
           <div className="flex flex-col items-center">
             <div className="w-0.5 h-6 bg-gray-300"></div>
@@ -2862,33 +2898,35 @@ function OrganizationHierarchy({ users, profile, clientName, hierarchySettings }
         )}
       </div>
 
-      {/* Summary Footer */}
-      <div className="mt-6 pt-4 border-t border-gray-100 flex justify-center gap-6 text-sm flex-wrap">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-purple-600">{clientAdmins.length}</div>
-          <div className="text-gray-500">Client Admin{clientAdmins.length !== 1 ? 's' : ''}</div>
-        </div>
-        {categoryAdmins.length > 0 && (
-          <div className="text-center">
-            <div className="text-2xl font-bold text-indigo-600">{categoryAdmins.length}</div>
-            <div className="text-gray-500">{hierarchySettings?.category_admin_label || 'Category Admin'}{categoryAdmins.length !== 1 ? 's' : ''}</div>
+          {/* Summary Footer */}
+          <div className="mt-6 pt-4 border-t border-gray-100 flex justify-center gap-6 text-sm flex-wrap">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{clientAdmins.length}</div>
+              <div className="text-gray-500">Client Admin{clientAdmins.length !== 1 ? 's' : ''}</div>
+            </div>
+            {categoryAdmins.length > 0 && (
+              <div className="text-center">
+                <div className="text-2xl font-bold text-indigo-600">{categoryAdmins.length}</div>
+                <div className="text-gray-500">{hierarchySettings?.category_admin_label || 'Category Admin'}{categoryAdmins.length !== 1 ? 's' : ''}</div>
+              </div>
+            )}
+            {siteAdmins.length > 0 && (
+              <div className="text-center">
+                <div className="text-2xl font-bold text-cyan-600">{siteAdmins.length}</div>
+                <div className="text-gray-500">{hierarchySettings?.site_admin_label || 'Site Admin'}{siteAdmins.length !== 1 ? 's' : ''}</div>
+              </div>
+            )}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{teamLeads.length}</div>
+              <div className="text-gray-500">{hierarchySettings?.team_lead_label || 'Team Lead'}{teamLeads.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-600">{trainees.length}</div>
+              <div className="text-gray-500">{hierarchySettings?.trainee_label || 'Trainee'}{trainees.length !== 1 ? 's' : ''}</div>
+            </div>
           </div>
-        )}
-        {siteAdmins.length > 0 && (
-          <div className="text-center">
-            <div className="text-2xl font-bold text-cyan-600">{siteAdmins.length}</div>
-            <div className="text-gray-500">{hierarchySettings?.site_admin_label || 'Site Admin'}{siteAdmins.length !== 1 ? 's' : ''}</div>
-          </div>
-        )}
-        <div className="text-center">
-          <div className="text-2xl font-bold text-blue-600">{teamLeads.length}</div>
-          <div className="text-gray-500">{hierarchySettings?.team_lead_label || 'Team Lead'}{teamLeads.length !== 1 ? 's' : ''}</div>
         </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-emerald-600">{trainees.length}</div>
-          <div className="text-gray-500">{hierarchySettings?.trainee_label || 'Trainee'}{trainees.length !== 1 ? 's' : ''}</div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -2896,8 +2934,14 @@ function OrganizationHierarchy({ users, profile, clientName, hierarchySettings }
 // Client Admin Dashboard
 function ClientAdminDashboard() {
   const { profile, clientId: authClientId } = useAuth();
+  const navigate = useNavigate();
   // Use clientId from auth context, fallback to profile.client_id
   const clientId = authClientId || profile?.client_id;
+  
+  // Layout preferences
+  const { currentLayout, activeWidgets, handleLayoutChange, handleWidgetsChange } = useLayoutPreferences(profile?.id);
+  const [showLayoutSelector, setShowLayoutSelector] = useState(false);
+  
   const [users, setUsers] = useState([]);
   const [clientName, setClientName] = useState('');
   const [hierarchySettings, setHierarchySettings] = useState(null);
@@ -2906,7 +2950,10 @@ function ClientAdminDashboard() {
     competenciesAssigned: 0,
     competenciesAchieved: 0,
     trainingPending: 0,
-    coachingActive: 0
+    trainingCompleted: 0,
+    coachingActive: 0,
+    modulesCount: 0,
+    overdueCount: 0
   });
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
@@ -2936,6 +2983,9 @@ function ClientAdminDashboard() {
 
       // Count networks
       const networks = await dbFetch(`expert_networks?select=id&client_id=eq.${clientId}&is_active=eq.true`);
+      
+      // Count modules
+      const modules = await dbFetch(`training_modules?select=id&client_id=eq.${clientId}&status=eq.published`);
 
       if (traineeIds.length > 0) {
         const idList = traineeIds.join(',');
@@ -2946,8 +2996,13 @@ function ClientAdminDashboard() {
         const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
 
         // Training
-        const training = await dbFetch(`user_training?select=id,status&user_id=in.(${idList})`);
+        const training = await dbFetch(`user_training?select=id,status,due_date&user_id=in.(${idList})`);
         const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
+        const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+        const overdueCount = training?.filter(t => {
+          if (!t.due_date || t.status === 'passed') return false;
+          return new Date(t.due_date) < new Date();
+        }).length || 0;
 
         // Coaching
         const coaching = await dbFetch(`development_activities?select=id&client_id=eq.${clientId}&type=eq.coaching&status=neq.validated&status=neq.cancelled`);
@@ -2957,7 +3012,10 @@ function ClientAdminDashboard() {
           competenciesAssigned: compAssigned,
           competenciesAchieved: compAchieved,
           trainingPending,
-          coachingActive: coaching?.length || 0
+          trainingCompleted,
+          coachingActive: coaching?.length || 0,
+          modulesCount: modules?.length || 0,
+          overdueCount
         });
       } else {
         setStats({
@@ -2965,7 +3023,10 @@ function ClientAdminDashboard() {
           competenciesAssigned: 0,
           competenciesAchieved: 0,
           trainingPending: 0,
-          coachingActive: 0
+          trainingCompleted: 0,
+          coachingActive: 0,
+          modulesCount: modules?.length || 0,
+          overdueCount: 0
         });
       }
 
@@ -2981,45 +3042,147 @@ function ClientAdminDashboard() {
   }
 
   const traineeCount = users.filter(u => u.role === 'trainee').length;
+  const avgScore = stats.competenciesAssigned > 0 
+    ? Math.round((stats.competenciesAchieved / stats.competenciesAssigned) * 100) 
+    : 0;
+
+  // Quick action handlers
+  const handleAddUser = () => navigate('/users?action=add');
+  const handleAssignTraining = () => navigate('/training');
+  const handleCoaching = () => setShowDevModal(true);
+  const handleCreateModule = () => navigate('/training?action=create');
 
   return (
-    <div className="space-y-8">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
+    <div className="space-y-6">
+      {/* Header with Layout Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadData}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Refresh data"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
+          <LayoutSelector 
+            currentLayout={currentLayout}
+            onLayoutChange={handleLayoutChange}
+            showSelector={showLayoutSelector}
+            setShowSelector={setShowLayoutSelector}
+          />
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Team Members" 
-          value={traineeCount}
-          subtitle="Active trainees"
-          icon={Users}
-          color="blue"
-        />
-        <StatCard 
-          title="Competencies" 
-          value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`}
-          subtitle="Achieved / Assigned"
-          icon={Target}
-          color="green"
-        />
-        <StatCard 
-          title="Training Pending" 
-          value={stats.trainingPending}
-          subtitle="Awaiting completion"
-          icon={GraduationCap}
-          color="amber"
-        />
-        <StatCard 
-          title="Active Coaching" 
-          value={stats.coachingActive}
-          subtitle="Sessions in progress"
-          icon={Users}
-          color="purple"
-        />
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <button
+          onClick={handleAddUser}
+          className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
+        >
+          <UserPlus className="w-5 h-5" />
+          <div className="text-left">
+            <div className="font-medium text-sm">Add User</div>
+            <div className="text-xs text-blue-200">New trainee</div>
+          </div>
+        </button>
+        <button
+          onClick={handleAssignTraining}
+          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+        >
+          <GraduationCap className="w-5 h-5 text-emerald-600" />
+          <div className="text-left">
+            <div className="font-medium text-sm text-gray-900">Assign Training</div>
+            <div className="text-xs text-gray-500">Create assignment</div>
+          </div>
+        </button>
+        <button
+          onClick={handleCoaching}
+          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+        >
+          <MessageSquare className="w-5 h-5 text-purple-600" />
+          <div className="text-left">
+            <div className="font-medium text-sm text-gray-900">Coaching</div>
+            <div className="text-xs text-gray-500">Development activity</div>
+          </div>
+        </button>
+        <button
+          onClick={handleCreateModule}
+          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+        >
+          <BookOpen className="w-5 h-5 text-amber-600" />
+          <div className="text-left">
+            <div className="font-medium text-sm text-gray-900">Create Module</div>
+            <div className="text-xs text-gray-500">New training</div>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/reports')}
+          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+        >
+          <BarChart3 className="w-5 h-5 text-cyan-600" />
+          <div className="text-left">
+            <div className="font-medium text-sm text-gray-900">Export Report</div>
+            <div className="text-xs text-gray-500">Download data</div>
+          </div>
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+            <Users className="w-4 h-4" />
+            Trainees
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{traineeCount}</div>
+          <div className="text-xs text-gray-500">{traineeCount === 1 ? '1 active' : `${traineeCount} active`}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+            <BookOpen className="w-4 h-4" />
+            Modules
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{stats.modulesCount}</div>
+          <div className="text-xs text-gray-500">{stats.modulesCount === 1 ? '1 published' : `${stats.modulesCount} published`}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+            <Target className="w-4 h-4" />
+            Competencies
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{stats.competenciesAchieved}/{stats.competenciesAssigned}</div>
+          <div className="text-xs text-gray-500">{avgScore}% achieved</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+            <ClipboardList className="w-4 h-4" />
+            Coaching
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{stats.coachingActive}</div>
+          <div className="text-xs text-gray-500">{stats.coachingActive === 0 ? 'none active' : 'active'}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+            <Clock className="w-4 h-4" />
+            Training
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{stats.trainingCompleted}</div>
+          <div className="text-xs text-gray-500">{stats.trainingPending} pending</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+            <AlertTriangle className="w-4 h-4" />
+            Overdue
+          </div>
+          <div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            {stats.overdueCount}
+          </div>
+          <div className="text-xs text-gray-500">{stats.overdueCount === 0 ? 'all on track' : 'items'}</div>
+        </div>
       </div>
 
       {/* Organization Hierarchy */}
@@ -3039,91 +3202,13 @@ function ClientAdminDashboard() {
       {/* My Training Development Tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <QuickAction
-            title="Add Team Member"
-            description="Register a new trainee"
-            href="/users"
-            icon={Plus}
-          />
-          <QuickActionButton
-            title="Development Activities"
-            description="Assign coaching & development"
-            onClick={() => setShowDevModal(true)}
-            icon={ClipboardList}
-          />
-          <QuickAction
-            title="View Competencies"
-            description="See competency overview"
-            href="/competencies"
-            icon={Target}
-          />
-          <QuickAction
-            title="Assign Training"
-            description="Schedule training activities"
-            href="/training"
-            icon={GraduationCap}
-          />
-        </div>
-      </div>
-
       {/* Create Development Modal */}
       <CreateDevelopmentModal
         isOpen={showDevModal}
         onClose={() => setShowDevModal(false)}
         profile={profile}
-        onSuccess={() => {}}
+        onSuccess={() => loadData()}
       />
-
-      {/* Team Members */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Team Members</h2>
-          <Link to="/users" className="text-sm text-blue-600 hover:text-blue-700">
-            View all →
-          </Link>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {users.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    No team members yet. <Link to="/users" className="text-blue-600">Add your first team member</Link>
-                  </td>
-                </tr>
-              ) : (
-                users.filter(u => u.role === 'trainee').slice(0, 5).map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{user.full_name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 capitalize">{user.role?.replace('_', ' ')}</td>
-                    <td className="px-6 py-4 text-gray-500">{user.department || '-'}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Active
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }

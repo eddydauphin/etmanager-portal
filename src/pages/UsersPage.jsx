@@ -529,19 +529,35 @@ export default function UsersPage() {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <ShieldCheck className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {users.filter(u => u.role === 'super_admin').length}
-                </p>
-                <p className="text-sm text-gray-500">Super Admins</p>
+          {currentProfile?.role === 'super_admin' ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <ShieldCheck className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users.filter(u => u.role === 'super_admin').length}
+                  </p>
+                  <p className="text-sm text-gray-500">Super Admins</p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Users className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users.filter(u => u.role === 'team_lead').length}
+                  </p>
+                  <p className="text-sm text-gray-500">Team Leads</p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -594,8 +610,11 @@ export default function UsersPage() {
                 className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[150px]"
               >
                 <option value="all">All Roles</option>
-                <option value="super_admin">Super Admin</option>
+                {currentProfile?.role === 'super_admin' && (
+                  <option value="super_admin">Super Admin</option>
+                )}
                 <option value="client_admin">Client Admin</option>
+                <option value="category_admin">Category Admin</option>
                 <option value="site_admin">Site Admin</option>
                 <option value="team_lead">Team Lead</option>
                 <option value="trainee">Trainee</option>
