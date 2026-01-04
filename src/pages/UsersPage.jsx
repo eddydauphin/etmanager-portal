@@ -220,7 +220,6 @@ export default function UsersPage() {
     setShowModal(true);
     setOpenDropdown(null);
   };
-  };
 
   // Generate temporary password
   const generateTempPassword = () => {
