@@ -63,13 +63,25 @@ export function getDefaultCapabilities(role) {
       return {
         dashboard: true, clients: true, users: true, expert_network: true,
         competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true
+        reports: true, settings: true, hierarchy_settings: true
       };
     case 'client_admin':
       return {
         dashboard: true, clients: false, users: true, expert_network: true,
         competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true
+        reports: true, settings: true, hierarchy_settings: true
+      };
+    case 'category_admin':
+      return {
+        dashboard: true, clients: false, users: true, expert_network: false,
+        competencies: true, profiles: true, development: true, training: true,
+        reports: true, settings: true, hierarchy_settings: false
+      };
+    case 'site_admin':
+      return {
+        dashboard: true, clients: false, users: true, expert_network: false,
+        competencies: true, profiles: true, development: true, training: true,
+        reports: true, settings: true, hierarchy_settings: false
       };
     case 'team_lead':
       return {
@@ -138,7 +150,7 @@ function Layout() {
         // Apply role-specific label changes
         let label = config.label;
         if (capKey === 'users') {
-          if (role === 'client_admin') label = 'Team';
+          if (role === 'client_admin' || role === 'site_admin') label = 'Team';
           else if (role === 'team_lead') label = 'My Team';
         }
 
@@ -211,6 +223,7 @@ function Layout() {
             <h1 className="text-lg font-semibold text-gray-900">
               {profile?.role === 'super_admin' && 'Super Admin Dashboard'}
               {profile?.role === 'client_admin' && 'Client Admin Dashboard'}
+              {profile?.role === 'site_admin' && 'Site Admin Dashboard'}
               {profile?.role === 'team_lead' && 'Team Lead Dashboard'}
               {profile?.role === 'trainee' && 'Trainee Portal'}
             </h1>
