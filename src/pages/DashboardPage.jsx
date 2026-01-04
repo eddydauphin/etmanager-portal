@@ -3052,146 +3052,29 @@ function ClientAdminDashboard() {
   const handleCoaching = () => setShowDevModal(true);
   const handleCreateModule = () => navigate('/training?action=create');
 
-  return (
+  // ============================================================================
+  // LAYOUT COMPONENTS
+  // ============================================================================
+
+  // CLASSIC LAYOUT - Traditional with cards
+  const ClassicLayout = () => (
     <div className="space-y-6">
-      {/* Header with Layout Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadData}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Refresh data"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
-          <LayoutSelector 
-            currentLayout={currentLayout}
-            onLayoutChange={handleLayoutChange}
-            showSelector={showLayoutSelector}
-            setShowSelector={setShowLayoutSelector}
-          />
-        </div>
+      {/* Welcome */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Client Admin Dashboard</h1>
+        <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <button
-          onClick={handleAddUser}
-          className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
-        >
-          <UserPlus className="w-5 h-5" />
-          <div className="text-left">
-            <div className="font-medium text-sm">Add User</div>
-            <div className="text-xs text-blue-200">New trainee</div>
-          </div>
-        </button>
-        <button
-          onClick={handleAssignTraining}
-          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
-        >
-          <GraduationCap className="w-5 h-5 text-emerald-600" />
-          <div className="text-left">
-            <div className="font-medium text-sm text-gray-900">Assign Training</div>
-            <div className="text-xs text-gray-500">Create assignment</div>
-          </div>
-        </button>
-        <button
-          onClick={handleCoaching}
-          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
-        >
-          <MessageSquare className="w-5 h-5 text-purple-600" />
-          <div className="text-left">
-            <div className="font-medium text-sm text-gray-900">Coaching</div>
-            <div className="text-xs text-gray-500">Development activity</div>
-          </div>
-        </button>
-        <button
-          onClick={handleCreateModule}
-          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
-        >
-          <BookOpen className="w-5 h-5 text-amber-600" />
-          <div className="text-left">
-            <div className="font-medium text-sm text-gray-900">Create Module</div>
-            <div className="text-xs text-gray-500">New training</div>
-          </div>
-        </button>
-        <button
-          onClick={() => navigate('/reports')}
-          className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
-        >
-          <BarChart3 className="w-5 h-5 text-cyan-600" />
-          <div className="text-left">
-            <div className="font-medium text-sm text-gray-900">Export Report</div>
-            <div className="text-xs text-gray-500">Download data</div>
-          </div>
-        </button>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-            <Users className="w-4 h-4" />
-            Trainees
-          </div>
-          <div className="text-2xl font-bold text-gray-900">{traineeCount}</div>
-          <div className="text-xs text-gray-500">{traineeCount === 1 ? '1 active' : `${traineeCount} active`}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-            <BookOpen className="w-4 h-4" />
-            Modules
-          </div>
-          <div className="text-2xl font-bold text-gray-900">{stats.modulesCount}</div>
-          <div className="text-xs text-gray-500">{stats.modulesCount === 1 ? '1 published' : `${stats.modulesCount} published`}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-            <Target className="w-4 h-4" />
-            Competencies
-          </div>
-          <div className="text-2xl font-bold text-gray-900">{stats.competenciesAchieved}/{stats.competenciesAssigned}</div>
-          <div className="text-xs text-gray-500">{avgScore}% achieved</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-            <ClipboardList className="w-4 h-4" />
-            Coaching
-          </div>
-          <div className="text-2xl font-bold text-gray-900">{stats.coachingActive}</div>
-          <div className="text-xs text-gray-500">{stats.coachingActive === 0 ? 'none active' : 'active'}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-            <Clock className="w-4 h-4" />
-            Training
-          </div>
-          <div className="text-2xl font-bold text-gray-900">{stats.trainingCompleted}</div>
-          <div className="text-xs text-gray-500">{stats.trainingPending} pending</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-            <AlertTriangle className="w-4 h-4" />
-            Overdue
-          </div>
-          <div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-            {stats.overdueCount}
-          </div>
-          <div className="text-xs text-gray-500">{stats.overdueCount === 0 ? 'all on track' : 'items'}</div>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Team Members" value={traineeCount} subtitle="Active trainees" icon={Users} color="blue" />
+        <StatCard title="Competencies" value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`} subtitle={`${avgScore}% achieved`} icon={Target} color="green" />
+        <StatCard title="Training Pending" value={stats.trainingPending} subtitle={`${stats.trainingCompleted} completed`} icon={GraduationCap} color="amber" />
+        <StatCard title="Active Coaching" value={stats.coachingActive} subtitle="Sessions in progress" icon={MessageSquare} color="purple" />
       </div>
 
       {/* Organization Hierarchy */}
-      <OrganizationHierarchy 
-        users={users} 
-        profile={profile} 
-        clientName={clientName}
-        hierarchySettings={hierarchySettings}
-      />
+      <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
 
       {/* My Coachees Section */}
       <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
@@ -3201,6 +3084,173 @@ function ClientAdminDashboard() {
 
       {/* My Training Development Tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
+
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <QuickAction title="Add Team Member" description="Register a new trainee" href="/users" icon={Plus} />
+          <QuickActionButton title="Development Activities" description="Assign coaching & development" onClick={handleCoaching} icon={ClipboardList} />
+          <QuickAction title="View Competencies" description="See competency overview" href="/competencies" icon={Target} />
+          <QuickAction title="Assign Training" description="Schedule training activities" href="/training" icon={GraduationCap} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // MAGAZINE LAYOUT - Visual card-based
+  const MagazineLayout = () => (
+    <div className="space-y-6">
+      {/* Hero Welcome Card */}
+      <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 rounded-2xl p-8 text-white shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-purple-200 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <h1 className="text-3xl font-bold mt-1">Welcome back, {profile?.full_name}! 👋</h1>
+            <p className="text-purple-200 mt-2">{stats.overdueCount === 0 ? 'All training is on track!' : `${stats.overdueCount} items need attention`}</p>
+          </div>
+          <div className="flex gap-6">
+            <div className="text-center"><div className="flex items-center gap-2"><Users className="w-5 h-5" /><span className="text-2xl font-bold">{traineeCount}</span></div><p className="text-xs text-purple-200">Trainees</p></div>
+            <div className="text-center"><div className="flex items-center gap-2"><CheckCircle className="w-5 h-5" /><span className="text-2xl font-bold">{stats.trainingCompleted}</span></div><p className="text-xs text-purple-200">Completed</p></div>
+            <div className="text-center"><div className="flex items-center gap-2"><Target className="w-5 h-5" /><span className="text-2xl font-bold">{avgScore}%</span></div><p className="text-xs text-purple-200">Avg Score</p></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <button onClick={handleAddUser} className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm">
+          <UserPlus className="w-5 h-5" /><div className="text-left"><div className="font-medium text-sm">Add User</div><div className="text-xs text-blue-200">New trainee</div></div>
+        </button>
+        <button onClick={handleAssignTraining} className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+          <GraduationCap className="w-5 h-5 text-emerald-600" /><div className="text-left"><div className="font-medium text-sm text-gray-900">Assign Training</div><div className="text-xs text-gray-500">Create assignment</div></div>
+        </button>
+        <button onClick={handleCoaching} className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+          <MessageSquare className="w-5 h-5 text-purple-600" /><div className="text-left"><div className="font-medium text-sm text-gray-900">Coaching</div><div className="text-xs text-gray-500">Development activity</div></div>
+        </button>
+        <button onClick={handleCreateModule} className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+          <BookOpen className="w-5 h-5 text-amber-600" /><div className="text-left"><div className="font-medium text-sm text-gray-900">Create Module</div><div className="text-xs text-gray-500">New training</div></div>
+        </button>
+        <button onClick={() => navigate('/reports')} className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+          <BarChart3 className="w-5 h-5 text-cyan-600" /><div className="text-left"><div className="font-medium text-sm text-gray-900">Export Report</div><div className="text-xs text-gray-500">Download data</div></div>
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Users className="w-4 h-4" />Trainees</div><div className="text-2xl font-bold text-gray-900">{traineeCount}</div><div className="text-xs text-gray-500">{traineeCount} active</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><BookOpen className="w-4 h-4" />Modules</div><div className="text-2xl font-bold text-gray-900">{stats.modulesCount}</div><div className="text-xs text-gray-500">{stats.modulesCount} published</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Target className="w-4 h-4" />Competencies</div><div className="text-2xl font-bold text-gray-900">{stats.competenciesAchieved}/{stats.competenciesAssigned}</div><div className="text-xs text-gray-500">{avgScore}% achieved</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><ClipboardList className="w-4 h-4" />Coaching</div><div className="text-2xl font-bold text-gray-900">{stats.coachingActive}</div><div className="text-xs text-gray-500">{stats.coachingActive === 0 ? 'none active' : 'active'}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Clock className="w-4 h-4" />Training</div><div className="text-2xl font-bold text-gray-900">{stats.trainingCompleted}</div><div className="text-xs text-gray-500">{stats.trainingPending} pending</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><AlertTriangle className="w-4 h-4" />Overdue</div><div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{stats.overdueCount}</div><div className="text-xs text-gray-500">{stats.overdueCount === 0 ? 'all on track' : 'items'}</div></div>
+      </div>
+
+      {/* Organization Hierarchy */}
+      <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
+
+      {/* My Coachees Section */}
+      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+
+      {/* Training Materials */}
+      <TrainingMaterialsSection clientId={clientId} />
+    </div>
+  );
+
+  // COMMAND CENTER LAYOUT - Dense monitoring
+  const CommandLayout = () => (
+    <div className="space-y-4">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">Command Center</h1>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-gray-500">Last updated: {new Date().toLocaleTimeString()}</span>
+          <button onClick={loadData} className="text-blue-600 hover:text-blue-700"><RefreshCw className="w-4 h-4" /></button>
+        </div>
+      </div>
+
+      {/* Dense KPI Grid */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-blue-700">{traineeCount}</div><div className="text-xs text-blue-600">Trainees</div></div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-green-700">{avgScore}%</div><div className="text-xs text-green-600">Competency</div></div>
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-purple-700">{stats.coachingActive}</div><div className="text-xs text-purple-600">Coaching</div></div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-amber-700">{stats.trainingPending}</div><div className="text-xs text-amber-600">Pending</div></div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-emerald-700">{stats.trainingCompleted}</div><div className="text-xs text-emerald-600">Completed</div></div>
+        <div className={`${stats.overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3 text-center`}><div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-gray-700'}`}>{stats.overdueCount}</div><div className={`text-xs ${stats.overdueCount > 0 ? 'text-red-600' : 'text-gray-600'}`}>Overdue</div></div>
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: Organization + Coaching */}
+        <div className="space-y-4">
+          <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
+          <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+        </div>
+        {/* Right: Training + Tasks */}
+        <div className="space-y-4">
+          <TrainingMaterialsSection clientId={clientId} />
+          <MyTrainingDevelopmentSection profile={profile} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // FOCUS LAYOUT - Minimal, priority-first
+  const FocusLayout = () => (
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Simple Welcome */}
+      <div className="text-center py-8">
+        <h1 className="text-3xl font-bold text-gray-900">Hello, {profile?.full_name}</h1>
+        <p className="text-gray-500 mt-2">{stats.overdueCount === 0 ? '✅ Everything is on track' : `⚠️ ${stats.overdueCount} items need attention`}</p>
+      </div>
+
+      {/* Priority Metrics */}
+      <div className="grid grid-cols-3 gap-8 text-center">
+        <div><div className="text-4xl font-bold text-gray-900">{traineeCount}</div><div className="text-sm text-gray-500 mt-1">Team Members</div></div>
+        <div><div className="text-4xl font-bold text-gray-900">{avgScore}%</div><div className="text-sm text-gray-500 mt-1">Competency Rate</div></div>
+        <div><div className={`text-4xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{stats.overdueCount}</div><div className="text-sm text-gray-500 mt-1">Overdue Items</div></div>
+      </div>
+
+      {/* Key Sections */}
+      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+      <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
+
+      {/* Simple Actions */}
+      <div className="flex justify-center gap-4">
+        <button onClick={handleAddUser} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Add User</button>
+        <button onClick={handleCoaching} className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">New Coaching</button>
+        <button onClick={handleAssignTraining} className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">Assign Training</button>
+      </div>
+    </div>
+  );
+
+  // CUSTOM LAYOUT - Configurable (same as Magazine for now)
+  const CustomLayout = () => <MagazineLayout />;
+
+  // ============================================================================
+  // MAIN RENDER
+  // ============================================================================
+
+  return (
+    <div className="relative">
+      {/* Layout Selector - Top Right */}
+      <div className="absolute top-0 right-0 z-10">
+        <LayoutSelector 
+          currentLayout={currentLayout}
+          onLayoutChange={handleLayoutChange}
+          showSelector={showLayoutSelector}
+          setShowSelector={setShowLayoutSelector}
+        />
+      </div>
+
+      {/* Render selected layout */}
+      <div className={currentLayout === 'command' ? '' : 'pt-2'}>
+        {currentLayout === 'classic' && <ClassicLayout />}
+        {currentLayout === 'magazine' && <MagazineLayout />}
+        {currentLayout === 'command' && <CommandLayout />}
+        {currentLayout === 'focus' && <FocusLayout />}
+        {currentLayout === 'custom' && <CustomLayout />}
+      </div>
 
       {/* Create Development Modal */}
       <CreateDevelopmentModal
