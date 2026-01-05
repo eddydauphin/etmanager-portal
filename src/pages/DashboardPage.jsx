@@ -62,6 +62,9 @@ import {
   MapPin
 } from 'lucide-react';
 
+// Import Competency Maturity Dashboard component
+import CompetencyMaturityDashboard from '../components/CompetencyMaturityDashboard';
+
 // ============================================================================
 // LAYOUT DEFINITIONS
 // ============================================================================
@@ -1936,6 +1939,14 @@ function TeamLeadDashboard() {
         </div>
       </div>
 
+      {/* Competency Maturity Dashboard */}
+      <CompetencyMaturityDashboard 
+        profile={profile}
+        clientId={clientId}
+        users={teamMembersList}
+        initialScope="team"
+      />
+
       {/* All Team Coaching Activities */}
       <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
 
@@ -3074,6 +3085,14 @@ function ClientAdminDashboard() {
         <StatCard title="Active Coaching" value={stats.coachingActive} subtitle="Sessions in progress" icon={MessageSquare} color="purple" />
       </div>
 
+      {/* Competency Maturity Dashboard */}
+      <CompetencyMaturityDashboard 
+        profile={profile}
+        clientId={clientId}
+        users={users}
+        initialScope="organization"
+      />
+
       {/* Organization Hierarchy */}
       <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
 
@@ -3146,6 +3165,14 @@ function ClientAdminDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Clock className="w-4 h-4" />Training</div><div className="text-2xl font-bold text-gray-900">{stats.trainingCompleted}</div><div className="text-xs text-gray-500">{stats.trainingPending} pending</div></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><AlertTriangle className="w-4 h-4" />Overdue</div><div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{stats.overdueCount}</div><div className="text-xs text-gray-500">{stats.overdueCount === 0 ? 'all on track' : 'items'}</div></div>
       </div>
+
+      {/* Competency Maturity Dashboard */}
+      <CompetencyMaturityDashboard 
+        profile={profile}
+        clientId={clientId}
+        users={users}
+        initialScope="organization"
+      />
 
       {/* Organization Hierarchy */}
       <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
@@ -3555,6 +3582,14 @@ function TraineeDashboard() {
           />
         </div>
       </div>
+
+      {/* Competency Maturity Dashboard - Individual view for trainee */}
+      <CompetencyMaturityDashboard 
+        profile={profile}
+        clientId={profile?.client_id}
+        users={[]}
+        initialScope="individual"
+      />
 
       {/* My Training Development Tasks (if assigned as training developer) */}
       <MyTrainingDevelopmentSection profile={profile} />

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Target, ChevronDown, ChevronRight, Users, User, Building2, MapPin, 
   Factory, AlertTriangle, CheckCircle, Clock, TrendingUp, Filter,
   ToggleLeft, ToggleRight, Eye, Calendar, AlertCircle, ArrowRight,
-  Layers, List, Grid3X3, RefreshCw, Download, ChevronUp
+  Layers, List, Grid3X3, RefreshCw, Download, ChevronUp, ExternalLink
 } from 'lucide-react';
 
 // ============================================================================
@@ -29,12 +30,17 @@ const STATUS_CONFIG = {
 };
 
 const SCOPE_OPTIONS = [
-  { id: 'individual', label: 'Individual', icon: User },
-  { id: 'team', label: 'My Team', icon: Users },
-  { id: 'department', label: 'Department', icon: Building2 },
-  { id: 'site', label: 'Site', icon: MapPin },
-  { id: 'organization', label: 'Organization', icon: Factory }
+  { id: 'individual', label: 'Individual', icon: User, roles: ['trainee', 'team_lead', 'category_admin', 'site_admin', 'client_admin', 'super_admin'] },
+  { id: 'team', label: 'My Team', icon: Users, roles: ['team_lead', 'category_admin', 'site_admin', 'client_admin', 'super_admin'] },
+  { id: 'department', label: 'Department', icon: Building2, roles: ['category_admin', 'site_admin', 'client_admin', 'super_admin'] },
+  { id: 'site', label: 'Site', icon: MapPin, roles: ['site_admin', 'client_admin', 'super_admin'] },
+  { id: 'organization', label: 'Organization', icon: Factory, roles: ['client_admin', 'super_admin'] }
 ];
+
+// Get allowed scopes based on user role
+function getAllowedScopes(role) {
+  return SCOPE_OPTIONS.filter(option => option.roles.includes(role || 'trainee'));
+}
 
 // Helper function to fetch data from Supabase
 async function dbFetch(endpoint) {
@@ -106,7 +112,7 @@ function StatusBadge({ status }) {
 // CATEGORY CARD COMPONENT
 // ============================================================================
 
-function CategoryCard({ category, competencies, isExpanded, onToggle }) {
+function CategoryCard({ category, competencies, isExpanded, onToggle, onCompetencyClick, onCategoryClick, onUserClick }) {
   const stats = useMemo(() => {
     const total = competencies.length;
     const achieved = competencies.filter(c => c.maturity_status === 'achieved').length;
@@ -121,11 +127,11 @@ function CategoryCard({ category, competencies, isExpanded, onToggle }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Category Header */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+        <button
+          onClick={onToggle}
+          className="flex items-center gap-3 flex-1"
+        >
           <div 
             className="w-10 h-10 rounded-lg flex items-center justify-center"
             style={{ backgroundColor: category.color + '20' }}
@@ -136,7 +142,7 @@ function CategoryCard({ category, competencies, isExpanded, onToggle }) {
             <h3 className="font-semibold text-gray-900">{category.name}</h3>
             <p className="text-sm text-gray-500">{stats.total} competencies</p>
           </div>
-        </div>
+        </button>
         
         <div className="flex items-center gap-4">
           {/* Quick Stats */}
@@ -174,30 +180,55 @@ function CategoryCard({ category, competencies, isExpanded, onToggle }) {
             </span>
           </div>
           
-          {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+          {/* View Category Link */}
+          {category.id !== 'uncategorized' && onCategoryClick && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCategoryClick(category); }}
+              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+              title="View category details"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </button>
+          )}
+          
+          <button onClick={onToggle}>
+            {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+          </button>
         </div>
-      </button>
+      </div>
       
       {/* Expanded Content */}
       {isExpanded && (
         <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
           {competencies.map(comp => (
-            <div key={comp.id} className="bg-white rounded-lg p-3 border border-gray-200">
+            <div 
+              key={comp.id} 
+              className="bg-white rounded-lg p-3 border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer group"
+              onClick={() => onCompetencyClick && onCompetencyClick(comp)}
+            >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">{comp.competency_name}</span>
+                  <span className="font-medium text-gray-900 group-hover:text-purple-700">{comp.competency_name}</span>
                   <StatusBadge status={comp.maturity_status} />
                 </div>
-                {comp.target_due_date && (
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(comp.target_due_date).toLocaleDateString()}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {comp.target_due_date && (
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(comp.target_due_date).toLocaleDateString()}
+                    </span>
+                  )}
+                  <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </div>
               <MaturityBar current={comp.current_level || 0} target={comp.target_level || 3} size="small" />
               {comp.user_name && (
-                <p className="text-xs text-gray-500 mt-1">{comp.user_name}</p>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(comp); }}
+                  className="text-xs text-gray-500 mt-1 hover:text-purple-600 hover:underline"
+                >
+                  {comp.user_name}
+                </button>
               )}
             </div>
           ))}
@@ -211,16 +242,24 @@ function CategoryCard({ category, competencies, isExpanded, onToggle }) {
 // COMPETENCY ROW COMPONENT (for list view)
 // ============================================================================
 
-function CompetencyRow({ competency, showUser = false }) {
+function CompetencyRow({ competency, showUser = false, onClick, onUserClick }) {
   return (
-    <div className="flex items-center gap-4 p-3 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+    <div 
+      className="flex items-center gap-4 p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer group"
+      onClick={() => onClick && onClick(competency)}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-900 truncate">{competency.competency_name}</span>
+          <span className="font-medium text-gray-900 truncate group-hover:text-purple-700">{competency.competency_name}</span>
           <StatusBadge status={competency.maturity_status} />
         </div>
         {showUser && competency.user_name && (
-          <p className="text-sm text-gray-500">{competency.user_name} • {competency.department || 'No dept'}</p>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(competency); }}
+            className="text-sm text-gray-500 hover:text-purple-600 hover:underline"
+          >
+            {competency.user_name} • {competency.department || 'No dept'}
+          </button>
         )}
         {competency.category_name && (
           <p className="text-xs text-gray-400">{competency.category_name}</p>
@@ -231,7 +270,7 @@ function CompetencyRow({ competency, showUser = false }) {
         <MaturityBar current={competency.current_level || 0} target={competency.target_level || 3} size="small" />
       </div>
       
-      <div className="w-24 text-right flex-shrink-0">
+      <div className="w-24 text-right flex-shrink-0 flex items-center justify-end gap-2">
         {competency.target_due_date ? (
           <span className={`text-xs ${
             competency.maturity_status === 'delayed' ? 'text-red-600 font-medium' :
@@ -242,6 +281,7 @@ function CompetencyRow({ competency, showUser = false }) {
         ) : (
           <span className="text-xs text-gray-400">No deadline</span>
         )}
+        <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
   );
@@ -360,7 +400,18 @@ export default function CompetencyMaturityDashboard({
   users = [],
   initialScope = 'team'
 }) {
-  const [scope, setScope] = useState(initialScope);
+  const navigate = useNavigate();
+  
+  // Get allowed scopes based on user role
+  const allowedScopes = useMemo(() => getAllowedScopes(profile?.role), [profile?.role]);
+  
+  // Validate initial scope - use first allowed scope if initial is not allowed
+  const validInitialScope = useMemo(() => {
+    const allowed = allowedScopes.find(s => s.id === initialScope);
+    return allowed ? initialScope : (allowedScopes[0]?.id || 'individual');
+  }, [initialScope, allowedScopes]);
+  
+  const [scope, setScope] = useState(validInitialScope);
   const [viewMode, setViewMode] = useState('category'); // 'category' or 'competency'
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedCompetency, setSelectedCompetency] = useState(null);
@@ -369,6 +420,47 @@ export default function CompetencyMaturityDashboard({
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [categories, setCategories] = useState([]);
+  
+  // Navigation handlers
+  const handleCompetencyClick = (competency) => {
+    // Navigate to competency detail page with the competency and user info
+    if (competency.user_id && competency.competency_id) {
+      // Go to user's competency matrix with this competency highlighted
+      navigate(`/competencies?user=${competency.user_id}&highlight=${competency.competency_id}`);
+    } else if (competency.competency_id) {
+      navigate(`/competencies?competency=${competency.competency_id}`);
+    } else {
+      navigate('/competencies');
+    }
+  };
+  
+  const handleCategoryClick = (category) => {
+    // Navigate to competencies page filtered by category
+    if (category.id && category.id !== 'uncategorized') {
+      navigate(`/competencies?category=${category.id}`);
+    } else {
+      navigate('/competencies');
+    }
+  };
+  
+  const handleUserClick = (competency) => {
+    // Navigate to user's profile or competency matrix
+    if (competency.user_id) {
+      // Check user role to determine where to navigate
+      if (profile?.role === 'trainee') {
+        navigate('/my-progress');
+      } else {
+        navigate(`/profiles?user=${competency.user_id}`);
+      }
+    }
+  };
+  
+  // Update scope if it becomes invalid after role change
+  useEffect(() => {
+    if (!allowedScopes.find(s => s.id === scope)) {
+      setScope(allowedScopes[0]?.id || 'individual');
+    }
+  }, [allowedScopes, scope]);
   
   // Load data
   useEffect(() => {
@@ -546,35 +638,53 @@ export default function CompetencyMaturityDashboard({
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Target className="w-5 h-5 text-purple-600" />
-              Competency Maturity Dashboard
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Target className="w-5 h-5 text-purple-600" />
+                Competency Maturity Dashboard
+              </h2>
+              <button
+                onClick={() => navigate('/competencies')}
+                className="md:hidden text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+              >
+                View all <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
             <p className="text-sm text-gray-500">Track progress towards competency targets</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
-            {/* Scope Selector */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
-              {SCOPE_OPTIONS.map(option => {
-                const Icon = option.icon;
-                const isActive = scope === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    onClick={() => setScope(option.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      isActive 
-                        ? 'bg-white text-purple-700 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* View All Link - Desktop */}
+            <button
+              onClick={() => navigate('/competencies')}
+              className="hidden md:flex items-center gap-1 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-lg text-sm font-medium transition-colors"
+            >
+              View all <ArrowRight className="w-4 h-4" />
+            </button>
+            
+            {/* Scope Selector - shows only allowed scopes based on role */}
+            {allowedScopes.length > 1 && (
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                {allowedScopes.map(option => {
+                  const Icon = option.icon;
+                  const isActive = scope === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setScope(option.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        isActive 
+                          ? 'bg-white text-purple-700 shadow-sm' 
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="hidden sm:inline">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             
             {/* View Mode Toggle */}
             <button
@@ -622,6 +732,9 @@ export default function CompetencyMaturityDashboard({
               competencies={category.competencies}
               isExpanded={expandedCategories.has(category.id)}
               onToggle={() => toggleCategory(category.id)}
+              onCompetencyClick={handleCompetencyClick}
+              onCategoryClick={handleCategoryClick}
+              onUserClick={handleUserClick}
             />
           ))}
           
@@ -630,13 +743,25 @@ export default function CompetencyMaturityDashboard({
               <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-600">No competencies found</h3>
               <p className="text-gray-500 mt-1">No competency assignments for the selected scope</p>
+              <button 
+                onClick={() => navigate('/competencies')}
+                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Go to Competencies
+              </button>
             </div>
           )}
         </div>
       ) : (
         <div className="space-y-2">
           {filteredData.map(comp => (
-            <CompetencyRow key={comp.id} competency={comp} showUser={scope !== 'individual'} />
+            <CompetencyRow 
+              key={comp.id} 
+              competency={comp} 
+              showUser={scope !== 'individual'} 
+              onClick={handleCompetencyClick}
+              onUserClick={handleUserClick}
+            />
           ))}
           
           {filteredData.length === 0 && (
@@ -644,6 +769,12 @@ export default function CompetencyMaturityDashboard({
               <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-600">No competencies found</h3>
               <p className="text-gray-500 mt-1">No competency assignments for the selected scope</p>
+              <button 
+                onClick={() => navigate('/competencies')}
+                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Go to Competencies
+              </button>
             </div>
           )}
         </div>
