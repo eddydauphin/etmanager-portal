@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { dbFetch } from '../lib/db';
 import { 
   Target, ChevronDown, ChevronRight, Users, User, Building2, MapPin, 
   Factory, AlertTriangle, CheckCircle, Clock, TrendingUp, Filter,
@@ -40,23 +41,6 @@ const SCOPE_OPTIONS = [
 // Get allowed scopes based on user role
 function getAllowedScopes(role) {
   return SCOPE_OPTIONS.filter(option => option.roles.includes(role || 'trainee'));
-}
-
-// Helper function to fetch data from Supabase
-async function dbFetch(endpoint) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  
-  const response = await fetch(`${supabaseUrl}/rest/v1/${endpoint}`, {
-    headers: {
-      'apikey': supabaseKey,
-      'Authorization': `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  if (!response.ok) throw new Error('Failed to fetch data');
-  return response.json();
 }
 
 // ============================================================================
@@ -476,39 +460,100 @@ export default function CompetencyMaturityDashboard({
       const categoriesData = await dbFetch(`competency_categories?client_id=eq.${clientId}&is_active=eq.true&order=sort_order.asc`);
       setCategories(categoriesData || []);
       
-      // Build user filter based on scope
-      let userFilter = '';
+      // First, fetch all users for this client if not provided
+      let allUsers = users;
+      if (!allUsers || allUsers.length === 0) {
+        allUsers = await dbFetch(`profiles?select=*&client_id=eq.${clientId}&is_active=eq.true`);
+      }
+      
+      // Build user IDs list based on scope
+      let targetUserIds = [];
+      
       if (scope === 'individual' && profile?.id) {
-        userFilter = `&user_id=eq.${profile.id}`;
+        targetUserIds = [profile.id];
       } else if (scope === 'team' && profile?.id) {
-        // Get team members who report to this user
-        const teamMembers = users.filter(u => u.reports_to_id === profile.id).map(u => u.id);
-        if (teamMembers.length > 0) {
-          userFilter = `&user_id=in.(${teamMembers.join(',')})`;
+        // If users were passed to this component, use them directly (they're already the team)
+        // This is typically the case when TeamLeadDashboard passes teamMembersList
+        if (users && users.length > 0) {
+          targetUserIds = users.map(u => u.id);
+          console.log('Team scope - Using passed users:', users.length);
+        } else {
+          // Fallback: Get team members who report to this user from allUsers
+          const teamMembers = allUsers.filter(u => u.reports_to_id === profile.id);
+          targetUserIds = teamMembers.map(u => u.id);
+          console.log('Team scope - Filtered by reports_to_id:', teamMembers.length);
+          
+          // If still no direct reports found, try to find trainees in the same client (fallback for team leads)
+          if (teamMembers.length === 0 && profile?.role === 'team_lead') {
+            const trainees = allUsers.filter(u => u.role === 'trainee');
+            targetUserIds = trainees.map(u => u.id);
+            console.log('Team scope - Fallback: showing all trainees:', trainees.length);
+          }
         }
       } else if (scope === 'department' && profile?.department) {
-        const deptUsers = users.filter(u => u.department === profile.department).map(u => u.id);
-        if (deptUsers.length > 0) {
-          userFilter = `&user_id=in.(${deptUsers.join(',')})`;
-        }
+        const deptUsers = allUsers.filter(u => u.department === profile.department);
+        targetUserIds = deptUsers.map(u => u.id);
       } else if (scope === 'site' && profile?.site) {
-        const siteUsers = users.filter(u => u.site === profile.site).map(u => u.id);
-        if (siteUsers.length > 0) {
-          userFilter = `&user_id=in.(${siteUsers.join(',')})`;
-        }
+        const siteUsers = allUsers.filter(u => u.site === profile.site);
+        targetUserIds = siteUsers.map(u => u.id);
+      } else if (scope === 'organization') {
+        // All users in the client
+        targetUserIds = allUsers.map(u => u.id);
       }
-      // 'organization' scope = all users in client (no additional filter)
       
-      // Load competency data with user info
+      console.log('CompetencyMaturity - Scope:', scope, 'Target users:', targetUserIds.length, 'IDs:', targetUserIds);
+      
+      // If no users found for scope, show empty state
+      if (targetUserIds.length === 0) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Load competency assignments for target users
+      const userIdList = targetUserIds.join(',');
+      
+      // Fetch user_competencies
       const maturityData = await dbFetch(
-        `user_competencies?select=*,competency:competencies(*,category:competency_categories(*)),user:profiles(full_name,department,site)&competency.client_id=eq.${clientId}${userFilter}`
+        `user_competencies?select=*&user_id=in.(${userIdList})`
       );
+      
+      console.log('CompetencyMaturity - user_competencies:', maturityData?.length || 0, 'records');
+      
+      // If no competency assignments found, show empty
+      if (!maturityData || maturityData.length === 0) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Get unique competency IDs to fetch competency details
+      const competencyIds = [...new Set(maturityData.map(m => m.competency_id).filter(Boolean))];
+      
+      // Fetch competencies details
+      let competenciesMap = {};
+      if (competencyIds.length > 0) {
+        const competenciesData = await dbFetch(
+          `competencies?select=id,name,category,category_id&id=in.(${competencyIds.join(',')})`
+        );
+        competenciesMap = (competenciesData || []).reduce((acc, c) => {
+          acc[c.id] = c;
+          return acc;
+        }, {});
+      }
+      
+      // Build users map
+      const usersMap = allUsers.reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+      }, {});
+      
+      console.log('CompetencyMaturity - Competencies loaded:', Object.keys(competenciesMap).length);
       
       // Transform data
       const transformedData = (maturityData || []).map(item => {
-        const comp = item.competency || {};
-        const cat = comp.category || {};
-        const user = item.user || {};
+        const comp = competenciesMap[item.competency_id] || {};
+        const user = usersMap[item.user_id] || {};
         
         // Calculate status
         let maturity_status = 'no_deadline';
@@ -541,9 +586,9 @@ export default function CompetencyMaturityDashboard({
           site: user.site,
           competency_id: comp.id,
           competency_name: comp.name,
-          category_id: cat.id,
-          category_name: cat.name,
-          category_color: cat.color || '#6366f1',
+          category_id: comp.category_id || null,
+          category_name: comp.category || 'Uncategorized',
+          category_color: '#6366f1', // Default color, will be overridden by category lookup
           current_level: current,
           target_level: target,
           target_due_date: item.target_due_date,
@@ -554,7 +599,18 @@ export default function CompetencyMaturityDashboard({
         };
       });
       
-      setData(transformedData);
+      // Enrich with category colors from loaded categories
+      const enrichedData = transformedData.map(item => {
+        if (item.category_id && categoriesData) {
+          const cat = categoriesData.find(c => c.id === item.category_id);
+          if (cat) {
+            return { ...item, category_name: cat.name, category_color: cat.color || '#6366f1' };
+          }
+        }
+        return item;
+      });
+      
+      setData(enrichedData);
     } catch (error) {
       console.error('Error loading maturity data:', error);
     } finally {
