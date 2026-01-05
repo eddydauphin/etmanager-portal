@@ -1775,37 +1775,46 @@ function TeamLeadDashboard() {
     try {
       console.log('TeamLeadDashboard: Loading data for profile:', profile.id);
       
+      // Get team members who report to this user
       const teamMembers = await dbFetch(
-        `profiles?select=id,full_name,email&reports_to_id=eq.${profile.id}&is_active=eq.true`
+        `profiles?select=id,full_name,email,role&reports_to_id=eq.${profile.id}&is_active=eq.true`
       );
       console.log('TeamLeadDashboard: Team members found:', teamMembers);
       setTeamMembersList(teamMembers || []);
       
+      // Include the team lead themselves + all team members for stats
+      const allUserIds = [profile.id, ...(teamMembers?.map(m => m.id) || [])];
       const teamIds = teamMembers?.map(m => m.id) || [];
-      console.log('TeamLeadDashboard: Team IDs:', teamIds);
+      console.log('TeamLeadDashboard: All user IDs (including self):', allUserIds);
 
-      if (teamIds.length > 0) {
+      if (allUserIds.length > 0) {
+        const allIdList = allUserIds.join(',');
         const teamIdList = teamIds.join(',');
-        console.log('TeamLeadDashboard: Team ID list:', teamIdList);
 
+        // Competencies for ALL users including team lead
         const competencies = await dbFetch(
-          `user_competencies?select=id,status&user_id=in.(${teamIdList})`
+          `user_competencies?select=id,status&user_id=in.(${allIdList})`
         );
-        console.log('TeamLeadDashboard: Competencies:', competencies);
+        console.log('TeamLeadDashboard: Competencies (all):', competencies);
         const compAssigned = competencies?.length || 0;
         const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
 
+        // Training for ALL users including team lead
         const training = await dbFetch(
-          `user_training?select=id,status&user_id=in.(${teamIdList})`
+          `user_training?select=id,status&user_id=in.(${allIdList})`
         );
-        console.log('TeamLeadDashboard: Training:', training);
+        console.log('TeamLeadDashboard: Training (all):', training);
         const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
         const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
-        console.log('TeamLeadDashboard: Training pending:', trainingPending, 'completed:', trainingCompleted);
 
-        const coaching = await dbFetch(
-          `development_activities?select=id,status,due_date&trainee_id=in.(${teamIdList})&type=eq.coaching`
-        );
+        // Coaching - where team lead is coach OR coachee
+        let coachingQuery = `development_activities?select=id,status,due_date&type=eq.coaching`;
+        if (teamIds.length > 0) {
+          coachingQuery += `&or=(trainee_id.in.(${teamIdList}),coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
+        } else {
+          coachingQuery += `&or=(coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
+        }
+        const coaching = await dbFetch(coachingQuery);
         const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
         const coachingOverdue = coaching?.filter(c => {
           if (!c.due_date || c.status === 'validated') return false;
@@ -1813,7 +1822,7 @@ function TeamLeadDashboard() {
         }).length || 0;
 
         setStats({
-          teamMembers: teamIds.length,
+          teamMembers: allUserIds.length, // Total including self
           competenciesAssigned: compAssigned,
           competenciesAchieved: compAchieved,
           trainingPending,
@@ -1822,25 +1831,31 @@ function TeamLeadDashboard() {
           coachingOverdue
         });
 
-        const recentTraining = await dbFetch(
-          `user_training?select=id,status,completed_at,user_id,module_id&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
-        );
-        console.log('TeamLeadDashboard: Recent training:', recentTraining);
+        // Recent training completions (team members only for this view)
+        if (teamIds.length > 0) {
+          const recentTraining = await dbFetch(
+            `user_training?select=id,status,completed_at,user_id,module_id&user_id=in.(${teamIdList})&status=eq.passed&order=completed_at.desc&limit=5`
+          );
+          console.log('TeamLeadDashboard: Recent training:', recentTraining);
         
-        if (recentTraining && recentTraining.length > 0) {
-          const enrichedTraining = await Promise.all(recentTraining.map(async (t) => {
-            const [userInfo, moduleInfo] = await Promise.all([
-              dbFetch(`profiles?select=full_name&id=eq.${t.user_id}`),
-              dbFetch(`training_modules?select=title&id=eq.${t.module_id}`)
-            ]);
-            return {
-              ...t,
-              trainee_name: userInfo?.[0]?.full_name || 'Unknown',
-              module_title: moduleInfo?.[0]?.title || 'Unknown'
-            };
-          }));
-          setRecentActivity(enrichedTraining);
+          if (recentTraining && recentTraining.length > 0) {
+            const enrichedTraining = await Promise.all(recentTraining.map(async (t) => {
+              const [userInfo, moduleInfo] = await Promise.all([
+                dbFetch(`profiles?select=full_name&id=eq.${t.user_id}`),
+                dbFetch(`training_modules?select=title&id=eq.${t.module_id}`)
+              ]);
+              return {
+                ...t,
+                trainee_name: userInfo?.[0]?.full_name || 'Unknown',
+                module_title: moduleInfo?.[0]?.title || 'Unknown'
+              };
+            }));
+            setRecentActivity(enrichedTraining);
+          } else {
+            setRecentActivity([]);
+          }
         } else {
+          // No team members, but still set empty recent activity
           setRecentActivity([]);
         }
       }
@@ -1875,9 +1890,9 @@ function TeamLeadDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
-          title="Team Members" 
+          title="Team Size" 
           value={stats.teamMembers}
-          subtitle="Active trainees"
+          subtitle="Including you"
           icon={Users}
           color="blue"
         />
@@ -2965,7 +2980,8 @@ function ClientAdminDashboard() {
     trainingCompleted: 0,
     coachingActive: 0,
     modulesCount: 0,
-    overdueCount: 0
+    overdueCount: 0,
+    traineeCount: 0
   });
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
@@ -2991,7 +3007,9 @@ function ClientAdminDashboard() {
       const usersData = await dbFetch(`profiles?select=*&client_id=eq.${clientId}&is_active=eq.true&order=full_name.asc`);
       setUsers(usersData || []);
 
-      const traineeIds = usersData?.filter(u => u.role === 'trainee').map(u => u.id) || [];
+      // Get ALL user IDs for stats (not just trainees - everyone can have competencies)
+      const allUserIds = usersData?.map(u => u.id) || [];
+      const traineeCount = usersData?.filter(u => u.role === 'trainee').length || 0;
 
       // Count networks
       const networks = await dbFetch(`expert_networks?select=id&client_id=eq.${clientId}&is_active=eq.true`);
@@ -2999,15 +3017,15 @@ function ClientAdminDashboard() {
       // Count modules
       const modules = await dbFetch(`training_modules?select=id&client_id=eq.${clientId}&status=eq.published`);
 
-      if (traineeIds.length > 0) {
-        const idList = traineeIds.join(',');
+      if (allUserIds.length > 0) {
+        const idList = allUserIds.join(',');
 
-        // Competencies
+        // Competencies - for ALL users
         const competencies = await dbFetch(`user_competencies?select=id,status&user_id=in.(${idList})`);
         const compAssigned = competencies?.length || 0;
         const compAchieved = competencies?.filter(c => c.status === 'achieved').length || 0;
 
-        // Training
+        // Training - for ALL users
         const training = await dbFetch(`user_training?select=id,status,due_date&user_id=in.(${idList})`);
         const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
         const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
@@ -3027,7 +3045,8 @@ function ClientAdminDashboard() {
           trainingCompleted,
           coachingActive: coaching?.length || 0,
           modulesCount: modules?.length || 0,
-          overdueCount
+          overdueCount,
+          traineeCount // Keep track of trainee count separately
         });
       } else {
         setStats({
@@ -3038,7 +3057,8 @@ function ClientAdminDashboard() {
           trainingCompleted: 0,
           coachingActive: 0,
           modulesCount: modules?.length || 0,
-          overdueCount: 0
+          overdueCount: 0,
+          traineeCount: 0
         });
       }
 
@@ -3053,6 +3073,8 @@ function ClientAdminDashboard() {
     return <DashboardSkeleton />;
   }
 
+  // Team counts - show everyone, not just trainees
+  const teamCount = users.length;
   const traineeCount = users.filter(u => u.role === 'trainee').length;
   const avgScore = stats.competenciesAssigned > 0 
     ? Math.round((stats.competenciesAchieved / stats.competenciesAssigned) * 100) 
@@ -3079,7 +3101,7 @@ function ClientAdminDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Team Members" value={traineeCount} subtitle="Active trainees" icon={Users} color="blue" />
+        <StatCard title="Team Size" value={teamCount} subtitle={`${traineeCount} trainees`} icon={Users} color="blue" />
         <StatCard title="Competencies" value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`} subtitle={`${avgScore}% achieved`} icon={Target} color="green" />
         <StatCard title="Training Pending" value={stats.trainingPending} subtitle={`${stats.trainingCompleted} completed`} icon={GraduationCap} color="amber" />
         <StatCard title="Active Coaching" value={stats.coachingActive} subtitle="Sessions in progress" icon={MessageSquare} color="purple" />
@@ -3130,7 +3152,7 @@ function ClientAdminDashboard() {
             <p className="text-purple-200 mt-2">{stats.overdueCount === 0 ? 'All training is on track!' : `${stats.overdueCount} items need attention`}</p>
           </div>
           <div className="flex gap-6">
-            <div className="text-center"><div className="flex items-center gap-2"><Users className="w-5 h-5" /><span className="text-2xl font-bold">{traineeCount}</span></div><p className="text-xs text-purple-200">Trainees</p></div>
+            <div className="text-center"><div className="flex items-center gap-2"><Users className="w-5 h-5" /><span className="text-2xl font-bold">{teamCount}</span></div><p className="text-xs text-purple-200">Team Size</p></div>
             <div className="text-center"><div className="flex items-center gap-2"><CheckCircle className="w-5 h-5" /><span className="text-2xl font-bold">{stats.trainingCompleted}</span></div><p className="text-xs text-purple-200">Completed</p></div>
             <div className="text-center"><div className="flex items-center gap-2"><Target className="w-5 h-5" /><span className="text-2xl font-bold">{avgScore}%</span></div><p className="text-xs text-purple-200">Avg Score</p></div>
           </div>
@@ -3158,7 +3180,7 @@ function ClientAdminDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Users className="w-4 h-4" />Trainees</div><div className="text-2xl font-bold text-gray-900">{traineeCount}</div><div className="text-xs text-gray-500">{traineeCount} active</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Users className="w-4 h-4" />Team Size</div><div className="text-2xl font-bold text-gray-900">{teamCount}</div><div className="text-xs text-gray-500">{traineeCount} trainees</div></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><BookOpen className="w-4 h-4" />Modules</div><div className="text-2xl font-bold text-gray-900">{stats.modulesCount}</div><div className="text-xs text-gray-500">{stats.modulesCount} published</div></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Target className="w-4 h-4" />Competencies</div><div className="text-2xl font-bold text-gray-900">{stats.competenciesAchieved}/{stats.competenciesAssigned}</div><div className="text-xs text-gray-500">{avgScore}% achieved</div></div>
         <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><ClipboardList className="w-4 h-4" />Coaching</div><div className="text-2xl font-bold text-gray-900">{stats.coachingActive}</div><div className="text-xs text-gray-500">{stats.coachingActive === 0 ? 'none active' : 'active'}</div></div>
@@ -3199,7 +3221,7 @@ function ClientAdminDashboard() {
 
       {/* Dense KPI Grid */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-blue-700">{traineeCount}</div><div className="text-xs text-blue-600">Trainees</div></div>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-blue-700">{teamCount}</div><div className="text-xs text-blue-600">Team Size</div></div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-green-700">{avgScore}%</div><div className="text-xs text-green-600">Competency</div></div>
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-purple-700">{stats.coachingActive}</div><div className="text-xs text-purple-600">Coaching</div></div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-amber-700">{stats.trainingPending}</div><div className="text-xs text-amber-600">Pending</div></div>
@@ -3234,7 +3256,7 @@ function ClientAdminDashboard() {
 
       {/* Priority Metrics */}
       <div className="grid grid-cols-3 gap-8 text-center">
-        <div><div className="text-4xl font-bold text-gray-900">{traineeCount}</div><div className="text-sm text-gray-500 mt-1">Team Members</div></div>
+        <div><div className="text-4xl font-bold text-gray-900">{teamCount}</div><div className="text-sm text-gray-500 mt-1">Team Size</div></div>
         <div><div className="text-4xl font-bold text-gray-900">{avgScore}%</div><div className="text-sm text-gray-500 mt-1">Competency Rate</div></div>
         <div><div className={`text-4xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{stats.overdueCount}</div><div className="text-sm text-gray-500 mt-1">Overdue Items</div></div>
       </div>
@@ -3266,7 +3288,7 @@ function ClientAdminDashboard() {
         <div className="grid grid-cols-4 gap-3 col-span-2">
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-600" />
-            <div><p className="text-xl font-bold text-blue-700">{traineeCount}</p><p className="text-xs text-gray-500">Trainees</p></div>
+            <div><p className="text-xl font-bold text-blue-700">{teamCount}</p><p className="text-xs text-gray-500">Team Size</p></div>
           </div>
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
             <Target className="w-5 h-5 text-emerald-600" />
@@ -3284,12 +3306,16 @@ function ClientAdminDashboard() {
       ),
       teamStatus: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team Members</h3>
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team Members ({teamCount})</h3>
           <div className="space-y-2">
-            {users.filter(u => u.role === 'trainee').slice(0, 5).map(m => (
-              <div key={m.id} className="flex items-center gap-2 text-sm"><span className="w-2 h-2 rounded-full bg-emerald-500" />{m.full_name}</div>
+            {users.slice(0, 5).map(m => (
+              <div key={m.id} className="flex items-center gap-2 text-sm">
+                <span className={`w-2 h-2 rounded-full ${m.role === 'trainee' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                <span>{m.full_name}</span>
+                <span className="text-xs text-gray-400 capitalize">({m.role?.replace('_', ' ')})</span>
+              </div>
             ))}
-            {traineeCount === 0 && <p className="text-sm text-gray-400">No trainees yet</p>}
+            {teamCount === 0 && <p className="text-sm text-gray-400">No team members yet</p>}
           </div>
         </div>
       ),
