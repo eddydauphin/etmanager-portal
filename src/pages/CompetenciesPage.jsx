@@ -255,6 +255,9 @@ export default function CompetenciesPage() {
   // Can directly add to Expert Network (Category Admin and above)
   const canDirectlyAdd = isCategoryAdmin || isClientAdmin || isSuperAdmin;
   
+  // Can manage tags (Team Lead, Site Admin, Category Admin, Client Admin, Super Admin)
+  const canManageTags = isTeamLead || isSiteAdmin || isCategoryAdmin || isClientAdmin || isSuperAdmin;
+  
   // State
   const [competencies, setCompetencies] = useState([]);
   const [tags, setTags] = useState([]); // Renamed from categories
@@ -988,6 +991,35 @@ export default function CompetenciesPage() {
     }
   };
 
+  // Handle delete tag
+  const handleDeleteTag = async (tagId) => {
+    if (!confirm('Are you sure you want to delete this tag? This will remove it from all competencies.')) {
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      // Delete tag links first
+      await dbFetch(`competency_tag_links?tag_id=eq.${tagId}`, {
+        method: 'DELETE'
+      });
+      // Then delete the tag
+      await dbFetch(`competency_tags?id=eq.${tagId}`, {
+        method: 'DELETE'
+      });
+      
+      await loadTags();
+      await loadCompetencies(); // Refresh competencies to update tag display
+      setShowTagModal(false);
+      setEditingTag(null);
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      setFormError(error.message || 'Failed to delete tag');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Handle delete
   const handleDeleteClick = (competency) => {
     setCompetencyToDelete(competency);
@@ -1050,13 +1082,15 @@ export default function CompetenciesPage() {
           <p className="text-gray-500 mt-1">Manage skills and competency frameworks</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => handleOpenTagModal()}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <Layers className="w-4 h-4" />
-            Manage Tags
-          </button>
+          {canManageTags && (
+            <button
+              onClick={() => handleOpenTagModal()}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Layers className="w-4 h-4" />
+              Manage Tags
+            </button>
+          )}
           <button
             onClick={() => handleOpenModal()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -1120,12 +1154,14 @@ export default function CompetenciesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Tags</h2>
-            <button 
-              onClick={() => handleOpenTagModal()}
-              className="text-sm text-blue-600 hover:text-blue-700"
-            >
-              + Manage Tags
-            </button>
+            {canManageTags && (
+              <button 
+                onClick={() => handleOpenTagModal()}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                + Manage Tags
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {tags.map(cat => (
@@ -1139,14 +1175,16 @@ export default function CompetenciesPage() {
                 />
                 <span className="text-sm text-gray-700">{cat.name}</span>
                 <span className="text-xs text-gray-400">
-                  ({competencies.filter(c => c.tag_id === cat.id).length})
+                  ({competencies.filter(c => c.tag_ids?.includes(cat.id)).length})
                 </span>
-                <button
-                  onClick={() => handleOpenTagModal(cat)}
-                  className="p-0.5 hover:bg-gray-200 rounded ml-1"
-                >
-                  <Edit2 className="w-3 h-3 text-gray-400" />
-                </button>
+                {canManageTags && (
+                  <button
+                    onClick={() => handleOpenTagModal(cat)}
+                    className="p-0.5 hover:bg-gray-200 rounded ml-1"
+                  >
+                    <Edit2 className="w-3 h-3 text-gray-400" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1736,13 +1774,13 @@ export default function CompetenciesPage() {
         </div>
       )}
 
-      {/* Create/Edit Category Modal */}
+      {/* Create/Edit Tag Modal */}
       {showTagModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingTag ? 'Edit Category' : 'Manage Tags'}
+                {editingTag ? 'Edit Tag' : 'Create Tag'}
               </h2>
               <button
                 onClick={() => setShowTagModal(false)}
@@ -1757,7 +1795,7 @@ export default function CompetenciesPage() {
               {!editingTag && !tagFormData.isCustom && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Category
+                    Select Tag Template
                   </label>
                   <select
                     value={tagFormData.name}
@@ -1808,7 +1846,7 @@ export default function CompetenciesPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-sm font-medium text-gray-700">
-                      Category Name *
+                      Tag Name *
                     </label>
                     {tagFormData.isCustom && !editingTag && (
                       <button
@@ -1892,21 +1930,38 @@ export default function CompetenciesPage() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowTagModal(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Saving...' : editingTag ? 'Update' : 'Create'}
-                </button>
+              <div className="flex justify-between pt-4">
+                {/* Delete button - only when editing */}
+                {editingTag ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTag(editingTag.id)}
+                    disabled={submitting}
+                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Tag
+                  </button>
+                ) : (
+                  <div></div>
+                )}
+                
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowTagModal(false)}
+                    className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {submitting ? 'Saving...' : editingTag ? 'Update' : 'Create'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
