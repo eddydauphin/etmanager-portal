@@ -27,11 +27,35 @@ import {
   CheckCircle2,
   Clock,
   Filter,
-  Eye
+  Eye,
+  UserPlus,
+  ThumbsUp,
+  ThumbsDown,
+  Send,
+  Inbox
 } from 'lucide-react';
 
 export default function ExpertNetworkPage() {
   const { profile: currentProfile } = useAuth();
+  
+  // Role-based permissions
+  const isTeamLead = currentProfile?.role === 'team_lead';
+  const isSiteAdmin = currentProfile?.role === 'site_admin';
+  const isCategoryAdmin = currentProfile?.role === 'category_admin';
+  const isClientAdmin = currentProfile?.role === 'client_admin';
+  const isSuperAdmin = currentProfile?.role === 'super_admin';
+  
+  // Can only view (Team Lead and Site Admin)
+  const isViewOnly = isTeamLead || isSiteAdmin;
+  
+  // Can approve nominations (Category Admin, Client Admin, Super Admin, or Network Leader)
+  const canApproveNominations = isCategoryAdmin || isClientAdmin || isSuperAdmin;
+  
+  // Can create networks (Category Admin, Client Admin, Super Admin)
+  const canCreateNetwork = isCategoryAdmin || isClientAdmin || isSuperAdmin;
+  
+  // Can directly add members (Category Admin, Client Admin, Super Admin - Network Leader checked per network)
+  const canDirectlyAddMembers = isCategoryAdmin || isClientAdmin || isSuperAdmin;
   
   // Data state
   const [networks, setNetworks] = useState([]);
@@ -39,7 +63,12 @@ export default function ExpertNetworkPage() {
   const [actionPlans, setActionPlans] = useState([]);
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]);
+  const [competencies, setCompetencies] = useState([]);
+  const [nominations, setNominations] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('networks');
   
   // Filter state
   const [clientFilter, setClientFilter] = useState('all');
@@ -60,6 +89,7 @@ export default function ExpertNetworkPage() {
     name: '',
     description: '',
     client_id: '',
+    competency_id: '',
     factory: '',
     line: '',
     target_maturity: 3.5
@@ -69,6 +99,7 @@ export default function ExpertNetworkPage() {
     user_id: '',
     role: 'fsme',
     specialty: '',
+    site_name: '',
     reports_to_id: '',
     maturity_level: 1
   });
@@ -103,7 +134,9 @@ export default function ExpertNetworkPage() {
       await Promise.all([
         loadNetworks(),
         loadClients(),
-        loadUsers()
+        loadUsers(),
+        loadCompetencies(),
+        loadNominations()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -193,6 +226,45 @@ export default function ExpertNetworkPage() {
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
+    }
+  };
+
+  const loadCompetencies = async () => {
+    try {
+      let url = 'competencies?select=*,competency_clients(client_id)&is_active=eq.true&order=name.asc';
+      const data = await dbFetch(url);
+      
+      // Filter by client for non-super_admin
+      let filtered = data || [];
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        filtered = filtered.filter(c => 
+          c.competency_clients?.some(cc => cc.client_id === currentProfile.client_id)
+        );
+      }
+      
+      setCompetencies(filtered);
+    } catch (error) {
+      console.error('Error loading competencies:', error);
+    }
+  };
+
+  const loadNominations = async () => {
+    try {
+      let url = 'expert_nominations?select=*,user:user_id(id,full_name,email),nominator:nominated_by(id,full_name),competency:competency_id(id,name),reviewer:reviewed_by(id,full_name),network:network_id(id,name)&order=created_at.desc';
+      
+      if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (currentProfile?.role === 'category_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      } else if (isTeamLead || isSiteAdmin) {
+        // Team leads and site admins only see their own nominations
+        url += `&nominated_by=eq.${currentProfile?.id}`;
+      }
+      
+      const data = await dbFetch(url);
+      setNominations(data || []);
+    } catch (error) {
+      console.error('Error loading nominations:', error);
     }
   };
 
@@ -302,6 +374,7 @@ export default function ExpertNetworkPage() {
       name: '',
       description: '',
       client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
+      competency_id: '',
       factory: '',
       line: '',
       target_maturity: 3.5
@@ -316,6 +389,7 @@ export default function ExpertNetworkPage() {
       name: network.name,
       description: network.description || '',
       client_id: network.client_id,
+      competency_id: network.competency_id || '',
       factory: network.factory || '',
       line: network.line || '',
       target_maturity: network.target_maturity || 3.5
@@ -359,10 +433,15 @@ export default function ExpertNetworkPage() {
         throw new Error('Name and client are required');
       }
 
+      if (!networkForm.competency_id) {
+        throw new Error('Competency is required - each network must be linked to a competency');
+      }
+
       const data = {
         name: networkForm.name,
         description: networkForm.description || null,
         client_id: networkForm.client_id,
+        competency_id: networkForm.competency_id,
         factory: networkForm.factory || null,
         line: networkForm.line || null,
         target_maturity: networkForm.target_maturity,
@@ -398,6 +477,7 @@ export default function ExpertNetworkPage() {
       user_id: '',
       role: 'fsme',
       specialty: '',
+      site_name: '',
       reports_to_id: '',
       maturity_level: 1
     });
@@ -412,6 +492,7 @@ export default function ExpertNetworkPage() {
       user_id: member.user_id,
       role: member.role,
       specialty: member.specialty || '',
+      site_name: member.site_name || '',
       reports_to_id: member.reports_to_id || '',
       maturity_level: member.maturity_level
     });
@@ -434,6 +515,7 @@ export default function ExpertNetworkPage() {
         user_id: memberForm.user_id,
         role: memberForm.role,
         specialty: memberForm.specialty || null,
+        site_name: memberForm.site_name || null,
         reports_to_id: memberForm.reports_to_id || null,
         maturity_level: memberForm.maturity_level,
         updated_at: new Date().toISOString()
@@ -472,6 +554,94 @@ export default function ExpertNetworkPage() {
       console.error('Error deleting member:', error);
     }
   };
+
+  // Check if current user is a network leader for a specific network
+  const isNetworkLeader = (networkId) => {
+    return members.some(m => 
+      m.network_id === networkId && 
+      m.user_id === currentProfile?.id && 
+      m.role === 'network_leader'
+    );
+  };
+
+  // Check if user can manage a specific network (admin or network leader)
+  const canManageNetwork = (networkId) => {
+    return canDirectlyAddMembers || isNetworkLeader(networkId);
+  };
+
+  // Handle nomination approval
+  const handleApproveNomination = async (nomination) => {
+    // Find the network for this competency
+    const network = networks.find(n => n.competency_id === nomination.competency_id);
+    
+    if (!network) {
+      alert('No network exists for this competency. Please create a network first.');
+      return;
+    }
+
+    // Determine role based on level
+    let role = 'fsme';
+    if (nomination.current_level === 5) {
+      role = nomination.proposed_role || 'gsme';
+    }
+
+    try {
+      // Add member to network
+      await dbFetch('expert_network_members', {
+        method: 'POST',
+        body: JSON.stringify({
+          network_id: network.id,
+          user_id: nomination.user_id,
+          role: role,
+          maturity_level: nomination.current_level,
+          site_name: nomination.site_name || null,
+          specialty: nomination.competency?.name || null
+        })
+      });
+
+      // Update nomination status
+      await dbFetch(`expert_nominations?id=eq.${nomination.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'approved',
+          reviewed_by: currentProfile?.id,
+          reviewed_at: new Date().toISOString(),
+          network_id: network.id
+        })
+      });
+
+      loadNominations();
+      loadNetworks();
+    } catch (error) {
+      console.error('Error approving nomination:', error);
+      alert('Failed to approve nomination: ' + error.message);
+    }
+  };
+
+  // Handle nomination rejection
+  const handleRejectNomination = async (nomination) => {
+    const reason = prompt('Please provide a reason for rejection (optional):');
+    
+    try {
+      await dbFetch(`expert_nominations?id=eq.${nomination.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'rejected',
+          reviewed_by: currentProfile?.id,
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: reason || null
+        })
+      });
+
+      loadNominations();
+    } catch (error) {
+      console.error('Error rejecting nomination:', error);
+      alert('Failed to reject nomination: ' + error.message);
+    }
+  };
+
+  // Get pending nominations count
+  const pendingNominationsCount = nominations.filter(n => n.status === 'pending').length;
 
   // Handle action plan form
   const handleAddAction = (network) => {
@@ -636,17 +806,242 @@ export default function ExpertNetworkPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Expert Network</h1>
-            <p className="text-gray-500 mt-1">Manage knowledge networks and subject matter experts</p>
+            <p className="text-gray-500 mt-1">
+              {isViewOnly 
+                ? 'View knowledge networks and subject matter experts' 
+                : 'Manage knowledge networks and subject matter experts'}
+            </p>
           </div>
-          <button
-            onClick={handleCreateNetwork}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            Create Network
-          </button>
+          {canCreateNetwork && (
+            <button
+              onClick={handleCreateNetwork}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+            >
+              <Plus className="w-5 h-5" />
+              Create Network
+            </button>
+          )}
         </div>
 
+        {/* Tabs - Show nominations tab for admins */}
+        {(canApproveNominations || isViewOnly) && (
+          <div className="border-b border-gray-200">
+            <nav className="flex gap-4">
+              <button
+                onClick={() => setActiveTab('networks')}
+                className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'networks'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Network className="w-4 h-4" />
+                  Networks
+                </div>
+              </button>
+              {canApproveNominations && (
+                <button
+                  onClick={() => setActiveTab('nominations')}
+                  className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'nominations'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Inbox className="w-4 h-4" />
+                    Nominations
+                    {pendingNominationsCount > 0 && (
+                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-bold">
+                        {pendingNominationsCount}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )}
+              {isViewOnly && (
+                <button
+                  onClick={() => setActiveTab('my-nominations')}
+                  className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'my-nominations'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Send className="w-4 h-4" />
+                    My Nominations
+                  </div>
+                </button>
+              )}
+            </nav>
+          </div>
+        )}
+
+        {/* View Only Banner */}
+        {isViewOnly && activeTab === 'networks' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+            <Eye className="w-5 h-5 text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-900">View Only Mode</p>
+              <p className="text-sm text-blue-700">You can view networks and nominate team members with Level 3+ competencies for the Expert Network.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Nominations Tab Content */}
+        {activeTab === 'nominations' && canApproveNominations && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">Pending Nominations</h2>
+            {nominations.filter(n => n.status === 'pending').length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-1">No pending nominations</h3>
+                <p className="text-gray-500">Nominations from team leads will appear here for review</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {nominations.filter(n => n.status === 'pending').map(nomination => (
+                  <div key={nomination.id} className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                            <UserPlus className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{nomination.user?.full_name}</h3>
+                            <p className="text-sm text-gray-500">{nomination.user?.email}</p>
+                          </div>
+                        </div>
+                        <div className="ml-13 space-y-1 text-sm">
+                          <p><span className="text-gray-500">Competency:</span> <span className="font-medium">{nomination.competency?.name}</span></p>
+                          <p><span className="text-gray-500">Level:</span> <span className="font-medium text-purple-600">Level {nomination.current_level}</span></p>
+                          <p><span className="text-gray-500">Proposed Role:</span> <span className="font-medium capitalize">{nomination.proposed_role?.replace('_', ' ')}</span></p>
+                          {nomination.site_name && <p><span className="text-gray-500">Site:</span> <span className="font-medium">{nomination.site_name}</span></p>}
+                          <p><span className="text-gray-500">Nominated by:</span> <span className="font-medium">{nomination.nominator?.full_name}</span></p>
+                          <p><span className="text-gray-500">Date:</span> <span className="font-medium">{new Date(nomination.created_at).toLocaleDateString()}</span></p>
+                          {nomination.notes && <p><span className="text-gray-500">Notes:</span> {nomination.notes}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApproveNomination(nomination)}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <ThumbsUp className="w-4 h-4" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRejectNomination(nomination)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Past Nominations */}
+            {nominations.filter(n => n.status !== 'pending').length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Past Nominations</h2>
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Candidate</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competency</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reviewed By</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {nominations.filter(n => n.status !== 'pending').map(nomination => (
+                        <tr key={nomination.id}>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{nomination.user?.full_name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{nomination.competency?.name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">Level {nomination.current_level}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                              nomination.status === 'approved' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {nomination.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{nomination.reviewer?.full_name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{nomination.reviewed_at ? new Date(nomination.reviewed_at).toLocaleDateString() : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Nominations Tab (for Team Lead / Site Admin) */}
+        {activeTab === 'my-nominations' && isViewOnly && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">My Submitted Nominations</h2>
+            {nominations.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                <Send className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-1">No nominations submitted</h3>
+                <p className="text-gray-500">Nominate team members with Level 3+ competencies from the Competencies page</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Candidate</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competency</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {nominations.map(nomination => (
+                      <tr key={nomination.id}>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{nomination.user?.full_name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{nomination.competency?.name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">Level {nomination.current_level}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                            nomination.status === 'pending' 
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : nomination.status === 'approved' 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {nomination.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{new Date(nomination.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Networks Tab Content */}
+        {activeTab === 'networks' && (
+          <>
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -779,14 +1174,20 @@ export default function ExpertNetworkPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <Network className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-1">No networks found</h3>
-            <p className="text-gray-500 mb-4">Create your first expert network to get started</p>
-            <button
-              onClick={handleCreateNetwork}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Create Network
-            </button>
+            <p className="text-gray-500 mb-4">
+              {canCreateNetwork 
+                ? 'Create your first expert network to get started'
+                : 'No expert networks have been created yet'}
+            </p>
+            {canCreateNetwork && (
+              <button
+                onClick={handleCreateNetwork}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4" />
+                Create Network
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -794,6 +1195,8 @@ export default function ExpertNetworkPage() {
               const stats = getNetworkStats(network.id);
               const networkMembers = getNetworkMembers(network.id);
               const leaders = networkMembers.filter(m => m.role === 'network_leader');
+              const linkedCompetency = competencies.find(c => c.id === network.competency_id);
+              const canManage = canManageNetwork(network.id);
               
               return (
                 <div key={network.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
@@ -803,8 +1206,11 @@ export default function ExpertNetworkPage() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{network.name}</h3>
                         <p className="text-sm text-gray-500 mt-0.5">
-                          {network.clients?.name}
-                          {network.factory && ` • ${network.factory}`}
+                          {linkedCompetency && (
+                            <span className="text-purple-600 font-medium">{linkedCompetency.name}</span>
+                          )}
+                          {linkedCompetency && (network.factory || network.line) && ' • '}
+                          {network.factory && `${network.factory}`}
                           {network.line && ` • ${network.line}`}
                         </p>
                       </div>
@@ -816,20 +1222,24 @@ export default function ExpertNetworkPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleEditNetwork(network)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                          title="Edit network"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteNetwork(network)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          title="Delete network"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canManage && (
+                          <>
+                            <button
+                              onClick={() => handleEditNetwork(network)}
+                              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                              title="Edit network"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNetwork(network)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Delete network"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -906,26 +1316,30 @@ export default function ExpertNetworkPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="p-3 bg-gray-50 flex gap-2">
-                    <button
-                      onClick={() => handleAddMember(network)}
-                      className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-1"
-                    >
-                      <Users className="w-4 h-4" />
-                      Add Member
-                    </button>
-                    <button
-                      onClick={() => handleAddAction(network)}
-                      className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-1"
-                    >
-                      <ClipboardList className="w-4 h-4" />
-                      Add Action
-                    </button>
-                  </div>
+                  {canManage && (
+                    <div className="p-3 bg-gray-50 flex gap-2">
+                      <button
+                        onClick={() => handleAddMember(network)}
+                        className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-1"
+                      >
+                        <Users className="w-4 h-4" />
+                        Add Member
+                      </button>
+                      <button
+                        onClick={() => handleAddAction(network)}
+                        className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-1"
+                      >
+                        <ClipboardList className="w-4 h-4" />
+                        Add Action
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+        )}
+          </>
         )}
       </div>
 
@@ -992,6 +1406,28 @@ export default function ExpertNetworkPage() {
                   </select>
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Linked Competency *</label>
+                <select
+                  value={networkForm.competency_id}
+                  onChange={(e) => setNetworkForm({ ...networkForm, competency_id: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select competency...</option>
+                  {competencies
+                    .filter(c => {
+                      // Filter out competencies already linked to a network (unless editing this network)
+                      const isLinked = networks.some(n => n.competency_id === c.id && n.id !== editingNetwork?.id);
+                      return !isLinked;
+                    })
+                    .map(comp => (
+                      <option key={comp.id} value={comp.id}>{comp.name}</option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Each network must be linked to one competency</p>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1158,6 +1594,17 @@ export default function ExpertNetworkPage() {
                   onChange={(e) => setMemberForm({ ...memberForm, specialty: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., Filling, Sterilization"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Site Name</label>
+                <input
+                  type="text"
+                  value={memberForm.site_name}
+                  onChange={(e) => setMemberForm({ ...memberForm, site_name: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Lyon, Singapore, Chicago"
                 />
               </div>
 
@@ -1409,6 +1856,7 @@ export default function ExpertNetworkPage() {
                                 <div className="font-medium text-gray-900">{member.user?.full_name}</div>
                                 <div className="text-sm text-gray-500">
                                   {roleInfo.label}
+                                  {member.site_name && ` • ${member.site_name}`}
                                   {member.specialty && ` • ${member.specialty}`}
                                 </div>
                               </div>

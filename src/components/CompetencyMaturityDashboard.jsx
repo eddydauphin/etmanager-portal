@@ -1,376 +1,191 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// ============================================================================
+// COMPETENCY MATURITY DASHBOARD
+// Spider graph showing Current vs Target competency levels
+// ============================================================================
+
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dbFetch } from '../lib/db';
-import { 
-  Target, ChevronDown, ChevronRight, Users, User, Building2, MapPin, 
-  Factory, AlertTriangle, CheckCircle, Clock, TrendingUp, Filter,
-  ToggleLeft, ToggleRight, Eye, Calendar, AlertCircle, ArrowRight,
-  Layers, List, Grid3X3, RefreshCw, Download, ChevronUp, ExternalLink
+import {
+  Target,
+  ChevronRight,
+  RefreshCw,
+  Users,
+  User,
+  Building2,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  Filter,
+  Award,
+  Star
 } from 'lucide-react';
 
 // ============================================================================
-// COMPETENCY MATURITY DASHBOARD
-// Shows maturity levels vs targets with multiple view modes
+// RADAR CHART COMPONENT (SVG-based)
 // ============================================================================
 
-const MATURITY_LEVELS = [
-  { level: 0, label: 'Not Started', color: '#9CA3AF' },
-  { level: 1, label: 'Awareness', color: '#FCD34D' },
-  { level: 2, label: 'Basic', color: '#F59E0B' },
-  { level: 3, label: 'Competent', color: '#10B981' },
-  { level: 4, label: 'Proficient', color: '#3B82F6' },
-  { level: 5, label: 'Expert', color: '#8B5CF6' }
-];
-
-const STATUS_CONFIG = {
-  achieved: { label: 'Achieved', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle, iconColor: 'text-emerald-500' },
-  on_track: { label: 'On Track', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: TrendingUp, iconColor: 'text-blue-500' },
-  at_risk: { label: 'At Risk', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: AlertCircle, iconColor: 'text-amber-500' },
-  delayed: { label: 'Delayed', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertTriangle, iconColor: 'text-red-500' },
-  no_deadline: { label: 'No Deadline', color: 'bg-gray-100 text-gray-600 border-gray-200', icon: Clock, iconColor: 'text-gray-400' }
-};
-
-const SCOPE_OPTIONS = [
-  { id: 'individual', label: 'Individual', icon: User, roles: ['trainee', 'team_lead', 'category_admin', 'site_admin', 'client_admin', 'super_admin'] },
-  { id: 'team', label: 'My Team', icon: Users, roles: ['team_lead', 'category_admin', 'site_admin', 'client_admin', 'super_admin'] },
-  { id: 'department', label: 'Department', icon: Building2, roles: ['category_admin', 'site_admin', 'client_admin', 'super_admin'] },
-  { id: 'site', label: 'Site', icon: MapPin, roles: ['site_admin', 'client_admin', 'super_admin'] },
-  { id: 'organization', label: 'Organization', icon: Factory, roles: ['client_admin', 'super_admin'] }
-];
-
-// Get allowed scopes based on user role
-function getAllowedScopes(role) {
-  return SCOPE_OPTIONS.filter(option => option.roles.includes(role || 'trainee'));
-}
-
-// ============================================================================
-// MATURITY BAR COMPONENT
-// ============================================================================
-
-function MaturityBar({ current, target, size = 'medium' }) {
-  const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-  const isComplete = current >= target;
-  
-  const heights = { small: 'h-2', medium: 'h-3', large: 'h-4' };
-  
-  return (
-    <div className="w-full">
-      <div className={`w-full bg-gray-200 rounded-full ${heights[size]} overflow-hidden relative`}>
-        {/* Target marker */}
-        <div 
-          className="absolute top-0 bottom-0 w-0.5 bg-gray-600 z-10"
-          style={{ left: `${(target / 5) * 100}%` }}
-          title={`Target: Level ${target}`}
-        />
-        {/* Current progress */}
-        <div 
-          className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-blue-500 to-blue-400'}`}
-          style={{ width: `${(current / 5) * 100}%` }}
-        />
+function RadarChart({ data, size = 300 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400">
+        <p>No competency data available</p>
       </div>
-      <div className="flex justify-between mt-1 text-xs text-gray-500">
-        <span>Level {current}</span>
-        <span>Target: {target}</span>
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
-// ============================================================================
-// STATUS BADGE COMPONENT
-// ============================================================================
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const radius = (size / 2) - 40; // Leave room for labels
+  const levels = 5; // Max level is 5
+  const angleStep = (2 * Math.PI) / data.length;
 
-function StatusBadge({ status }) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.no_deadline;
-  const Icon = config.icon;
-  
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${config.color}`}>
-      <Icon className={`w-3 h-3 ${config.iconColor}`} />
-      {config.label}
-    </span>
-  );
-}
+  // Calculate point position
+  const getPoint = (index, value) => {
+    const angle = (index * angleStep) - (Math.PI / 2); // Start from top
+    const r = (value / levels) * radius;
+    return {
+      x: centerX + r * Math.cos(angle),
+      y: centerY + r * Math.sin(angle)
+    };
+  };
 
-// ============================================================================
-// CATEGORY CARD COMPONENT
-// ============================================================================
+  // Generate polygon points string
+  const getPolygonPoints = (getValue) => {
+    return data.map((item, i) => {
+      const point = getPoint(i, getValue(item));
+      return `${point.x},${point.y}`;
+    }).join(' ');
+  };
 
-function CategoryCard({ category, competencies, isExpanded, onToggle, onCompetencyClick, onCategoryClick, onUserClick }) {
-  const stats = useMemo(() => {
-    const total = competencies.length;
-    const achieved = competencies.filter(c => c.maturity_status === 'achieved').length;
-    const atRisk = competencies.filter(c => c.maturity_status === 'at_risk').length;
-    const delayed = competencies.filter(c => c.maturity_status === 'delayed').length;
-    const avgProgress = total > 0 
-      ? Math.round(competencies.reduce((sum, c) => sum + (c.progress_percentage || 0), 0) / total)
-      : 0;
-    return { total, achieved, atRisk, delayed, avgProgress };
-  }, [competencies]);
-  
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      {/* Category Header */}
-      <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-        <button
-          onClick={onToggle}
-          className="flex items-center gap-3 flex-1"
-        >
-          <div 
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: category.color + '20' }}
-          >
-            <Layers className="w-5 h-5" style={{ color: category.color }} />
-          </div>
-          <div className="text-left">
-            <h3 className="font-semibold text-gray-900">{category.name}</h3>
-            <p className="text-sm text-gray-500">{stats.total} competencies</p>
-          </div>
-        </button>
-        
-        <div className="flex items-center gap-4">
-          {/* Quick Stats */}
-          <div className="hidden md:flex items-center gap-3 text-sm">
-            <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
-              {stats.achieved} achieved
-            </span>
-            {stats.atRisk > 0 && (
-              <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
-                {stats.atRisk} at risk
-              </span>
-            )}
-            {stats.delayed > 0 && (
-              <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full">
-                {stats.delayed} delayed
-              </span>
-            )}
-          </div>
-          
-          {/* Progress Ring */}
-          <div className="relative w-12 h-12">
-            <svg className="w-12 h-12 transform -rotate-90">
-              <circle cx="24" cy="24" r="20" stroke="#E5E7EB" strokeWidth="4" fill="none" />
-              <circle 
-                cx="24" cy="24" r="20" 
-                stroke={stats.avgProgress >= 100 ? '#10B981' : '#3B82F6'} 
-                strokeWidth="4" 
-                fill="none"
-                strokeDasharray={`${stats.avgProgress * 1.26} 126`}
-                strokeLinecap="round"
-              />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">
-              {stats.avgProgress}%
-            </span>
-          </div>
-          
-          {/* View Category Link */}
-          {category.id !== 'uncategorized' && onCategoryClick && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onCategoryClick(category); }}
-              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-              title="View category details"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </button>
-          )}
-          
-          <button onClick={onToggle}>
-            {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-          </button>
-        </div>
-      </div>
-      
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
-          {competencies.map(comp => (
-            <div 
-              key={comp.id} 
-              className="bg-white rounded-lg p-3 border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer group"
-              onClick={() => onCompetencyClick && onCompetencyClick(comp)}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900 group-hover:text-purple-700">{comp.competency_name}</span>
-                  <StatusBadge status={comp.maturity_status} />
-                </div>
-                <div className="flex items-center gap-2">
-                  {comp.target_due_date && (
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(comp.target_due_date).toLocaleDateString()}
-                    </span>
-                  )}
-                  <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
-              <MaturityBar current={comp.current_level || 0} target={comp.target_level || 3} size="small" />
-              {comp.user_name && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(comp); }}
-                  className="text-xs text-gray-500 mt-1 hover:text-purple-600 hover:underline"
-                >
-                  {comp.user_name}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+  // Generate level circles
+  const levelCircles = [];
+  for (let i = 1; i <= levels; i++) {
+    const r = (i / levels) * radius;
+    levelCircles.push(
+      <circle
+        key={i}
+        cx={centerX}
+        cy={centerY}
+        r={r}
+        fill="none"
+        stroke="#e5e7eb"
+        strokeWidth="1"
+      />
+    );
+  }
 
-// ============================================================================
-// COMPETENCY ROW COMPONENT (for list view)
-// ============================================================================
-
-function CompetencyRow({ competency, showUser = false, onClick, onUserClick }) {
-  return (
-    <div 
-      className="flex items-center gap-4 p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer group"
-      onClick={() => onClick && onClick(competency)}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-900 truncate group-hover:text-purple-700">{competency.competency_name}</span>
-          <StatusBadge status={competency.maturity_status} />
-        </div>
-        {showUser && competency.user_name && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); onUserClick && onUserClick(competency); }}
-            className="text-sm text-gray-500 hover:text-purple-600 hover:underline"
-          >
-            {competency.user_name} • {competency.department || 'No dept'}
-          </button>
-        )}
-        {competency.category_name && (
-          <p className="text-xs text-gray-400">{competency.category_name}</p>
-        )}
-      </div>
-      
-      <div className="w-32 flex-shrink-0">
-        <MaturityBar current={competency.current_level || 0} target={competency.target_level || 3} size="small" />
-      </div>
-      
-      <div className="w-24 text-right flex-shrink-0 flex items-center justify-end gap-2">
-        {competency.target_due_date ? (
-          <span className={`text-xs ${
-            competency.maturity_status === 'delayed' ? 'text-red-600 font-medium' :
-            competency.maturity_status === 'at_risk' ? 'text-amber-600' : 'text-gray-500'
-          }`}>
-            {new Date(competency.target_due_date).toLocaleDateString()}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400">No deadline</span>
-        )}
-        <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// ACTION ITEMS SECTION
-// ============================================================================
-
-function ActionItemsSection({ items }) {
-  if (!items || items.length === 0) return null;
-  
-  const delayed = items.filter(i => i.maturity_status === 'delayed');
-  const atRisk = items.filter(i => i.maturity_status === 'at_risk');
-  
-  if (delayed.length === 0 && atRisk.length === 0) return null;
-  
-  return (
-    <div className="bg-gradient-to-r from-red-50 to-amber-50 rounded-xl border border-red-200 p-4">
-      <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-3">
-        <AlertTriangle className="w-5 h-5 text-red-500" />
-        Action Required ({delayed.length + atRisk.length} items)
-      </h3>
-      
-      <div className="space-y-2">
-        {delayed.slice(0, 5).map(item => (
-          <div key={item.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-red-200">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-500" />
-              <span className="text-sm font-medium text-gray-900">{item.competency_name}</span>
-              <span className="text-xs text-gray-500">• {item.user_name}</span>
-            </div>
-            <span className="text-xs text-red-600 font-medium">
-              {Math.ceil((new Date() - new Date(item.target_due_date)) / (1000 * 60 * 60 * 24))} days overdue
-            </span>
-          </div>
-        ))}
-        {atRisk.slice(0, 3).map(item => (
-          <div key={item.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-amber-200">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-500" />
-              <span className="text-sm font-medium text-gray-900">{item.competency_name}</span>
-              <span className="text-xs text-gray-500">• {item.user_name}</span>
-            </div>
-            <span className="text-xs text-amber-600">
-              Due {new Date(item.target_due_date).toLocaleDateString()}
-            </span>
-          </div>
-        ))}
-      </div>
-      
-      {(delayed.length + atRisk.length) > 8 && (
-        <button className="mt-3 text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1">
-          View all {delayed.length + atRisk.length} items <ArrowRight className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// SUMMARY STATS BAR
-// ============================================================================
-
-function SummaryStats({ data }) {
-  const stats = useMemo(() => {
-    const total = data.length;
-    const achieved = data.filter(d => d.maturity_status === 'achieved').length;
-    const onTrack = data.filter(d => d.maturity_status === 'on_track').length;
-    const atRisk = data.filter(d => d.maturity_status === 'at_risk').length;
-    const delayed = data.filter(d => d.maturity_status === 'delayed').length;
-    const avgProgress = total > 0 
-      ? Math.round(data.reduce((sum, d) => sum + (d.progress_percentage || 0), 0) / total)
-      : 0;
+  // Generate axis lines and labels
+  const axes = data.map((item, i) => {
+    const endPoint = getPoint(i, levels);
+    const labelPoint = getPoint(i, levels + 0.8);
     
-    return { total, achieved, onTrack, atRisk, delayed, avgProgress };
-  }, [data]);
+    // Truncate long names
+    const displayName = item.name.length > 12 
+      ? item.name.substring(0, 10) + '...' 
+      : item.name;
+
+    return (
+      <g key={i}>
+        <line
+          x1={centerX}
+          y1={centerY}
+          x2={endPoint.x}
+          y2={endPoint.y}
+          stroke="#d1d5db"
+          strokeWidth="1"
+        />
+        <text
+          x={labelPoint.x}
+          y={labelPoint.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="text-xs fill-gray-600"
+          style={{ fontSize: '10px' }}
+        >
+          {displayName}
+        </text>
+      </g>
+    );
+  });
+
+  // Target polygon (outer line)
+  const targetPoints = getPolygonPoints(item => item.target || 0);
   
+  // Current polygon (filled area)
+  const currentPoints = getPolygonPoints(item => item.current || 0);
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-      <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
-        <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-        <div className="text-xs text-gray-500">Total</div>
-      </div>
-      <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 text-center">
-        <div className="text-2xl font-bold text-emerald-700">{stats.achieved}</div>
-        <div className="text-xs text-emerald-600">Achieved</div>
-      </div>
-      <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 text-center">
-        <div className="text-2xl font-bold text-blue-700">{stats.onTrack}</div>
-        <div className="text-xs text-blue-600">On Track</div>
-      </div>
-      <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 text-center">
-        <div className="text-2xl font-bold text-amber-700">{stats.atRisk}</div>
-        <div className="text-xs text-amber-600">At Risk</div>
-      </div>
-      <div className="bg-red-50 rounded-xl border border-red-200 p-4 text-center">
-        <div className="text-2xl font-bold text-red-700">{stats.delayed}</div>
-        <div className="text-xs text-red-600">Delayed</div>
-      </div>
-      <div className="bg-purple-50 rounded-xl border border-purple-200 p-4 text-center">
-        <div className="text-2xl font-bold text-purple-700">{stats.avgProgress}%</div>
-        <div className="text-xs text-purple-600">Avg Progress</div>
-      </div>
-    </div>
+    <svg width={size} height={size} className="mx-auto">
+      {/* Background circles */}
+      {levelCircles}
+      
+      {/* Level labels */}
+      {[1, 2, 3, 4, 5].map(level => (
+        <text
+          key={level}
+          x={centerX + 8}
+          y={centerY - (level / levels) * radius}
+          className="text-xs fill-gray-400"
+          style={{ fontSize: '9px' }}
+        >
+          {level}
+        </text>
+      ))}
+      
+      {/* Axes */}
+      {axes}
+      
+      {/* Target polygon (orange/red dashed line) */}
+      <polygon
+        points={targetPoints}
+        fill="none"
+        stroke="#f97316"
+        strokeWidth="2"
+        strokeDasharray="5,3"
+      />
+      
+      {/* Current polygon (blue filled) */}
+      <polygon
+        points={currentPoints}
+        fill="rgba(59, 130, 246, 0.3)"
+        stroke="#3b82f6"
+        strokeWidth="2"
+      />
+      
+      {/* Data points - Current */}
+      {data.map((item, i) => {
+        const point = getPoint(i, item.current || 0);
+        return (
+          <circle
+            key={`current-${i}`}
+            cx={point.x}
+            cy={point.y}
+            r="4"
+            fill="#3b82f6"
+            stroke="white"
+            strokeWidth="2"
+          />
+        );
+      })}
+      
+      {/* Data points - Target */}
+      {data.map((item, i) => {
+        const point = getPoint(i, item.target || 0);
+        return (
+          <circle
+            key={`target-${i}`}
+            cx={point.x}
+            cy={point.y}
+            r="3"
+            fill="#f97316"
+            stroke="white"
+            strokeWidth="1"
+          />
+        );
+      })}
+    </svg>
   );
 }
 
@@ -381,481 +196,468 @@ function SummaryStats({ data }) {
 export default function CompetencyMaturityDashboard({ 
   profile, 
   clientId, 
-  users = [],
-  initialScope = 'team'
+  users = [], 
+  initialScope = 'individual',
+  showRecommendButton = false,
+  onRecommend
 }) {
   const navigate = useNavigate();
   
-  // Get allowed scopes based on user role
-  const allowedScopes = useMemo(() => getAllowedScopes(profile?.role), [profile?.role]);
-  
-  // Validate initial scope - use first allowed scope if initial is not allowed
-  const validInitialScope = useMemo(() => {
-    const allowed = allowedScopes.find(s => s.id === initialScope);
-    return allowed ? initialScope : (allowedScopes[0]?.id || 'individual');
-  }, [initialScope, allowedScopes]);
-  
-  const [scope, setScope] = useState(validInitialScope);
-  const [viewMode, setViewMode] = useState('category'); // 'category' or 'competency'
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [selectedCompetency, setSelectedCompetency] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [expandedCategories, setExpandedCategories] = useState(new Set());
+  // State
+  const [scope, setScope] = useState(initialScope);
+  const [selectedUserId, setSelectedUserId] = useState(profile?.id);
+  const [competencyData, setCompetencyData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState([]);
-  const [categories, setCategories] = useState([]);
-  
-  // Navigation handlers
-  const handleCompetencyClick = (competency) => {
-    // Navigate to competency detail page with the competency and user info
-    if (competency.user_id && competency.competency_id) {
-      // Go to user's competency matrix with this competency highlighted
-      navigate(`/competencies?user=${competency.user_id}&highlight=${competency.competency_id}`);
-    } else if (competency.competency_id) {
-      navigate(`/competencies?competency=${competency.competency_id}`);
-    } else {
-      navigate('/competencies');
-    }
-  };
-  
-  const handleCategoryClick = (category) => {
-    // Navigate to competencies page filtered by category
-    if (category.id && category.id !== 'uncategorized') {
-      navigate(`/competencies?category=${category.id}`);
-    } else {
-      navigate('/competencies');
-    }
-  };
-  
-  const handleUserClick = (competency) => {
-    // Navigate to user's profile or competency matrix
-    if (competency.user_id) {
-      // Check user role to determine where to navigate
-      if (profile?.role === 'trainee') {
-        navigate('/my-progress');
-      } else {
-        navigate(`/profiles?user=${competency.user_id}`);
-      }
-    }
-  };
-  
-  // Update scope if it becomes invalid after role change
+  const [showScopeDropdown, setShowScopeDropdown] = useState(false);
+  const [viewMode, setViewMode] = useState('chart'); // 'chart' or 'list'
+
+  // Scope options based on role
+  const scopeOptions = [
+    { value: 'individual', label: 'Individual', icon: User },
+    { value: 'team', label: 'Team', icon: Users },
+    { value: 'organization', label: 'Organization', icon: Building2 }
+  ];
+
+  // Load data when scope or selection changes
   useEffect(() => {
-    if (!allowedScopes.find(s => s.id === scope)) {
-      setScope(allowedScopes[0]?.id || 'individual');
-    }
-  }, [allowedScopes, scope]);
-  
-  // Load data
-  useEffect(() => {
-    if (clientId) {
-      loadData();
-    }
-  }, [clientId, scope, profile]);
-  
-  async function loadData() {
+    loadCompetencyData();
+  }, [scope, selectedUserId, clientId]);
+
+  const loadCompetencyData = async () => {
     setLoading(true);
     try {
-      // Load categories
-      const categoriesData = await dbFetch(`competency_categories?client_id=eq.${clientId}&is_active=eq.true&order=sort_order.asc`);
-      setCategories(categoriesData || []);
-      
-      // First, fetch all users for this client if not provided
-      let allUsers = users;
-      if (!allUsers || allUsers.length === 0) {
-        allUsers = await dbFetch(`profiles?select=*&client_id=eq.${clientId}&is_active=eq.true`);
-      }
-      
-      // Build user IDs list based on scope
-      let targetUserIds = [];
-      
-      if (scope === 'individual' && profile?.id) {
-        targetUserIds = [profile.id];
-      } else if (scope === 'team' && profile?.id) {
-        // If users were passed to this component, use them directly (they're already the team)
-        // This is typically the case when TeamLeadDashboard passes teamMembersList
-        if (users && users.length > 0) {
-          targetUserIds = users.map(u => u.id);
-          console.log('Team scope - Using passed users:', users.length);
-        } else {
-          // Fallback: Get team members who report to this user from allUsers
-          const teamMembers = allUsers.filter(u => u.reports_to_id === profile.id);
-          targetUserIds = teamMembers.map(u => u.id);
-          console.log('Team scope - Filtered by reports_to_id:', teamMembers.length);
-          
-          // If still no direct reports found, try to find trainees in the same client (fallback for team leads)
-          if (teamMembers.length === 0 && profile?.role === 'team_lead') {
-            const trainees = allUsers.filter(u => u.role === 'trainee');
-            targetUserIds = trainees.map(u => u.id);
-            console.log('Team scope - Fallback: showing all trainees:', trainees.length);
-          }
+      let userCompetencies = [];
+
+      if (scope === 'individual') {
+        // Get specific user's competencies
+        const userId = selectedUserId || profile?.id;
+        if (userId) {
+          userCompetencies = await dbFetch(
+            `user_competencies?select=*,competency:competency_id(id,name,description)&user_id=eq.${userId}`
+          );
         }
-      } else if (scope === 'department' && profile?.department) {
-        const deptUsers = allUsers.filter(u => u.department === profile.department);
-        targetUserIds = deptUsers.map(u => u.id);
-      } else if (scope === 'site' && profile?.site) {
-        const siteUsers = allUsers.filter(u => u.site === profile.site);
-        targetUserIds = siteUsers.map(u => u.id);
+      } else if (scope === 'team') {
+        // Get team's competencies (users reporting to current user or in same team)
+        let teamUserIds = [];
+        
+        if (profile?.role === 'team_lead') {
+          // Get direct reports
+          const teamUsers = await dbFetch(
+            `profiles?select=id&reports_to_id=eq.${profile.id}&is_active=eq.true`
+          );
+          teamUserIds = teamUsers?.map(u => u.id) || [];
+          teamUserIds.push(profile.id); // Include self
+        } else if (clientId) {
+          // Get all users in client for admins
+          const clientUsers = await dbFetch(
+            `profiles?select=id&client_id=eq.${clientId}&is_active=eq.true`
+          );
+          teamUserIds = clientUsers?.map(u => u.id) || [];
+        }
+
+        if (teamUserIds.length > 0) {
+          userCompetencies = await dbFetch(
+            `user_competencies?select=*,competency:competency_id(id,name,description)&user_id=in.(${teamUserIds.join(',')})`
+          );
+        }
       } else if (scope === 'organization') {
-        // All users in the client
-        targetUserIds = allUsers.map(u => u.id);
-      }
-      
-      console.log('CompetencyMaturity - Scope:', scope, 'Target users:', targetUserIds.length, 'IDs:', targetUserIds);
-      
-      // If no users found for scope, show empty state
-      if (targetUserIds.length === 0) {
-        setData([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Load competency assignments for target users
-      const userIdList = targetUserIds.join(',');
-      
-      // Fetch user_competencies
-      const maturityData = await dbFetch(
-        `user_competencies?select=*&user_id=in.(${userIdList})`
-      );
-      
-      console.log('CompetencyMaturity - user_competencies:', maturityData?.length || 0, 'records');
-      
-      // If no competency assignments found, show empty
-      if (!maturityData || maturityData.length === 0) {
-        setData([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Get unique competency IDs to fetch competency details
-      const competencyIds = [...new Set(maturityData.map(m => m.competency_id).filter(Boolean))];
-      
-      // Fetch competencies details
-      let competenciesMap = {};
-      if (competencyIds.length > 0) {
-        const competenciesData = await dbFetch(
-          `competencies?select=id,name,category,category_id&id=in.(${competencyIds.join(',')})`
-        );
-        competenciesMap = (competenciesData || []).reduce((acc, c) => {
-          acc[c.id] = c;
-          return acc;
-        }, {});
-      }
-      
-      // Build users map
-      const usersMap = allUsers.reduce((acc, u) => {
-        acc[u.id] = u;
-        return acc;
-      }, {});
-      
-      console.log('CompetencyMaturity - Competencies loaded:', Object.keys(competenciesMap).length);
-      
-      // Transform data
-      const transformedData = (maturityData || []).map(item => {
-        const comp = competenciesMap[item.competency_id] || {};
-        const user = usersMap[item.user_id] || {};
-        
-        // Calculate status
-        let maturity_status = 'no_deadline';
-        const current = item.current_level || 0;
-        const target = item.target_level || 3;
-        
-        if (current >= target) {
-          maturity_status = 'achieved';
-        } else if (item.target_due_date) {
-          const dueDate = new Date(item.target_due_date);
-          const today = new Date();
-          const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+        // Get all competencies for the organization
+        if (clientId) {
+          const clientUsers = await dbFetch(
+            `profiles?select=id&client_id=eq.${clientId}&is_active=eq.true`
+          );
+          const userIds = clientUsers?.map(u => u.id) || [];
           
-          if (daysUntilDue < 0) {
-            maturity_status = 'delayed';
-          } else if (daysUntilDue <= 14) {
-            maturity_status = 'at_risk';
-          } else {
-            maturity_status = 'on_track';
+          if (userIds.length > 0) {
+            userCompetencies = await dbFetch(
+              `user_competencies?select=*,competency:competency_id(id,name,description)&user_id=in.(${userIds.join(',')})`
+            );
           }
         }
-        
-        const progress_percentage = target > 0 ? Math.round((current / target) * 100) : 0;
-        
-        return {
-          id: item.id,
-          user_id: item.user_id,
-          user_name: user.full_name,
-          department: user.department,
-          site: user.site,
-          competency_id: comp.id,
-          competency_name: comp.name,
-          category_id: comp.category_id || null,
-          category_name: comp.category || 'Uncategorized',
-          category_color: '#6366f1', // Default color, will be overridden by category lookup
-          current_level: current,
-          target_level: target,
-          target_due_date: item.target_due_date,
-          priority: item.priority,
-          status: item.status,
-          maturity_status,
-          progress_percentage
-        };
-      });
-      
-      // Enrich with category colors from loaded categories
-      const enrichedData = transformedData.map(item => {
-        if (item.category_id && categoriesData) {
-          const cat = categoriesData.find(c => c.id === item.category_id);
-          if (cat) {
-            return { ...item, category_name: cat.name, category_color: cat.color || '#6366f1' };
-          }
-        }
-        return item;
-      });
-      
-      setData(enrichedData);
+      }
+
+      // Process and aggregate data
+      const processed = processCompetencyData(userCompetencies, scope);
+      setCompetencyData(processed);
     } catch (error) {
-      console.error('Error loading maturity data:', error);
+      console.error('Error loading competency data:', error);
+      setCompetencyData([]);
     } finally {
       setLoading(false);
     }
-  }
-  
-  // Group data by category
-  const groupedByCategory = useMemo(() => {
-    const groups = new Map();
-    
-    // Add default category for uncategorized
-    groups.set('uncategorized', {
-      id: 'uncategorized',
-      name: 'Uncategorized',
-      color: '#9CA3AF',
-      competencies: []
-    });
-    
-    // Add known categories
-    categories.forEach(cat => {
-      groups.set(cat.id, { ...cat, competencies: [] });
-    });
-    
-    // Group competencies
-    data.forEach(item => {
-      const catId = item.category_id || 'uncategorized';
-      if (groups.has(catId)) {
-        groups.get(catId).competencies.push(item);
-      } else {
-        groups.get('uncategorized').competencies.push(item);
-      }
-    });
-    
-    // Remove empty categories
-    return Array.from(groups.values()).filter(g => g.competencies.length > 0);
-  }, [data, categories]);
-  
-  // Filter by selected category/competency
-  const filteredData = useMemo(() => {
-    let filtered = [...data];
-    
-    if (selectedCategory) {
-      filtered = filtered.filter(d => d.category_id === selectedCategory);
-    }
-    if (selectedCompetency) {
-      filtered = filtered.filter(d => d.competency_id === selectedCompetency);
-    }
-    if (selectedUser) {
-      filtered = filtered.filter(d => d.user_id === selectedUser);
-    }
-    
-    return filtered;
-  }, [data, selectedCategory, selectedCompetency, selectedUser]);
-  
-  // Toggle category expansion
-  const toggleCategory = (categoryId) => {
-    const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(categoryId)) {
-      newExpanded.delete(categoryId);
-    } else {
-      newExpanded.add(categoryId);
-    }
-    setExpandedCategories(newExpanded);
   };
-  
+
+  // Process raw data into chart format
+  const processCompetencyData = (rawData, scope) => {
+    if (!rawData || rawData.length === 0) return [];
+
+    // Group by competency
+    const grouped = {};
+    rawData.forEach(uc => {
+      if (!uc.competency) return;
+      
+      const compId = uc.competency_id;
+      if (!grouped[compId]) {
+        grouped[compId] = {
+          id: compId,
+          name: uc.competency.name,
+          description: uc.competency.description,
+          currentLevels: [],
+          targetLevels: [],
+          users: []
+        };
+      }
+      
+      grouped[compId].currentLevels.push(uc.current_level || 0);
+      grouped[compId].targetLevels.push(uc.target_level || 0);
+      grouped[compId].users.push({
+        userId: uc.user_id,
+        current: uc.current_level || 0,
+        target: uc.target_level || 0
+      });
+    });
+
+    // Calculate aggregates based on scope
+    return Object.values(grouped).map(comp => {
+      let current, target;
+
+      if (scope === 'individual') {
+        // Just take the single value
+        current = comp.currentLevels[0] || 0;
+        target = comp.targetLevels[0] || 0;
+      } else if (scope === 'team') {
+        // Average for team
+        current = comp.currentLevels.length > 0 
+          ? Math.round((comp.currentLevels.reduce((a, b) => a + b, 0) / comp.currentLevels.length) * 10) / 10
+          : 0;
+        target = comp.targetLevels.length > 0
+          ? Math.round((comp.targetLevels.reduce((a, b) => a + b, 0) / comp.targetLevels.length) * 10) / 10
+          : 0;
+      } else {
+        // Max for organization (to see expertise peaks)
+        current = Math.max(...comp.currentLevels, 0);
+        target = Math.max(...comp.targetLevels, 0);
+      }
+
+      // Find experts (Level 4+)
+      const experts = comp.users.filter(u => u.current >= 4);
+
+      return {
+        id: comp.id,
+        name: comp.name,
+        description: comp.description,
+        current,
+        target,
+        gap: target - current,
+        achieved: current >= target,
+        expertCount: experts.length,
+        userCount: comp.users.length
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Calculate summary stats
+  const getSummaryStats = () => {
+    if (competencyData.length === 0) {
+      return { total: 0, achieved: 0, onTrack: 0, atRisk: 0, avgProgress: 0 };
+    }
+
+    const total = competencyData.length;
+    const achieved = competencyData.filter(c => c.achieved).length;
+    const atRisk = competencyData.filter(c => c.gap >= 2).length;
+    const onTrack = total - achieved - atRisk;
+    
+    const avgProgress = Math.round(
+      competencyData.reduce((sum, c) => {
+        const progress = c.target > 0 ? (c.current / c.target) * 100 : 100;
+        return sum + Math.min(progress, 100);
+      }, 0) / total
+    );
+
+    return { total, achieved, onTrack, atRisk, avgProgress };
+  };
+
+  const stats = getSummaryStats();
+
+  // Get scope label
+  const getScopeLabel = () => {
+    const option = scopeOptions.find(o => o.value === scope);
+    return option?.label || 'Individual';
+  };
+
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-8">
-        <div className="flex items-center justify-center">
-          <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
-          <span className="ml-2 text-gray-500">Loading maturity data...</span>
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center justify-center h-64">
+          <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
         </div>
       </div>
     );
   }
-  
+
   return (
-    <div className="space-y-6">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Target className="w-5 h-5 text-purple-600" />
-                Competency Maturity Dashboard
-              </h2>
-              <button
-                onClick={() => navigate('/competencies')}
-                className="md:hidden text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
-              >
-                View all <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-sm text-gray-500">Track progress towards competency targets</p>
+      <div className="p-4 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-purple-600" />
+            <h3 className="font-semibold text-gray-900">Competency Maturity Dashboard</h3>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3">
-            {/* View All Link - Desktop */}
-            <button
-              onClick={() => navigate('/competencies')}
-              className="hidden md:flex items-center gap-1 px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-lg text-sm font-medium transition-colors"
-            >
-              View all <ArrowRight className="w-4 h-4" />
-            </button>
-            
-            {/* Scope Selector - shows only allowed scopes based on role */}
-            {allowedScopes.length > 1 && (
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                {allowedScopes.map(option => {
-                  const Icon = option.icon;
-                  const isActive = scope === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      onClick={() => setScope(option.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                        isActive 
-                          ? 'bg-white text-purple-700 shadow-sm' 
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span className="hidden sm:inline">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            
-            {/* View Mode Toggle */}
-            <button
-              onClick={() => setViewMode(viewMode === 'category' ? 'competency' : 'category')}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
-            >
-              {viewMode === 'category' ? (
+          <div className="flex items-center gap-2">
+            {/* View Toggle */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('chart')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  viewMode === 'chart' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+                }`}
+              >
+                By Competency
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  viewMode === 'list' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+                }`}
+              >
+                List View
+              </button>
+            </div>
+
+            {/* Scope Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowScopeDropdown(!showScopeDropdown)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
+              >
+                <Filter className="w-4 h-4 text-gray-500" />
+                {getScopeLabel()}
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
+              
+              {showScopeDropdown && (
                 <>
-                  <Layers className="w-4 h-4" />
-                  By Category
-                </>
-              ) : (
-                <>
-                  <List className="w-4 h-4" />
-                  By Competency
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowScopeDropdown(false)} 
+                  />
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                    {scopeOptions.map(option => (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          setScope(option.value);
+                          setShowScopeDropdown(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 ${
+                          scope === option.value ? 'bg-purple-50 text-purple-700' : 'text-gray-700'
+                        }`}
+                      >
+                        <option.icon className="w-4 h-4" />
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
-            </button>
-            
+            </div>
+
             {/* Refresh */}
             <button
-              onClick={loadData}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Refresh data"
+              onClick={loadCompetencyData}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
         </div>
+        <p className="text-sm text-gray-500 mt-1">Track progress towards competency targets</p>
       </div>
-      
+
       {/* Summary Stats */}
-      <SummaryStats data={filteredData} />
-      
-      {/* Action Items */}
-      <ActionItemsSection items={filteredData} />
-      
-      {/* Main Content */}
-      {viewMode === 'category' ? (
-        <div className="space-y-4">
-          {groupedByCategory.map(category => (
-            <CategoryCard
-              key={category.id}
-              category={category}
-              competencies={category.competencies}
-              isExpanded={expandedCategories.has(category.id)}
-              onToggle={() => toggleCategory(category.id)}
-              onCompetencyClick={handleCompetencyClick}
-              onCategoryClick={handleCategoryClick}
-              onUserClick={handleUserClick}
-            />
-          ))}
-          
-          {groupedByCategory.length === 0 && (
-            <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-8 text-center">
-              <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-600">No competencies found</h3>
-              <p className="text-gray-500 mt-1">No competency assignments for the selected scope</p>
-              <button 
-                onClick={() => navigate('/competencies')}
-                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Go to Competencies
-              </button>
-            </div>
-          )}
+      <div className="grid grid-cols-5 border-b border-gray-100">
+        <div className="p-3 text-center border-r border-gray-100">
+          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          <p className="text-xs text-gray-500">Total</p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredData.map(comp => (
-            <CompetencyRow 
-              key={comp.id} 
-              competency={comp} 
-              showUser={scope !== 'individual'} 
-              onClick={handleCompetencyClick}
-              onUserClick={handleUserClick}
-            />
-          ))}
-          
-          {filteredData.length === 0 && (
-            <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-8 text-center">
-              <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-600">No competencies found</h3>
-              <p className="text-gray-500 mt-1">No competency assignments for the selected scope</p>
-              <button 
-                onClick={() => navigate('/competencies')}
-                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Go to Competencies
-              </button>
-            </div>
-          )}
+        <div className="p-3 text-center border-r border-gray-100 bg-green-50">
+          <p className="text-2xl font-bold text-green-600">{stats.achieved}</p>
+          <p className="text-xs text-gray-500">Achieved</p>
         </div>
-      )}
-      
-      {/* Legend */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">Maturity Levels</h4>
-        <div className="flex flex-wrap gap-4">
-          {MATURITY_LEVELS.map(level => (
-            <div key={level.level} className="flex items-center gap-2">
-              <div 
-                className="w-4 h-4 rounded"
-                style={{ backgroundColor: level.color }}
-              />
-              <span className="text-sm text-gray-600">
-                L{level.level}: {level.label}
-              </span>
-            </div>
-          ))}
+        <div className="p-3 text-center border-r border-gray-100 bg-blue-50">
+          <p className="text-2xl font-bold text-blue-600">{stats.onTrack}</p>
+          <p className="text-xs text-gray-500">On Track</p>
         </div>
+        <div className="p-3 text-center border-r border-gray-100 bg-amber-50">
+          <p className="text-2xl font-bold text-amber-600">{stats.atRisk}</p>
+          <p className="text-xs text-gray-500">At Risk</p>
+        </div>
+        <div className="p-3 text-center">
+          <p className="text-2xl font-bold text-purple-600">{stats.avgProgress}%</p>
+          <p className="text-xs text-gray-500">Avg Progress</p>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4">
+        {competencyData.length === 0 ? (
+          <div className="text-center py-12">
+            <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-1">No competency data</h3>
+            <p className="text-gray-500">
+              {scope === 'individual' 
+                ? 'No competencies have been assigned yet'
+                : 'No competencies found for this scope'}
+            </p>
+          </div>
+        ) : viewMode === 'chart' ? (
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Radar Chart */}
+            <div className="flex-1 flex justify-center">
+              <RadarChart data={competencyData} size={320} />
+            </div>
+
+            {/* Legend & Details */}
+            <div className="lg:w-80 space-y-4">
+              {/* Legend */}
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-0.5 bg-blue-500"></div>
+                  <span className="text-gray-600">Current</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-0.5 bg-orange-500 border-dashed" style={{ borderStyle: 'dashed' }}></div>
+                  <span className="text-gray-600">Target</span>
+                </div>
+              </div>
+
+              {/* Competency List */}
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {competencyData.map(comp => (
+                  <div 
+                    key={comp.id}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
+                    onClick={() => navigate(`/competencies?id=${comp.id}`)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{comp.name}</p>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-blue-600">L{comp.current}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="text-orange-600">L{comp.target}</span>
+                        {comp.achieved ? (
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                        ) : comp.gap >= 2 ? (
+                          <AlertTriangle className="w-3 h-3 text-amber-500" />
+                        ) : null}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Expert Candidates - for Organization scope */}
+              {scope === 'organization' && (
+                <div className="pt-4 border-t border-gray-200">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-500" />
+                    Expert Candidates (L4+)
+                  </h4>
+                  <div className="space-y-1">
+                    {competencyData.filter(c => c.current >= 4).length === 0 ? (
+                      <p className="text-sm text-gray-500">No Level 4+ experts yet</p>
+                    ) : (
+                      competencyData
+                        .filter(c => c.current >= 4)
+                        .map(comp => (
+                          <div key={comp.id} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-700">{comp.name}</span>
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                              L{comp.current}
+                            </span>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* List View */
+          <div className="space-y-2">
+            {competencyData.map(comp => {
+              const progressPercent = comp.target > 0 ? Math.min((comp.current / comp.target) * 100, 100) : 100;
+              
+              return (
+                <div 
+                  key={comp.id}
+                  className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
+                  onClick={() => navigate(`/competencies?id=${comp.id}`)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900">{comp.name}</p>
+                      {comp.achieved && (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> Achieved
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 truncate">{comp.description}</p>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="w-32">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-blue-600 font-medium">L{comp.current}</span>
+                      <span className="text-orange-600">Target: L{comp.target}</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden relative">
+                      <div 
+                        className={`h-full rounded-full ${comp.achieved ? 'bg-green-500' : 'bg-blue-500'}`}
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                      {/* Target marker */}
+                      <div 
+                        className="absolute top-0 h-full w-0.5 bg-orange-500"
+                        style={{ left: '100%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="w-20 text-right">
+                    {comp.achieved ? (
+                      <span className="text-green-600 text-sm">✓</span>
+                    ) : comp.gap >= 2 ? (
+                      <span className="text-amber-600 text-sm">⚠ Gap: {comp.gap}</span>
+                    ) : (
+                      <span className="text-blue-600 text-sm">Gap: {comp.gap}</span>
+                    )}
+                  </div>
+
+                  <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Footer - View All Link */}
+      <div className="p-3 border-t border-gray-100 bg-gray-50">
+        <button
+          onClick={() => navigate('/competencies')}
+          className="w-full text-center text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1"
+        >
+          View all competencies
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
 }
-
-// Export helper for use in DashboardPage
-export { MaturityBar, StatusBadge, SummaryStats };

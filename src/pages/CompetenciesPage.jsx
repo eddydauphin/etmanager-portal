@@ -26,7 +26,10 @@ import {
   Eye,
   UserPlus,
   Calendar,
-  Loader2
+  Loader2,
+  Network,
+  Star,
+  Send
 } from 'lucide-react';
 
 // Spider Chart Component using SVG
@@ -241,6 +244,16 @@ const MiniSpiderChart = ({ data, size = 120 }) => {
 export default function CompetenciesPage() {
   const { user: currentUser, profile: currentProfile } = useAuth();
   const isSuperAdmin = currentProfile?.role === 'super_admin';
+  const isClientAdmin = currentProfile?.role === 'client_admin';
+  const isCategoryAdmin = currentProfile?.role === 'category_admin';
+  const isSiteAdmin = currentProfile?.role === 'site_admin';
+  const isTeamLead = currentProfile?.role === 'team_lead';
+  
+  // Can nominate for Expert Network (Team Lead, Site Admin, and above)
+  const canNominate = isTeamLead || isSiteAdmin || isCategoryAdmin || isClientAdmin || isSuperAdmin;
+  
+  // Can directly add to Expert Network (Category Admin and above)
+  const canDirectlyAdd = isCategoryAdmin || isClientAdmin || isSuperAdmin;
   
   // State
   const [competencies, setCompetencies] = useState([]);
@@ -248,6 +261,9 @@ export default function CompetenciesPage() {
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]); // For owner and training developer selection
   const [trainees, setTrainees] = useState([]); // NEW: For competency assignment
+  const [expertNetworks, setExpertNetworks] = useState([]); // Expert networks for nomination
+  const [existingNominations, setExistingNominations] = useState([]); // Track existing nominations
+  const [existingNetworkMembers, setExistingNetworkMembers] = useState([]); // Track who's already in networks
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -311,6 +327,21 @@ export default function CompetenciesPage() {
     notes: ''
   });
   
+  // NEW: Nomination modal state
+  const [showNominationModal, setShowNominationModal] = useState(false);
+  const [nominationData, setNominationData] = useState({
+    user_id: '',
+    user_name: '',
+    competency_id: '',
+    competency_name: '',
+    current_level: 0,
+    proposed_role: 'fsme',
+    site_name: '',
+    notes: ''
+  });
+  const [nominating, setNominating] = useState(false);
+  const [nominationError, setNominationError] = useState('');
+  
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState(null);
   
@@ -332,7 +363,16 @@ export default function CompetenciesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadCompetencies(), loadCategories(), loadClients(), loadUsers(), loadTrainees()]);
+      await Promise.all([
+        loadCompetencies(), 
+        loadCategories(), 
+        loadClients(), 
+        loadUsers(), 
+        loadTrainees(),
+        loadExpertNetworks(),
+        loadExistingNominations(),
+        loadExistingNetworkMembers()
+      ]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -436,6 +476,111 @@ export default function CompetenciesPage() {
       setTrainees(data || []);
     } catch (error) {
       console.error('Error loading trainees:', error);
+    }
+  };
+
+  // NEW: Load expert networks for nomination
+  const loadExpertNetworks = async () => {
+    try {
+      let url = 'expert_networks?select=id,name,competency_id,client_id&is_active=eq.true';
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
+      const data = await dbFetch(url);
+      setExpertNetworks(data || []);
+    } catch (error) {
+      console.error('Error loading expert networks:', error);
+    }
+  };
+
+  // NEW: Load existing nominations to show status
+  const loadExistingNominations = async () => {
+    try {
+      let url = 'expert_nominations?select=id,user_id,competency_id,status';
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
+      const data = await dbFetch(url);
+      setExistingNominations(data || []);
+    } catch (error) {
+      console.error('Error loading nominations:', error);
+    }
+  };
+
+  // NEW: Load existing network members to check who's already in
+  const loadExistingNetworkMembers = async () => {
+    try {
+      const data = await dbFetch('expert_network_members?select=user_id,network_id,network:network_id(competency_id)');
+      setExistingNetworkMembers(data || []);
+    } catch (error) {
+      console.error('Error loading network members:', error);
+    }
+  };
+
+  // NEW: Check if user is already in network for a competency
+  const isUserInNetwork = (userId, competencyId) => {
+    return existingNetworkMembers.some(m => 
+      m.user_id === userId && m.network?.competency_id === competencyId
+    );
+  };
+
+  // NEW: Check if user has pending nomination for a competency
+  const getUserNominationStatus = (userId, competencyId) => {
+    const nomination = existingNominations.find(n => 
+      n.user_id === userId && n.competency_id === competencyId
+    );
+    return nomination?.status || null;
+  };
+
+  // NEW: Open nomination modal
+  const handleOpenNominationModal = (user, competency, currentLevel) => {
+    setNominationData({
+      user_id: user.id,
+      user_name: user.full_name,
+      competency_id: competency.id,
+      competency_name: competency.name,
+      current_level: currentLevel,
+      proposed_role: currentLevel >= 5 ? 'gsme' : 'fsme',
+      site_name: '',
+      notes: ''
+    });
+    setNominationError('');
+    setShowNominationModal(true);
+  };
+
+  // NEW: Submit nomination
+  const handleSubmitNomination = async () => {
+    setNominating(true);
+    setNominationError('');
+    
+    try {
+      // Check if network exists for this competency
+      const network = expertNetworks.find(n => n.competency_id === nominationData.competency_id);
+      
+      await dbFetch('expert_nominations', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: nominationData.user_id,
+          nominated_by: currentProfile?.id,
+          competency_id: nominationData.competency_id,
+          network_id: network?.id || null,
+          current_level: nominationData.current_level,
+          proposed_role: nominationData.proposed_role,
+          site_name: nominationData.site_name || null,
+          notes: nominationData.notes || null,
+          client_id: currentProfile?.client_id,
+          status: 'pending'
+        })
+      });
+
+      setShowNominationModal(false);
+      loadExistingNominations(); // Refresh nominations
+      alert(`${nominationData.user_name} has been nominated for the Expert Network. Awaiting approval.`);
+    } catch (error) {
+      console.error('Error submitting nomination:', error);
+      setNominationError(error.message || 'Failed to submit nomination');
+    } finally {
+      setNominating(false);
     }
   };
 
@@ -1842,35 +1987,65 @@ export default function CompetenciesPage() {
                         <div className="px-3 py-2 bg-gray-100 text-xs font-medium text-gray-600 sticky top-0">
                           Already Assigned ({existingUserCompetencies.length})
                         </div>
-                        {existingUserCompetencies.map(uc => (
-                          <div
-                            key={uc.id}
-                            className="flex items-center justify-between p-3 border-b border-gray-100 last:border-0 bg-gray-50"
-                          >
-                            <div className="flex items-center gap-2">
-                              {uc.current_level >= uc.target_level ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <div className="w-4 h-4 rounded-full border-2 border-amber-400" />
-                              )}
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{uc.user?.full_name}</p>
-                                <p className="text-xs text-gray-500">
-                                  L{uc.current_level || 0} → L{uc.target_level} 
-                                  {uc.current_level >= uc.target_level && (
-                                    <span className="ml-1 text-green-600">✓ Achieved</span>
-                                  )}
-                                </p>
+                        {existingUserCompetencies.map(uc => {
+                          const inNetwork = isUserInNetwork(uc.user_id, competencyToAssign.id);
+                          const nominationStatus = getUserNominationStatus(uc.user_id, competencyToAssign.id);
+                          const canRecommend = canNominate && uc.current_level >= 3 && !inNetwork && nominationStatus !== 'pending';
+                          
+                          return (
+                            <div
+                              key={uc.id}
+                              className="flex items-center justify-between p-3 border-b border-gray-100 last:border-0 bg-gray-50"
+                            >
+                              <div className="flex items-center gap-2">
+                                {uc.current_level >= uc.target_level ? (
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full border-2 border-amber-400" />
+                                )}
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{uc.user?.full_name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    L{uc.current_level || 0} → L{uc.target_level} 
+                                    {uc.current_level >= uc.target_level && (
+                                      <span className="ml-1 text-green-600">✓ Achieved</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {/* Expert Network Status / Recommend Button */}
+                                {inNetwork ? (
+                                  <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded flex items-center gap-1">
+                                    <Network className="w-3 h-3" /> In Network
+                                  </span>
+                                ) : nominationStatus === 'pending' ? (
+                                  <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded">
+                                    ⏳ Pending
+                                  </span>
+                                ) : canRecommend ? (
+                                  <button
+                                    onClick={() => handleOpenNominationModal(uc.user, competencyToAssign, uc.current_level)}
+                                    className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
+                                    title="Recommend for Expert Network"
+                                  >
+                                    <Star className="w-3 h-3" /> Recommend
+                                  </button>
+                                ) : null}
+                                
+                                {/* Validate Button */}
+                                {uc.current_level < uc.target_level && (
+                                  <button
+                                    onClick={() => handleOpenValidateModal(uc)}
+                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                  >
+                                    Validate
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            {uc.current_level < uc.target_level && (
-                              <button
-                                onClick={() => handleOpenValidateModal(uc)}
-                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                              >
-                                Validate
-                              </button>
-                            )}
+                          );
+                        })}
                           </div>
                         ))}
                       </div>
@@ -2096,6 +2271,154 @@ export default function CompetenciesPage() {
               >
                 {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 Confirm Validation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Expert Network Nomination Modal */}
+      {showNominationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Network className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Recommend for Expert Network</h2>
+                  <p className="text-sm text-gray-500">{nominationData.competency_name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNominationModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {nominationError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {nominationError}
+                </div>
+              )}
+
+              {/* Candidate Info */}
+              <div className="p-3 bg-purple-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-200 rounded-full flex items-center justify-center">
+                    <Star className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-purple-900">{nominationData.user_name}</p>
+                    <p className="text-sm text-purple-600">
+                      Level {nominationData.current_level} in {nominationData.competency_name}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Proposed Role */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Proposed Role
+                </label>
+                <div className="space-y-2">
+                  {nominationData.current_level >= 5 && (
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${
+                      nominationData.proposed_role === 'gsme' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="proposed_role"
+                        value="gsme"
+                        checked={nominationData.proposed_role === 'gsme'}
+                        onChange={(e) => setNominationData({ ...nominationData, proposed_role: e.target.value })}
+                        className="sr-only"
+                      />
+                      <Star className={`w-5 h-5 ${nominationData.proposed_role === 'gsme' ? 'text-blue-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="font-medium">GSME</div>
+                        <div className="text-xs text-gray-500">Global Subject Matter Expert</div>
+                      </div>
+                    </label>
+                  )}
+                  <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${
+                    nominationData.proposed_role === 'fsme' ? 'border-green-500 bg-green-50' : 'border-gray-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="proposed_role"
+                      value="fsme"
+                      checked={nominationData.proposed_role === 'fsme'}
+                      onChange={(e) => setNominationData({ ...nominationData, proposed_role: e.target.value })}
+                      className="sr-only"
+                    />
+                    <Award className={`w-5 h-5 ${nominationData.proposed_role === 'fsme' ? 'text-green-600' : 'text-gray-400'}`} />
+                    <div>
+                      <div className="font-medium">FSME</div>
+                      <div className="text-xs text-gray-500">Factory Subject Matter Expert</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Site Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Site Location
+                </label>
+                <input
+                  type="text"
+                  value={nominationData.site_name}
+                  onChange={(e) => setNominationData({ ...nominationData, site_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="e.g., Lyon, Singapore, Chicago"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={nominationData.notes}
+                  onChange={(e) => setNominationData({ ...nominationData, notes: e.target.value })}
+                  rows={2}
+                  placeholder="Why is this person a good fit for the Expert Network?"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Info Box */}
+              <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                <p className="flex items-center gap-2">
+                  <Send className="w-4 h-4 text-gray-400" />
+                  This nomination will be sent for approval to a Category Admin or Client Admin.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowNominationModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitNomination}
+                disabled={nominating}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                {nominating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Submit Nomination
               </button>
             </div>
           </div>
