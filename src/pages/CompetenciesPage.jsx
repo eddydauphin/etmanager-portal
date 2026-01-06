@@ -1006,25 +1006,39 @@ export default function CompetenciesPage() {
       return;
     }
     
-    console.log('Deleting tag:', tagToDelete.id, tagToDelete.name);
+    const tagId = tagToDelete.id;
+    const tagName = tagToDelete.name;
+    console.log('Deleting tag:', tagId, tagName);
     setSubmitting(true);
     
     try {
       // Delete tag links first
       console.log('Deleting tag links...');
-      const linkResult = await dbFetch(`competency_tag_links?tag_id=eq.${tagToDelete.id}`, {
+      await dbFetch(`competency_tag_links?tag_id=eq.${tagId}`, {
         method: 'DELETE'
       });
-      console.log('Tag links deleted:', linkResult);
+      console.log('Tag links deleted');
       
       // Then delete the tag
       console.log('Deleting tag...');
-      const tagResult = await dbFetch(`competency_tags?id=eq.${tagToDelete.id}`, {
+      await dbFetch(`competency_tags?id=eq.${tagId}`, {
         method: 'DELETE'
       });
-      console.log('Tag deleted:', tagResult);
+      console.log('Tag delete request sent');
       
-      // Refresh data
+      // Verify deletion by trying to fetch the tag
+      const verification = await dbFetch(`competency_tags?id=eq.${tagId}&select=id,name`);
+      console.log('Verification result:', verification);
+      
+      if (verification && verification.length > 0) {
+        // Tag still exists - RLS might be blocking
+        console.error('Tag still exists after delete! RLS policy might be blocking.');
+        alert('Unable to delete tag. You may not have permission to delete this tag, or it may be protected by database policies.');
+      } else {
+        console.log('Tag successfully deleted');
+      }
+      
+      // Refresh data regardless
       await loadTags();
       await loadCompetencies();
       
@@ -1037,10 +1051,8 @@ export default function CompetenciesPage() {
       console.log('Tag deletion complete');
     } catch (error) {
       console.error('Error deleting tag:', error);
-      // Show more detailed error
       const errorMsg = error?.message || JSON.stringify(error) || 'Unknown error';
       alert('Failed to delete tag: ' + errorMsg);
-      // Still close the confirmation modal on error
       setShowDeleteTagModal(false);
     } finally {
       setSubmitting(false);
