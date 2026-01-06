@@ -257,7 +257,7 @@ export default function CompetenciesPage() {
   
   // State
   const [competencies, setCompetencies] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [tags, setTags] = useState([]); // Renamed from categories
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]); // For owner and training developer selection
   const [trainees, setTrainees] = useState([]); // NEW: For competency assignment
@@ -266,17 +266,17 @@ export default function CompetenciesPage() {
   const [existingNetworkMembers, setExistingNetworkMembers] = useState([]); // Track who's already in networks
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState('all'); // Renamed from tagFilter
   const [clientFilter, setClientFilter] = useState('all');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false); // Renamed from showTagModal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false); // NEW: Assign to users modal
   const [editingCompetency, setEditingCompetency] = useState(null);
-  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingTag, setEditingTag] = useState(null); // Renamed from editingTag
   const [competencyToDelete, setCompetencyToDelete] = useState(null);
   const [competencyToAssign, setCompetencyToAssign] = useState(null); // NEW
   
@@ -284,7 +284,7 @@ export default function CompetenciesPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category_id: '',
+    tag_ids: [], // Changed from tag_id to support multiple tags
     client_ids: [],
     owner_id: '',                    // NEW: Competency owner (expert/coach)
     training_developer_id: '',       // NEW: Who creates training materials
@@ -295,12 +295,11 @@ export default function CompetenciesPage() {
     level_5_description: 'Expert - Can teach others',
     is_active: true
   });
-  const [categoryFormData, setCategoryFormData] = useState({
+  const [tagFormData, setTagFormData] = useState({ // Renamed from tagFormData
     name: '',
     description: '',
     color: '#3B82F6',
-    client_id: '',
-    isCustom: false
+    client_id: ''
   });
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -346,7 +345,7 @@ export default function CompetenciesPage() {
   const [openDropdown, setOpenDropdown] = useState(null);
   
   // Spider chart category filter (separate from list filter)
-  const [selectedChartCategories, setSelectedChartCategories] = useState([]);
+  const [selectedChartTags, setSelectedChartTags] = useState([]);
 
   // Load data on mount
   useEffect(() => {
@@ -365,7 +364,7 @@ export default function CompetenciesPage() {
     try {
       await Promise.all([
         loadCompetencies(), 
-        loadCategories(), 
+        loadTags(), // Renamed from loadTags
         loadClients(), 
         loadUsers(), 
         loadTrainees(),
@@ -382,14 +381,16 @@ export default function CompetenciesPage() {
 
   const loadCompetencies = async () => {
     try {
-      // Fetch competencies with their client associations via junction table
-      const data = await dbFetch('competencies?select=*,competency_categories(name,color),competency_clients(client_id,clients(id,name)),owner:owner_id(id,full_name),training_developer:training_developer_id(id,full_name)&order=name.asc');
+      // Fetch competencies with tags via junction table and client associations
+      const data = await dbFetch('competencies?select=*,competency_tag_links(tag_id,competency_tags(id,name,color)),competency_clients(client_id,clients(id,name)),owner:owner_id(id,full_name),training_developer:training_developer_id(id,full_name)&order=name.asc');
       
-      // Transform data to include client names array
+      // Transform data to include client names array and tags array
       let transformed = (data || []).map(comp => ({
         ...comp,
         client_names: comp.competency_clients?.map(cc => cc.clients?.name).filter(Boolean) || [],
-        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || []
+        client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || [],
+        tags: comp.competency_tag_links?.map(tl => tl.competency_tags).filter(Boolean) || [],
+        tag_ids: comp.competency_tag_links?.map(tl => tl.tag_id).filter(Boolean) || []
       }));
       
       // CRITICAL: Filter by client access for non-super_admin users
@@ -406,20 +407,20 @@ export default function CompetenciesPage() {
     }
   };
 
-  const loadCategories = async () => {
+  const loadTags = async () => {
     try {
-      let url = 'competency_categories?select=*&order=name.asc';
+      let url = 'competency_tags?select=*&order=name.asc';
       
       // Filter by client for non-super_admin users
-      // Include categories where client_id matches OR client_id is null (global categories)
+      // Include tags where client_id matches OR client_id is null (global tags)
       if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
         url += `&or=(client_id.eq.${currentProfile.client_id},client_id.is.null)`;
       }
       
       const data = await dbFetch(url);
-      setCategories(data || []);
+      setTags(data || []);
     } catch (error) {
-      console.error('Error loading categories:', error);
+      console.error('Error loading tags:', error);
     }
   };
 
@@ -589,9 +590,9 @@ export default function CompetenciesPage() {
     const matchesSearch = 
       comp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       comp.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || comp.category_id === categoryFilter;
+    const matchesTag = tagFilter === 'all' || comp.tag_ids?.includes(tagFilter);
     const matchesClient = clientFilter === 'all' || comp.client_ids?.includes(clientFilter);
-    return matchesSearch && matchesCategory && matchesClient;
+    return matchesSearch && matchesTag && matchesClient;
   });
 
   // Handle create/edit competency
@@ -601,7 +602,7 @@ export default function CompetenciesPage() {
       setFormData({
         name: competency.name || '',
         description: competency.description || '',
-        category_id: competency.category_id || '',
+        tag_ids: competency.tag_ids || [],
         client_ids: competency.client_ids || [],
         owner_id: competency.owner_id || '',
         training_developer_id: competency.training_developer_id || '',
@@ -617,7 +618,7 @@ export default function CompetenciesPage() {
       setFormData({
         name: '',
         description: '',
-        category_id: '',
+        tag_ids: [],
         client_ids: currentProfile?.role === 'client_admin' ? [currentProfile.client_id] : [],
         owner_id: '',
         training_developer_id: '',
@@ -855,7 +856,6 @@ export default function CompetenciesPage() {
       const payload = {
         name: formData.name,
         description: formData.description || null,
-        category_id: formData.category_id || null,
         owner_id: formData.owner_id || null,
         training_developer_id: formData.training_developer_id || null,
         level_1_description: formData.level_1_description,
@@ -880,6 +880,11 @@ export default function CompetenciesPage() {
         await dbFetch(`competency_clients?competency_id=eq.${editingCompetency.id}`, {
           method: 'DELETE'
         });
+        
+        // Delete existing tag associations
+        await dbFetch(`competency_tag_links?competency_id=eq.${editingCompetency.id}`, {
+          method: 'DELETE'
+        });
       } else {
         // Create new competency
         const result = await dbFetch('competencies?select=id', {
@@ -901,6 +906,18 @@ export default function CompetenciesPage() {
         });
       }
 
+      // Insert tag associations
+      if (competencyId && formData.tag_ids.length > 0) {
+        const tagAssociations = formData.tag_ids.map(tagId => ({
+          competency_id: competencyId,
+          tag_id: tagId
+        }));
+        await dbFetch('competency_tag_links', {
+          method: 'POST',
+          body: JSON.stringify(tagAssociations)
+        });
+      }
+
       await loadCompetencies();
       setShowModal(false);
     } catch (error) {
@@ -911,64 +928,61 @@ export default function CompetenciesPage() {
     }
   };
 
-  // Handle category modal
-  const handleOpenCategoryModal = (category = null) => {
-    if (category) {
-      setEditingCategory(category);
-      setCategoryFormData({
-        name: category.name || '',
-        description: category.description || '',
-        color: category.color || '#3B82F6',
-        client_id: category.client_id || '',
-        isCustom: true
+  // Handle tag modal
+  const handleOpenTagModal = (tag = null) => {
+    if (tag) {
+      setEditingTag(tag);
+      setTagFormData({
+        name: tag.name || '',
+        description: tag.description || '',
+        color: tag.color || '#3B82F6',
+        client_id: tag.client_id || ''
       });
     } else {
-      setEditingCategory(null);
-      setCategoryFormData({
+      setEditingTag(null);
+      setTagFormData({
         name: '',
         description: '',
         color: '#3B82F6',
-        client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
-        isCustom: false
+        client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : ''
       });
     }
-    setShowCategoryModal(true);
+    setShowTagModal(true);
   };
 
-  const handleCategorySubmit = async (e) => {
+  const handleTagSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
-      if (!categoryFormData.name) {
-        throw new Error('Category name is required');
+      if (!tagFormData.name) {
+        throw new Error('Tag name is required');
       }
 
       const payload = {
-        name: categoryFormData.name,
-        description: categoryFormData.description || null,
-        color: categoryFormData.color,
-        client_id: categoryFormData.client_id || null,
-        is_active: true
+        name: tagFormData.name,
+        description: tagFormData.description || null,
+        color: tagFormData.color,
+        client_id: tagFormData.client_id || null
       };
 
-      if (editingCategory) {
-        await dbFetch(`competency_categories?id=eq.${editingCategory.id}`, {
+      if (editingTag) {
+        await dbFetch(`competency_tags?id=eq.${editingTag.id}`, {
           method: 'PATCH',
           body: JSON.stringify(payload)
         });
       } else {
-        await dbFetch('competency_categories', {
+        await dbFetch('competency_tags', {
           method: 'POST',
           body: JSON.stringify(payload)
         });
       }
 
-      await loadCategories();
-      setShowCategoryModal(false);
+      await loadTags();
+      setShowTagModal(false);
     } catch (error) {
-      console.error('Error saving category:', error);
-      setFormError(error.message || 'Failed to save category');
+      console.error('Error saving tag:', error);
+      setFormError(error.message || 'Failed to save tag');
     } finally {
       setSubmitting(false);
     }
@@ -1037,11 +1051,11 @@ export default function CompetenciesPage() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => handleOpenCategoryModal()}
+            onClick={() => handleOpenTagModal()}
             className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Layers className="w-4 h-4" />
-            Add Category
+            Manage Tags
           </button>
           <button
             onClick={() => handleOpenModal()}
@@ -1072,8 +1086,8 @@ export default function CompetenciesPage() {
               <Layers className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{categories.length}</p>
-              <p className="text-sm text-gray-500">Categories</p>
+              <p className="text-2xl font-bold text-gray-900">{tags.length}</p>
+              <p className="text-sm text-gray-500">Tags</p>
             </div>
           </div>
         </div>
@@ -1101,20 +1115,20 @@ export default function CompetenciesPage() {
         </div>
       </div>
 
-      {/* Categories Quick View */}
-      {categories.length > 0 && (
+      {/* Tags Quick View */}
+      {tags.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Categories</h2>
+            <h2 className="font-semibold text-gray-900">Tags</h2>
             <button 
-              onClick={() => handleOpenCategoryModal()}
+              onClick={() => handleOpenTagModal()}
               className="text-sm text-blue-600 hover:text-blue-700"
             >
-              + Add Category
+              + Manage Tags
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {categories.map(cat => (
+            {tags.map(cat => (
               <div 
                 key={cat.id}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200"
@@ -1125,10 +1139,10 @@ export default function CompetenciesPage() {
                 />
                 <span className="text-sm text-gray-700">{cat.name}</span>
                 <span className="text-xs text-gray-400">
-                  ({competencies.filter(c => c.category_id === cat.id).length})
+                  ({competencies.filter(c => c.tag_id === cat.id).length})
                 </span>
                 <button
-                  onClick={() => handleOpenCategoryModal(cat)}
+                  onClick={() => handleOpenTagModal(cat)}
                   className="p-0.5 hover:bg-gray-200 rounded ml-1"
                 >
                   <Edit2 className="w-3 h-3 text-gray-400" />
@@ -1145,30 +1159,30 @@ export default function CompetenciesPage() {
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Category Selection */}
             <div className="lg:w-48 flex-shrink-0">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Categories</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Tags</h3>
               <div className="space-y-1">
                 <button
-                  onClick={() => setSelectedChartCategories([])}
+                  onClick={() => setSelectedChartTags([])}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    selectedChartCategories.length === 0
+                    selectedChartTags.length === 0
                       ? 'bg-blue-100 text-blue-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  All Categories
+                  All Tags
                 </button>
-                {categories.map(cat => (
+                {tags.map(cat => (
                   <button
                     key={cat.id}
                     onClick={() => {
-                      if (selectedChartCategories.includes(cat.id)) {
-                        setSelectedChartCategories(selectedChartCategories.filter(id => id !== cat.id));
+                      if (selectedChartTags.includes(cat.id)) {
+                        setSelectedChartTags(selectedChartTags.filter(id => id !== cat.id));
                       } else {
-                        setSelectedChartCategories([...selectedChartCategories, cat.id]);
+                        setSelectedChartTags([...selectedChartTags, cat.id]);
                       }
                     }}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
-                      selectedChartCategories.includes(cat.id)
+                      selectedChartTags.includes(cat.id)
                         ? 'bg-blue-100 text-blue-700 font-medium'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
@@ -1179,7 +1193,7 @@ export default function CompetenciesPage() {
                     />
                     <span className="truncate">{cat.name}</span>
                     <span className="text-xs text-gray-400 ml-auto">
-                      {competencies.filter(c => c.category_id === cat.id).length}
+                      {competencies.filter(c => c.tag_id === cat.id).length}
                     </span>
                   </button>
                 ))}
@@ -1192,9 +1206,9 @@ export default function CompetenciesPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Competency Framework</h2>
                   <p className="text-sm text-gray-500">
-                    {selectedChartCategories.length === 0 
+                    {selectedChartTags.length === 0 
                       ? 'Showing all competencies'
-                      : `Showing ${selectedChartCategories.length} selected categor${selectedChartCategories.length === 1 ? 'y' : 'ies'}`
+                      : `Showing ${selectedChartTags.length} selected categor${selectedChartTags.length === 1 ? 'y' : 'ies'}`
                     }
                   </p>
                 </div>
@@ -1210,8 +1224,8 @@ export default function CompetenciesPage() {
               {(() => {
                 const chartCompetencies = competencies
                   .filter(comp => 
-                    selectedChartCategories.length === 0 || 
-                    selectedChartCategories.includes(comp.category_id)
+                    selectedChartTags.length === 0 || 
+                    selectedChartTags.includes(comp.tag_id)
                   )
                   .slice(0, 8) // Limit to 8 for readability
                   .map(comp => ({
@@ -1236,13 +1250,13 @@ export default function CompetenciesPage() {
                   <>
                     <SpiderChart data={chartCompetencies} size={320} />
                     {competencies.filter(comp => 
-                      selectedChartCategories.length === 0 || 
-                      selectedChartCategories.includes(comp.category_id)
+                      selectedChartTags.length === 0 || 
+                      selectedChartTags.includes(comp.tag_id)
                     ).length > 8 && (
                       <p className="text-xs text-gray-400 text-center mt-2">
                         Showing first 8 competencies. {competencies.filter(comp => 
-                          selectedChartCategories.length === 0 || 
-                          selectedChartCategories.includes(comp.category_id)
+                          selectedChartTags.length === 0 || 
+                          selectedChartTags.includes(comp.tag_id)
                         ).length - 8} more not displayed.
                       </p>
                     )}
@@ -1272,12 +1286,12 @@ export default function CompetenciesPage() {
           {/* Category Filter */}
           <div className="relative">
             <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
               className="appearance-none pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             >
-              <option value="all">All Categories</option>
-              {categories.map(cat => (
+              <option value="all">All Tags</option>
+              {tags.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
@@ -1338,16 +1352,20 @@ export default function CompetenciesPage() {
           {filteredCompetencies.map(comp => (
             <div key={comp.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {comp.competency_categories?.color && (
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: comp.competency_categories.color }}
-                    />
+                <div className="flex flex-wrap gap-1">
+                  {comp.tags?.length > 0 ? (
+                    comp.tags.map(tag => (
+                      <span
+                        key={tag.id}
+                        className="px-2 py-0.5 rounded text-xs font-medium text-white"
+                        style={{ backgroundColor: tag.color || '#3B82F6' }}
+                      >
+                        {tag.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-gray-400">No tags</span>
                   )}
-                  <span className="text-xs font-medium text-gray-500">
-                    {comp.competency_categories?.name || 'Uncategorized'}
-                  </span>
                 </div>
                 <div className="relative">
                   <button
@@ -1554,18 +1572,52 @@ export default function CompetenciesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category
+                    Tags
                   </label>
-                  <select
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select category...</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  <div className="flex flex-wrap gap-1 p-2 border border-gray-200 rounded-lg min-h-[42px]">
+                    {formData.tag_ids?.length > 0 ? (
+                      formData.tag_ids.map(tagId => {
+                        const tag = tags.find(t => t.id === tagId);
+                        return tag ? (
+                          <span
+                            key={tagId}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-white"
+                            style={{ backgroundColor: tag.color || '#3B82F6' }}
+                          >
+                            {tag.name}
+                            <button
+                              type="button"
+                              onClick={() => setFormData({
+                                ...formData,
+                                tag_ids: formData.tag_ids.filter(id => id !== tagId)
+                              })}
+                              className="hover:bg-white/20 rounded"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ) : null;
+                      })
+                    ) : (
+                      <span className="text-gray-400 text-sm">Click to add tags...</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {tags.filter(t => !formData.tag_ids?.includes(t.id)).map(tag => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => setFormData({
+                          ...formData,
+                          tag_ids: [...(formData.tag_ids || []), tag.id]
+                        })}
+                        className="px-2 py-0.5 rounded text-xs font-medium border border-gray-200 hover:bg-gray-50"
+                        style={{ color: tag.color || '#3B82F6' }}
+                      >
+                        + {tag.name}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
                 <div>
@@ -1685,35 +1737,35 @@ export default function CompetenciesPage() {
       )}
 
       {/* Create/Edit Category Modal */}
-      {showCategoryModal && (
+      {showTagModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingCategory ? 'Edit Category' : 'Add Category'}
+                {editingTag ? 'Edit Category' : 'Manage Tags'}
               </h2>
               <button
-                onClick={() => setShowCategoryModal(false)}
+                onClick={() => setShowTagModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            <form onSubmit={handleCategorySubmit} className="p-6 space-y-4">
-              {/* Predefined Categories or Custom */}
-              {!editingCategory && !categoryFormData.isCustom && (
+            <form onSubmit={handleTagSubmit} className="p-6 space-y-4">
+              {/* Predefined Tags or Custom */}
+              {!editingTag && !tagFormData.isCustom && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Select Category
                   </label>
                   <select
-                    value={categoryFormData.name}
+                    value={tagFormData.name}
                     onChange={(e) => {
                       const selected = e.target.value;
                       if (selected === 'custom') {
-                        setCategoryFormData({ 
-                          ...categoryFormData, 
+                        setTagFormData({ 
+                          ...tagFormData, 
                           name: '', 
                           isCustom: true,
                           color: '#3B82F6'
@@ -1728,8 +1780,8 @@ export default function CompetenciesPage() {
                           'Sustainability': '#10B981',
                           'Soft Skills': '#EC4899'
                         };
-                        setCategoryFormData({ 
-                          ...categoryFormData, 
+                        setTagFormData({ 
+                          ...tagFormData, 
                           name: selected, 
                           color: colorMap[selected] || '#3B82F6',
                           isCustom: false 
@@ -1738,7 +1790,7 @@ export default function CompetenciesPage() {
                     }}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select a category...</option>
+                    <option value="">Select a tag...</option>
                     <option value="Safety">🛡️ Safety</option>
                     <option value="Quality">✨ Quality</option>
                     <option value="Cost">💰 Cost</option>
@@ -1752,16 +1804,16 @@ export default function CompetenciesPage() {
               )}
 
               {/* Custom Name Input (shown when editing or custom selected) */}
-              {(editingCategory || categoryFormData.isCustom) && (
+              {(editingTag || tagFormData.isCustom) && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-sm font-medium text-gray-700">
                       Category Name *
                     </label>
-                    {categoryFormData.isCustom && !editingCategory && (
+                    {tagFormData.isCustom && !editingTag && (
                       <button
                         type="button"
-                        onClick={() => setCategoryFormData({ ...categoryFormData, name: '', isCustom: false })}
+                        onClick={() => setTagFormData({ ...tagFormData, name: '', isCustom: false })}
                         className="text-xs text-blue-600 hover:underline"
                       >
                         ← Back to list
@@ -1770,8 +1822,8 @@ export default function CompetenciesPage() {
                   </div>
                   <input
                     type="text"
-                    value={categoryFormData.name}
-                    onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                    value={tagFormData.name}
+                    onChange={(e) => setTagFormData({ ...tagFormData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="e.g., Digital Skills"
                     autoFocus
@@ -1784,8 +1836,8 @@ export default function CompetenciesPage() {
                   Description (optional)
                 </label>
                 <textarea
-                  value={categoryFormData.description}
-                  onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
+                  value={tagFormData.description}
+                  onChange={(e) => setTagFormData({ ...tagFormData, description: e.target.value })}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Brief description..."
@@ -1810,9 +1862,9 @@ export default function CompetenciesPage() {
                     <button
                       key={color}
                       type="button"
-                      onClick={() => setCategoryFormData({ ...categoryFormData, color })}
+                      onClick={() => setTagFormData({ ...tagFormData, color })}
                       className={`w-8 h-8 rounded-full border-2 transition-transform ${
-                        categoryFormData.color === color 
+                        tagFormData.color === color 
                           ? 'border-gray-900 scale-110' 
                           : 'border-transparent hover:scale-105'
                       }`}
@@ -1828,8 +1880,8 @@ export default function CompetenciesPage() {
                     Client (optional)
                   </label>
                   <select
-                    value={categoryFormData.client_id}
-                    onChange={(e) => setCategoryFormData({ ...categoryFormData, client_id: e.target.value })}
+                    value={tagFormData.client_id}
+                    onChange={(e) => setTagFormData({ ...tagFormData, client_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Global (All Clients)</option>
@@ -1843,7 +1895,7 @@ export default function CompetenciesPage() {
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowCategoryModal(false)}
+                  onClick={() => setShowTagModal(false)}
                   className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
                   Cancel
@@ -1853,7 +1905,7 @@ export default function CompetenciesPage() {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : editingCategory ? 'Update' : 'Create'}
+                  {submitting ? 'Saving...' : editingTag ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>
