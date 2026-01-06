@@ -1031,19 +1031,48 @@ export default function CompetenciesPage() {
     if (!competencyToDelete) return;
 
     try {
-      // Delete client associations first
-      await dbFetch(`competency_clients?competency_id=eq.${competencyToDelete.id}`, {
+      const compId = competencyToDelete.id;
+      
+      // Delete all related records first (in correct order)
+      // 1. Delete tag links
+      await dbFetch(`competency_tag_links?competency_id=eq.${compId}`, {
         method: 'DELETE'
       });
-      // Then delete competency
-      await dbFetch(`competencies?id=eq.${competencyToDelete.id}`, {
+      
+      // 2. Delete client associations
+      await dbFetch(`competency_clients?competency_id=eq.${compId}`, {
         method: 'DELETE'
       });
+      
+      // 3. Delete user_competencies
+      await dbFetch(`user_competencies?competency_id=eq.${compId}`, {
+        method: 'DELETE'
+      });
+      
+      // 4. Delete development_activities
+      await dbFetch(`development_activities?competency_id=eq.${compId}`, {
+        method: 'DELETE'
+      });
+      
+      // 5. Delete expert_nominations
+      await dbFetch(`expert_nominations?competency_id=eq.${compId}`, {
+        method: 'DELETE'
+      });
+      
+      // 6. Finally delete the competency
+      await dbFetch(`competencies?id=eq.${compId}`, {
+        method: 'DELETE'
+      });
+      
       await loadCompetencies();
       setShowDeleteModal(false);
       setCompetencyToDelete(null);
     } catch (error) {
       console.error('Error deleting competency:', error);
+      // Show user-friendly error and close modal
+      alert('Failed to delete competency. It may still be referenced by other records. Please try again or contact support.');
+      setShowDeleteModal(false);
+      setCompetencyToDelete(null);
     }
   };
 
