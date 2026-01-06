@@ -2046,8 +2046,6 @@ export default function CompetenciesPage() {
                             </div>
                           );
                         })}
-                          </div>
-                        ))}
                       </div>
                     )}
                     
