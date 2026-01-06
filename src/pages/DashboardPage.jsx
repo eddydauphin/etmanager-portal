@@ -106,11 +106,9 @@ const dashboardLayouts = {
 // Available widgets for custom layout
 const availableWidgets = {
   welcome: { name: 'Welcome Card', icon: Heart, category: 'Overview', size: 'large' },
-  kpiStrip: { name: 'KPI Strip', icon: BarChart3, category: 'Metrics', size: 'full' },
-  teamStatus: { name: 'Team Status', icon: Users, category: 'People', size: 'medium' },
   quickActions: { name: 'Quick Actions', icon: Zap, category: 'Actions', size: 'medium' },
   trainingProgress: { name: 'Training Progress', icon: TrendingUp, category: 'Training', size: 'medium' },
-  recentActivity: { name: 'Recent Activity', icon: Activity, category: 'Activity', size: 'medium' },
+  recentActivity: { name: 'Organization', icon: Activity, category: 'Activity', size: 'medium' },
   competencyRing: { name: 'Competency Ring', icon: Target, category: 'Competencies', size: 'medium' },
   coachingOverview: { name: 'Coaching Overview', icon: MessageSquare, category: 'Coaching', size: 'medium' },
   leaderboard: { name: 'Leaderboard', icon: Trophy, category: 'Engagement', size: 'medium' },
@@ -166,7 +164,7 @@ function LayoutSelector({ currentLayout, onLayoutChange, showSelector, setShowSe
 
 function useLayoutPreferences(userId) {
   const [currentLayout, setCurrentLayout] = useState('classic');
-  const [activeWidgets, setActiveWidgets] = useState(['welcome', 'kpiStrip', 'quickActions', 'teamStatus', 'trainingProgress', 'recentActivity']);
+  const [activeWidgets, setActiveWidgets] = useState(['welcome', 'quickActions', 'trainingProgress', 'recentActivity']);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Load preferences on mount
@@ -3283,60 +3281,6 @@ function ClientAdminDashboard() {
           <p className="text-purple-200 text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           <h2 className="text-2xl font-bold mt-1">Welcome back, {profile?.full_name?.split(' ')[0]}! 👋</h2>
           <p className="text-purple-200 mt-2">{stats.overdueCount === 0 ? 'All training is on track!' : `${stats.overdueCount} items need attention`}</p>
-        </div>
-      ),
-      kpiStrip: (
-        <div className="grid grid-cols-4 gap-3 col-span-2">
-          <div 
-            onClick={() => navigate('/profiles')}
-            className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all"
-          >
-            <Users className="w-5 h-5 text-blue-600" />
-            <div><p className="text-xl font-bold text-blue-700">{teamCount}</p><p className="text-xs text-gray-500">Team Size</p></div>
-          </div>
-          <div 
-            onClick={() => navigate('/competencies')}
-            className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all"
-          >
-            <Target className="w-5 h-5 text-emerald-600" />
-            <div><p className="text-xl font-bold text-emerald-700">{avgScore}%</p><p className="text-xs text-gray-500">Progress</p></div>
-          </div>
-          <div 
-            onClick={() => navigate('/training')}
-            className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
-          >
-            <GraduationCap className="w-5 h-5 text-amber-600" />
-            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Completed</p></div>
-          </div>
-          <div 
-            onClick={() => navigate('/development')}
-            className={`${stats.overdueCount > 0 ? 'bg-red-50 border-red-200 hover:border-red-400' : 'bg-purple-50 border-purple-200 hover:border-purple-400'} border rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:shadow-md transition-all`}
-          >
-            <MessageSquare className={`w-5 h-5 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-purple-600'}`} />
-            <div><p className={`text-xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
-          </div>
-        </div>
-      ),
-      teamStatus: (
-        <div 
-          className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group"
-          onClick={() => navigate('/profiles')}
-        >
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center justify-between">
-            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team Members ({teamCount})</span>
-            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
-          </h3>
-          <div className="space-y-2">
-            {users.slice(0, 5).map(m => (
-              <div key={m.id} className="flex items-center gap-2 text-sm">
-                <span className={`w-2 h-2 rounded-full ${m.role === 'trainee' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
-                <span>{m.full_name}</span>
-                <span className="text-xs text-gray-400 capitalize">({m.role?.replace('_', ' ')})</span>
-              </div>
-            ))}
-            {teamCount === 0 && <p className="text-sm text-gray-400">No team members yet</p>}
-            {teamCount > 5 && <p className="text-xs text-purple-600 font-medium">+{teamCount - 5} more...</p>}
-          </div>
         </div>
       ),
       quickActions: (
