@@ -3289,7 +3289,7 @@ function ClientAdminDashboard() {
           <div className="space-y-2">
             <button onClick={handleAddUser} className="w-full p-2 bg-blue-50 text-blue-700 rounded-lg text-sm text-left hover:bg-blue-100 font-medium">+ Add User</button>
             <button onClick={handleAssignTraining} className="w-full p-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm text-left hover:bg-emerald-100 font-medium">Assign Training</button>
-            <button onClick={handleCoaching} className="w-full p-2 bg-purple-50 text-purple-700 rounded-lg text-sm text-left hover:bg-purple-100 font-medium">New Coaching</button>
+            <button onClick={handleCoaching} className="w-full p-2 bg-purple-50 text-purple-700 rounded-lg text-sm text-left hover:bg-purple-100 font-medium">Assign Development Activities</button>
           </div>
         </div>
       ),
