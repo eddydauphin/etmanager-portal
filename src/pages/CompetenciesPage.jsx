@@ -1001,28 +1001,47 @@ export default function CompetenciesPage() {
 
   // Confirm delete tag
   const handleDeleteTagConfirm = async () => {
-    if (!tagToDelete) return;
+    if (!tagToDelete) {
+      console.error('No tag to delete');
+      return;
+    }
     
+    console.log('Deleting tag:', tagToDelete.id, tagToDelete.name);
     setSubmitting(true);
+    
     try {
       // Delete tag links first
-      await dbFetch(`competency_tag_links?tag_id=eq.${tagToDelete.id}`, {
+      console.log('Deleting tag links...');
+      const linkResult = await dbFetch(`competency_tag_links?tag_id=eq.${tagToDelete.id}`, {
         method: 'DELETE'
       });
-      // Then delete the tag
-      await dbFetch(`competency_tags?id=eq.${tagToDelete.id}`, {
-        method: 'DELETE'
-      });
+      console.log('Tag links deleted:', linkResult);
       
+      // Then delete the tag
+      console.log('Deleting tag...');
+      const tagResult = await dbFetch(`competency_tags?id=eq.${tagToDelete.id}`, {
+        method: 'DELETE'
+      });
+      console.log('Tag deleted:', tagResult);
+      
+      // Refresh data
       await loadTags();
-      await loadCompetencies(); // Refresh competencies to update tag display
+      await loadCompetencies();
+      
+      // Close modals
       setShowDeleteTagModal(false);
       setShowTagModal(false);
       setTagToDelete(null);
       setEditingTag(null);
+      
+      console.log('Tag deletion complete');
     } catch (error) {
       console.error('Error deleting tag:', error);
-      alert('Failed to delete tag: ' + (error.message || 'Unknown error'));
+      // Show more detailed error
+      const errorMsg = error?.message || JSON.stringify(error) || 'Unknown error';
+      alert('Failed to delete tag: ' + errorMsg);
+      // Still close the confirmation modal on error
+      setShowDeleteTagModal(false);
     } finally {
       setSubmitting(false);
     }
@@ -2023,6 +2042,7 @@ export default function CompetenciesPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => {
+                    console.log('Cancel clicked');
                     setShowDeleteTagModal(false);
                     setTagToDelete(null);
                   }}
@@ -2032,7 +2052,10 @@ export default function CompetenciesPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleDeleteTagConfirm}
+                  onClick={() => {
+                    console.log('Delete button clicked, calling handleDeleteTagConfirm');
+                    handleDeleteTagConfirm();
+                  }}
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
                 >
