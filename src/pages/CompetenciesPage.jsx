@@ -414,6 +414,7 @@ export default function CompetenciesPage() {
 
   const loadTags = async () => {
     try {
+      console.log('Loading tags...');
       let url = 'competency_tags?select=*&order=name.asc';
       
       // Filter by client for non-super_admin users
@@ -422,7 +423,9 @@ export default function CompetenciesPage() {
         url += `&or=(client_id.eq.${currentProfile.client_id},client_id.is.null)`;
       }
       
+      console.log('Fetching tags from:', url);
       const data = await dbFetch(url);
+      console.log('Tags loaded:', data?.length || 0, 'tags', data);
       setTags(data || []);
     } catch (error) {
       console.error('Error loading tags:', error);
