@@ -275,13 +275,15 @@ export default function CompetenciesPage() {
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
-  const [showTagModal, setShowTagModal] = useState(false); // Renamed from showTagModal
+  const [showTagModal, setShowTagModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false); // NEW: Assign to users modal
+  const [showDeleteTagModal, setShowDeleteTagModal] = useState(false); // NEW: Tag delete confirmation
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingCompetency, setEditingCompetency] = useState(null);
-  const [editingTag, setEditingTag] = useState(null); // Renamed from editingTag
+  const [editingTag, setEditingTag] = useState(null);
   const [competencyToDelete, setCompetencyToDelete] = useState(null);
-  const [competencyToAssign, setCompetencyToAssign] = useState(null); // NEW
+  const [tagToDelete, setTagToDelete] = useState(null); // NEW: Tag to delete
+  const [competencyToAssign, setCompetencyToAssign] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -991,30 +993,36 @@ export default function CompetenciesPage() {
     }
   };
 
-  // Handle delete tag
-  const handleDeleteTag = async (tagId) => {
-    if (!confirm('Are you sure you want to delete this tag? This will remove it from all competencies.')) {
-      return;
-    }
+  // Handle delete tag - show confirmation modal
+  const handleDeleteTagClick = (tag) => {
+    setTagToDelete(tag);
+    setShowDeleteTagModal(true);
+  };
+
+  // Confirm delete tag
+  const handleDeleteTagConfirm = async () => {
+    if (!tagToDelete) return;
     
     setSubmitting(true);
     try {
       // Delete tag links first
-      await dbFetch(`competency_tag_links?tag_id=eq.${tagId}`, {
+      await dbFetch(`competency_tag_links?tag_id=eq.${tagToDelete.id}`, {
         method: 'DELETE'
       });
       // Then delete the tag
-      await dbFetch(`competency_tags?id=eq.${tagId}`, {
+      await dbFetch(`competency_tags?id=eq.${tagToDelete.id}`, {
         method: 'DELETE'
       });
       
       await loadTags();
       await loadCompetencies(); // Refresh competencies to update tag display
+      setShowDeleteTagModal(false);
       setShowTagModal(false);
+      setTagToDelete(null);
       setEditingTag(null);
     } catch (error) {
       console.error('Error deleting tag:', error);
-      setFormError(error.message || 'Failed to delete tag');
+      alert('Failed to delete tag: ' + (error.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
     }
@@ -1964,7 +1972,7 @@ export default function CompetenciesPage() {
                 {editingTag ? (
                   <button
                     type="button"
-                    onClick={() => handleDeleteTag(editingTag.id)}
+                    onClick={() => handleDeleteTagClick(editingTag)}
                     disabled={submitting}
                     className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"
                   >
@@ -1993,6 +2001,45 @@ export default function CompetenciesPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Tag Confirmation Modal */}
+      {showDeleteTagModal && tagToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Delete Tag?
+              </h3>
+              <p className="text-sm text-gray-500 text-center mb-6">
+                Are you sure you want to delete <strong>{tagToDelete.name}</strong>? 
+                This will remove it from all competencies.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteTagModal(false);
+                    setTagToDelete(null);
+                  }}
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteTagConfirm}
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
+                >
+                  {submitting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
