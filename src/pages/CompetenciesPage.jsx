@@ -414,7 +414,6 @@ export default function CompetenciesPage() {
 
   const loadTags = async () => {
     try {
-      console.log('Loading tags...');
       let url = 'competency_tags?select=*&order=name.asc';
       
       // Filter by client for non-super_admin users
@@ -423,9 +422,7 @@ export default function CompetenciesPage() {
         url += `&or=(client_id.eq.${currentProfile.client_id},client_id.is.null)`;
       }
       
-      console.log('Fetching tags from:', url);
       const data = await dbFetch(url);
-      console.log('Tags loaded:', data?.length || 0, 'tags', data);
       setTags(data || []);
     } catch (error) {
       console.error('Error loading tags:', error);
@@ -1004,44 +1001,23 @@ export default function CompetenciesPage() {
 
   // Confirm delete tag
   const handleDeleteTagConfirm = async () => {
-    if (!tagToDelete) {
-      console.error('No tag to delete');
-      return;
-    }
+    if (!tagToDelete) return;
     
     const tagId = tagToDelete.id;
-    const tagName = tagToDelete.name;
-    console.log('Deleting tag:', tagId, tagName);
     setSubmitting(true);
     
     try {
       // Delete tag links first
-      console.log('Deleting tag links...');
       await dbFetch(`competency_tag_links?tag_id=eq.${tagId}`, {
         method: 'DELETE'
       });
-      console.log('Tag links deleted');
       
       // Then delete the tag
-      console.log('Deleting tag...');
       await dbFetch(`competency_tags?id=eq.${tagId}`, {
         method: 'DELETE'
       });
-      console.log('Tag delete request sent');
       
-      // Verify deletion by trying to fetch the tag
-      const verification = await dbFetch(`competency_tags?id=eq.${tagId}&select=id,name`);
-      console.log('Verification result:', verification);
-      
-      if (verification && verification.length > 0) {
-        // Tag still exists - RLS might be blocking
-        console.error('Tag still exists after delete! RLS policy might be blocking.');
-        alert('Unable to delete tag. You may not have permission to delete this tag, or it may be protected by database policies.');
-      } else {
-        console.log('Tag successfully deleted');
-      }
-      
-      // Refresh data regardless
+      // Refresh data
       await loadTags();
       await loadCompetencies();
       
@@ -1050,12 +1026,9 @@ export default function CompetenciesPage() {
       setShowTagModal(false);
       setTagToDelete(null);
       setEditingTag(null);
-      
-      console.log('Tag deletion complete');
     } catch (error) {
       console.error('Error deleting tag:', error);
-      const errorMsg = error?.message || JSON.stringify(error) || 'Unknown error';
-      alert('Failed to delete tag: ' + errorMsg);
+      alert('Failed to delete tag: ' + (error?.message || 'Unknown error'));
       setShowDeleteTagModal(false);
     } finally {
       setSubmitting(false);
@@ -2057,7 +2030,6 @@ export default function CompetenciesPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => {
-                    console.log('Cancel clicked');
                     setShowDeleteTagModal(false);
                     setTagToDelete(null);
                   }}
@@ -2067,10 +2039,7 @@ export default function CompetenciesPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    console.log('Delete button clicked, calling handleDeleteTagConfirm');
-                    handleDeleteTagConfirm();
-                  }}
+                  onClick={handleDeleteTagConfirm}
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
                 >
