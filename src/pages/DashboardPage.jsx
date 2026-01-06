@@ -106,9 +106,11 @@ const dashboardLayouts = {
 // Available widgets for custom layout
 const availableWidgets = {
   welcome: { name: 'Welcome Card', icon: Heart, category: 'Overview', size: 'large' },
+  kpiStrip: { name: 'KPI Strip', icon: BarChart3, category: 'Metrics', size: 'full' },
+  teamStatus: { name: 'Team Status', icon: Users, category: 'People', size: 'medium' },
   quickActions: { name: 'Quick Actions', icon: Zap, category: 'Actions', size: 'medium' },
   trainingProgress: { name: 'Training Progress', icon: TrendingUp, category: 'Training', size: 'medium' },
-  recentActivity: { name: 'Organization', icon: Activity, category: 'Activity', size: 'medium' },
+  recentActivity: { name: 'Recent Activity', icon: Activity, category: 'Activity', size: 'medium' },
   competencyRing: { name: 'Competency Ring', icon: Target, category: 'Competencies', size: 'medium' },
   coachingOverview: { name: 'Coaching Overview', icon: MessageSquare, category: 'Coaching', size: 'medium' },
   leaderboard: { name: 'Leaderboard', icon: Trophy, category: 'Engagement', size: 'medium' },
@@ -164,7 +166,7 @@ function LayoutSelector({ currentLayout, onLayoutChange, showSelector, setShowSe
 
 function useLayoutPreferences(userId) {
   const [currentLayout, setCurrentLayout] = useState('classic');
-  const [activeWidgets, setActiveWidgets] = useState(['welcome', 'quickActions', 'trainingProgress', 'recentActivity']);
+  const [activeWidgets, setActiveWidgets] = useState(['welcome', 'kpiStrip', 'quickActions', 'teamStatus', 'trainingProgress', 'recentActivity']);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Load preferences on mount
@@ -510,7 +512,7 @@ function MyTrainingDevelopmentSection({ profile }) {
     try {
       // Get competencies where current user is the training developer
       const competencies = await dbFetch(
-        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
+        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_tag_links(competency_tags(id,name,color))&is_active=eq.true`
       );
       
       if (!competencies || competencies.length === 0) {
@@ -518,6 +520,12 @@ function MyTrainingDevelopmentSection({ profile }) {
         setLoading(false);
         return;
       }
+      
+      // Transform to include tags array
+      const transformedCompetencies = competencies.map(comp => ({
+        ...comp,
+        tags: comp.competency_tag_links?.map(tl => tl.competency_tags).filter(Boolean) || []
+      }));
 
       // Get competency_modules to check which competencies have modules
       const competencyModules = await dbFetch('competency_modules?select=competency_id,module_id');
@@ -532,7 +540,7 @@ function MyTrainingDevelopmentSection({ profile }) {
       });
       
       // Enrich competencies with module status
-      const enriched = competencies.map(comp => {
+      const enriched = transformedCompetencies.map(comp => {
         // Find modules linked to this competency
         const linkedModuleIds = competencyModules
           ?.filter(cm => cm.competency_id === comp.id)
@@ -618,15 +626,17 @@ function MyTrainingDevelopmentSection({ profile }) {
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
             >
               <div className="flex items-center gap-2">
-                {item.competency_categories?.color && (
+                {item.tags?.length > 0 && (
                   <div 
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.competency_categories.color }}
+                    style={{ backgroundColor: item.tags[0]?.color || '#3B82F6' }}
                   />
                 )}
                 <div>
                   <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.competency_categories?.name || 'Uncategorized'}</p>
+                  <p className="text-xs text-gray-500">
+                    {item.tags?.length > 0 ? item.tags.map(t => t.name).join(', ') : 'No tags'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1070,9 +1080,17 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     setLoadingCompetencies(true);
     try {
       const data = await dbFetch(
-        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_categories(name,color))&order=created_at.desc`
+        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_tag_links(competency_tags(id,name,color)))&order=created_at.desc`
       );
-      setTraineeCompetencies(data || []);
+      // Transform to add tags array to competencies
+      const transformed = (data || []).map(uc => ({
+        ...uc,
+        competencies: uc.competencies ? {
+          ...uc.competencies,
+          tags: uc.competencies.competency_tag_links?.map(tl => tl.competency_tags).filter(Boolean) || []
+        } : null
+      }));
+      setTraineeCompetencies(transformed);
     } catch (error) {
       console.error('Error loading trainee competencies:', error);
     } finally {
@@ -1602,16 +1620,18 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                   {traineeCompetencies.map(comp => (
                     <div key={comp.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <div className="flex items-center gap-3">
-                        {comp.competencies?.competency_categories?.color && (
+                        {comp.competencies?.tags?.length > 0 && (
                           <div 
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: comp.competencies.competency_categories.color }}
+                            style={{ backgroundColor: comp.competencies.tags[0]?.color || '#3B82F6' }}
                           />
                         )}
                         <div>
                           <p className="font-medium text-gray-900">{comp.competencies?.name || 'Unknown'}</p>
                           <p className="text-xs text-gray-500">
-                            {comp.competencies?.competency_categories?.name || 'Uncategorized'}
+                            {comp.competencies?.tags?.length > 0 
+                              ? comp.competencies.tags.map(t => t.name).join(', ') 
+                              : 'No tags'}
                           </p>
                         </div>
                       </div>
@@ -3283,13 +3303,67 @@ function ClientAdminDashboard() {
           <p className="text-purple-200 mt-2">{stats.overdueCount === 0 ? 'All training is on track!' : `${stats.overdueCount} items need attention`}</p>
         </div>
       ),
+      kpiStrip: (
+        <div className="grid grid-cols-4 gap-3 col-span-2">
+          <div 
+            onClick={() => navigate('/profiles')}
+            className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all"
+          >
+            <Users className="w-5 h-5 text-blue-600" />
+            <div><p className="text-xl font-bold text-blue-700">{teamCount}</p><p className="text-xs text-gray-500">Team Size</p></div>
+          </div>
+          <div 
+            onClick={() => navigate('/competencies')}
+            className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all"
+          >
+            <Target className="w-5 h-5 text-emerald-600" />
+            <div><p className="text-xl font-bold text-emerald-700">{avgScore}%</p><p className="text-xs text-gray-500">Progress</p></div>
+          </div>
+          <div 
+            onClick={() => navigate('/training')}
+            className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
+          >
+            <GraduationCap className="w-5 h-5 text-amber-600" />
+            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Completed</p></div>
+          </div>
+          <div 
+            onClick={() => navigate('/development')}
+            className={`${stats.overdueCount > 0 ? 'bg-red-50 border-red-200 hover:border-red-400' : 'bg-purple-50 border-purple-200 hover:border-purple-400'} border rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:shadow-md transition-all`}
+          >
+            <MessageSquare className={`w-5 h-5 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-purple-600'}`} />
+            <div><p className={`text-xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
+          </div>
+        </div>
+      ),
+      teamStatus: (
+        <div 
+          className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group"
+          onClick={() => navigate('/profiles')}
+        >
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center justify-between">
+            <span className="flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Team Members ({teamCount})</span>
+            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
+          </h3>
+          <div className="space-y-2">
+            {users.slice(0, 5).map(m => (
+              <div key={m.id} className="flex items-center gap-2 text-sm">
+                <span className={`w-2 h-2 rounded-full ${m.role === 'trainee' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                <span>{m.full_name}</span>
+                <span className="text-xs text-gray-400 capitalize">({m.role?.replace('_', ' ')})</span>
+              </div>
+            ))}
+            {teamCount === 0 && <p className="text-sm text-gray-400">No team members yet</p>}
+            {teamCount > 5 && <p className="text-xs text-purple-600 font-medium">+{teamCount - 5} more...</p>}
+          </div>
+        </div>
+      ),
       quickActions: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Quick Actions</h3>
           <div className="space-y-2">
             <button onClick={handleAddUser} className="w-full p-2 bg-blue-50 text-blue-700 rounded-lg text-sm text-left hover:bg-blue-100 font-medium">+ Add User</button>
             <button onClick={handleAssignTraining} className="w-full p-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm text-left hover:bg-emerald-100 font-medium">Assign Training</button>
-            <button onClick={handleCoaching} className="w-full p-2 bg-purple-50 text-purple-700 rounded-lg text-sm text-left hover:bg-purple-100 font-medium">Assign Development Activities</button>
+            <button onClick={handleCoaching} className="w-full p-2 bg-purple-50 text-purple-700 rounded-lg text-sm text-left hover:bg-purple-100 font-medium">New Coaching</button>
           </div>
         </div>
       ),
