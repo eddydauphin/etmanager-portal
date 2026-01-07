@@ -670,20 +670,18 @@ export default function CompetenciesPage() {
         setExistingUserCompetencies([]);
       }
       
-      // Load linked training modules for this competency
-      const linkedModules = await dbFetch(
-        `training_modules?competency_id=eq.${competency.id}&status=eq.published&select=id,title,duration_minutes`
+      // Load linked training modules for this competency via competency_modules junction table
+      const linkedModulesData = await dbFetch(
+        `competency_modules?competency_id=eq.${competency.id}&select=module_id,training_modules!inner(id,title,duration_minutes,status)&training_modules.status=eq.published`
       );
-      setLinkedTrainingModules(linkedModules || []);
+      // Extract the training modules from the junction table result
+      const linkedModules = (linkedModulesData || [])
+        .map(cm => cm.training_modules)
+        .filter(m => m && m.status === 'published');
+      setLinkedTrainingModules(linkedModules);
       
-      // Load all available training modules (for manual selection)
-      const clientId = competency.client_ids?.[0] || currentProfile?.client_id;
-      let allModulesUrl = 'training_modules?status=eq.published&select=id,title,duration_minutes,competency_id';
-      if (clientId) {
-        allModulesUrl += `&client_id=eq.${clientId}`;
-      }
-      const allModules = await dbFetch(allModulesUrl);
-      setAllTrainingModules(allModules || []);
+      // We no longer need allTrainingModules since we only want linked modules
+      setAllTrainingModules([]);
       
       // Set default development method based on linked training
       const hasLinkedTraining = linkedModules && linkedModules.length > 0;
@@ -858,10 +856,8 @@ export default function CompetenciesPage() {
           // Create development activities based on selected method
           switch (developmentMethod) {
             case 'e_learning':
-              // Assign selected training modules
-              const modulesToAssign = assignFormData.selected_module_ids.length > 0 
-                ? allTrainingModules.filter(m => assignFormData.selected_module_ids.includes(m.id))
-                : linkedTrainingModules;
+              // Only assign linked training modules
+              const modulesToAssign = linkedTrainingModules;
               
               for (const module of modulesToAssign) {
                 // Check if user already has this training assigned
@@ -2429,39 +2425,15 @@ export default function CompetenciesPage() {
                         ))}
                       </ul>
                     </div>
-                  ) : allTrainingModules.length > 0 ? (
-                    <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
-                      {allTrainingModules.map(module => (
-                        <label
-                          key={module.id}
-                          className={`flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer ${
-                            assignFormData.selected_module_ids.includes(module.id) ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={assignFormData.selected_module_ids.includes(module.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setAssignFormData({
-                                  ...assignFormData,
-                                  selected_module_ids: [...assignFormData.selected_module_ids, module.id]
-                                });
-                              } else {
-                                setAssignFormData({
-                                  ...assignFormData,
-                                  selected_module_ids: assignFormData.selected_module_ids.filter(id => id !== module.id)
-                                });
-                              }
-                            }}
-                            className="w-4 h-4 text-blue-600 rounded"
-                          />
-                          <span className="text-sm text-gray-700">{module.title}</span>
-                        </label>
-                      ))}
-                    </div>
                   ) : (
-                    <p className="text-sm text-gray-500 italic">No training modules available. Create modules in the Training page first.</p>
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-700">
+                        No training modules are linked to this competency.
+                      </p>
+                      <p className="text-xs text-yellow-600 mt-1">
+                        To use E-Learning, first create and link training modules to this competency in the Training page.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
