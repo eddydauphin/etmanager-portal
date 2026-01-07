@@ -295,14 +295,21 @@ export default function TrainingModulesPage() {
     setFormError('');
 
     try {
-      const competency = competencies.find(c => c.id === formData.competency_id);
+      // Try to find competency locally first, otherwise fetch it
+      let competency = competencies.find(c => c.id === formData.competency_id);
+      
+      if (!competency) {
+        // Fetch competency directly if not in local list
+        console.log('Competency not found locally, fetching from DB...');
+        const fetchedData = await dbFetch(`competencies?id=eq.${formData.competency_id}`);
+        competency = fetchedData?.[0];
+      }
       
       // Debug logging
       console.log('=== GENERATE CONTENT DEBUG ===');
       console.log('Form title:', formData.title);
       console.log('Selected competency_id:', formData.competency_id);
       console.log('Found competency:', competency);
-      console.log('All competencies:', competencies);
       console.log('==============================');
       
       if (!competency) {
