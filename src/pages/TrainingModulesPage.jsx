@@ -125,7 +125,7 @@ export default function TrainingModulesPage() {
 
   const loadModules = async () => {
     try {
-      let url = 'training_modules?select=*,clients(name),competency_modules(competency_id,target_level,competencies(name)),module_questions(id),module_slides(id)&order=created_at.desc';
+      let url = 'training_modules?select=*,clients(name),competency_modules(competency_id,target_level,competencies(name)),module_questions(id),module_slides(id),creator:created_by(id,full_name),owner:owner_id(id,full_name)&order=created_at.desc';
       
       // Filter based on current user's role - CRITICAL: Users must only see their own organization
       if (currentProfile?.role === 'client_admin' && currentProfile?.client_id) {
@@ -741,6 +741,54 @@ export default function TrainingModulesPage() {
     setOpenDropdown(null);
   };
 
+  // Edit Module
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    pass_score: 80,
+    owner_id: ''
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const handleEditModule = (module) => {
+    setSelectedModule(module);
+    setEditFormData({
+      title: module.title || '',
+      description: module.description || '',
+      pass_score: module.pass_score || 80,
+      owner_id: module.owner_id || module.created_by || ''
+    });
+    setShowEditModal(true);
+    setOpenDropdown(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedModule) return;
+    setEditSubmitting(true);
+    
+    try {
+      await dbFetch(`training_modules?id=eq.${selectedModule.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: editFormData.title,
+          description: editFormData.description,
+          pass_score: editFormData.pass_score,
+          owner_id: editFormData.owner_id || null,
+          last_reviewed_at: new Date().toISOString()
+        })
+      });
+      
+      setShowEditModal(false);
+      setSelectedModule(null);
+      loadModules();
+    } catch (error) {
+      console.error('Error updating module:', error);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   // Generate Audio for all slides in a module
   const handleGenerateAudio = async (module) => {
     setOpenDropdown(null);
@@ -1109,6 +1157,17 @@ export default function TrainingModulesPage() {
                         Preview
                       </button>
                       
+                      <button
+                        onClick={() => {
+                          handleEditModule(module);
+                          setOpenDropdown(null);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        Edit
+                      </button>
+                      
                       {module.status === 'draft' && (
                         <>
                           <button
@@ -1274,6 +1333,30 @@ export default function TrainingModulesPage() {
                   <div className="flex items-center gap-1">
                     <Award className="w-4 h-4" />
                     <span>Pass: {module.pass_score}%</span>
+                  </div>
+                </div>
+                
+                {/* Metadata: Created, Last Review, Owner */}
+                <div className="pt-3 mt-3 border-t border-gray-100 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Created:</span>
+                    <span className="text-gray-600">
+                      {module.created_at ? new Date(module.created_at).toLocaleDateString() : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Last review:</span>
+                    <span className="text-gray-600">
+                      {module.last_reviewed_at 
+                        ? new Date(module.last_reviewed_at).toLocaleDateString() 
+                        : 'Never'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Owner:</span>
+                    <span className="text-gray-600 truncate max-w-[120px]">
+                      {module.owner?.full_name || module.creator?.full_name || '—'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2191,6 +2274,106 @@ export default function TrainingModulesPage() {
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
               >
                 Assign {selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Module Modal */}
+      {showEditModal && selectedModule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Edit2 className="w-5 h-5 text-blue-600" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900">Edit Module</h2>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pass Score (%)</label>
+                <input
+                  type="number"
+                  value={editFormData.pass_score}
+                  onChange={(e) => setEditFormData({ ...editFormData, pass_score: parseInt(e.target.value) || 80 })}
+                  min="1"
+                  max="100"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+                <select
+                  value={editFormData.owner_id}
+                  onChange={(e) => setEditFormData({ ...editFormData, owner_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select owner...</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Show current metadata */}
+              <div className="pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1">
+                <div className="flex justify-between">
+                  <span>Created:</span>
+                  <span>{selectedModule.created_at ? new Date(selectedModule.created_at).toLocaleDateString() : '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last reviewed:</span>
+                  <span>{selectedModule.last_reviewed_at ? new Date(selectedModule.last_reviewed_at).toLocaleDateString() : 'Never'}</span>
+                </div>
+                <p className="text-gray-400 italic mt-2">Saving will update the "Last reviewed" date</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSubmitting || !editFormData.title.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {editSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editSubmitting ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
