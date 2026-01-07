@@ -1172,13 +1172,106 @@ export default function CompetenciesPage() {
             })
           });
           
-          // If generate now is selected, redirect to training page
+          // If generate now is selected, generate AI content immediately
           if (formData.training_generate_now) {
-            await loadCompetencies();
-            setShowModal(false);
-            // Navigate to training page with the module
-            window.location.href = `/training?module=${moduleId}&generate=true`;
-            return;
+            // Get the full competency with level descriptions
+            const competencyData = await dbFetch(`competencies?id=eq.${competencyId}`);
+            const competency = competencyData?.[0];
+            
+            if (competency) {
+              const levelDescriptions = {
+                1: competency.level_1_description || 'Can recognize the topic',
+                2: competency.level_2_description || 'Can explain concepts',
+                3: competency.level_3_description || 'Can perform with supervision',
+                4: competency.level_4_description || 'Works independently',
+                5: competency.level_5_description || 'Can teach others'
+              };
+
+              try {
+                // Generate slides
+                const slidesResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                  },
+                  cache: 'no-store',
+                  body: JSON.stringify({
+                    type: 'slides',
+                    title: moduleTitle,
+                    description: moduleDescription,
+                    competency: competency,
+                    targetLevel: formData.training_target_level,
+                    levelDescriptions: levelDescriptions,
+                    language: 'English',
+                    _nonce: `${Date.now()}-${Math.random()}`
+                  })
+                });
+
+                if (slidesResponse.ok) {
+                  const slidesData = await slidesResponse.json();
+                  const generatedSlides = slidesData.slides || [];
+
+                  // Save slides to database
+                  for (let i = 0; i < generatedSlides.length; i++) {
+                    const slide = generatedSlides[i];
+                    await dbFetch('module_slides', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        module_id: moduleId,
+                        slide_number: i + 1,
+                        title: slide.title,
+                        content: { key_points: slide.key_points || slide.content?.key_points || [] },
+                        speaker_notes: slide.speaker_notes || ''
+                      })
+                    });
+                  }
+                }
+
+                // Generate quiz
+                const quizResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                  },
+                  cache: 'no-store',
+                  body: JSON.stringify({
+                    type: 'quiz',
+                    title: moduleTitle,
+                    description: moduleDescription,
+                    competency: competency,
+                    targetLevel: formData.training_target_level,
+                    language: 'English',
+                    _nonce: `${Date.now()}-${Math.random()}`
+                  })
+                });
+
+                if (quizResponse.ok) {
+                  const quizData = await quizResponse.json();
+                  const generatedQuiz = quizData.questions || [];
+
+                  // Save questions to database
+                  for (let i = 0; i < generatedQuiz.length; i++) {
+                    const q = generatedQuiz[i];
+                    await dbFetch('module_questions', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        module_id: moduleId,
+                        question_text: q.question || q.question_text,
+                        options: q.options,
+                        correct_answer: q.correct_answer,
+                        explanation: q.explanation || '',
+                        sort_order: i + 1
+                      })
+                    });
+                  }
+                }
+              } catch (genError) {
+                console.error('Error generating AI content:', genError);
+                // Module was created, content generation failed - user can retry from Training page
+              }
+            }
           }
         }
       } else if (competencyId && formData.training_option === 'link' && formData.link_module_id) {
@@ -2276,9 +2369,14 @@ export default function CompetenciesPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
-                  {submitting ? 'Saving...' : editingCompetency ? 'Update' : 'Create'}
+                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {submitting 
+                    ? (formData.training_option === 'create' && formData.training_generate_now 
+                        ? 'Creating & Generating AI Content...' 
+                        : 'Saving...') 
+                    : editingCompetency ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>
