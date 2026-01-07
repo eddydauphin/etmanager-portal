@@ -2167,18 +2167,29 @@ export default function CompetenciesPage() {
                         The training developer will create slides & quiz content
                       </p>
                       
-                      {/* Generate now option */}
-                      <div className="pt-2 border-t border-blue-200">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.training_generate_now}
-                            onChange={(e) => setFormData({ ...formData, training_generate_now: e.target.checked })}
-                            className="w-4 h-4 text-blue-600 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Generate content now (opens AI generator)</span>
-                        </label>
-                      </div>
+                      {/* Generate now option - only show if creator is the training developer */}
+                      {(!formData.training_developer_assignment || formData.training_developer_assignment === currentProfile?.id) && (
+                        <div className="pt-2 border-t border-blue-200">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.training_generate_now}
+                              onChange={(e) => setFormData({ ...formData, training_generate_now: e.target.checked })}
+                              className="w-4 h-4 text-blue-600 rounded"
+                            />
+                            <span className="text-sm text-gray-700">Generate content now (opens AI generator)</span>
+                          </label>
+                        </div>
+                      )}
+                      
+                      {/* Info when assigning to someone else */}
+                      {formData.training_developer_assignment && formData.training_developer_assignment !== currentProfile?.id && (
+                        <div className="pt-2 border-t border-blue-200">
+                          <p className="text-xs text-blue-700 italic">
+                            The assigned developer will be able to generate content using AI when they edit the module.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                   

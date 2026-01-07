@@ -837,6 +837,140 @@ export default function TrainingModulesPage() {
     }
   };
 
+  // Generate AI content for existing module (in Edit modal)
+  const [generatingForEdit, setGeneratingForEdit] = useState(false);
+  const [editGenerateError, setEditGenerateError] = useState('');
+
+  const handleGenerateForExistingModule = async () => {
+    if (!selectedModule) return;
+    
+    setGeneratingForEdit(true);
+    setEditGenerateError('');
+    
+    try {
+      // Get linked competency for this module
+      const competencyLink = await dbFetch(
+        `competency_modules?module_id=eq.${selectedModule.id}&select=competency_id,target_level,competencies(*)`
+      );
+      
+      const competency = competencyLink?.[0]?.competencies;
+      const targetLevel = competencyLink?.[0]?.target_level || 3;
+      
+      if (!competency) {
+        throw new Error('No competency linked to this module. Please link a competency first.');
+      }
+
+      const levelDescriptions = {
+        1: competency?.level_1_description || 'Can recognize the topic',
+        2: competency?.level_2_description || 'Can explain concepts',
+        3: competency?.level_3_description || 'Can perform with supervision',
+        4: competency?.level_4_description || 'Works independently',
+        5: competency?.level_5_description || 'Can teach others'
+      };
+
+      // Generate slides
+      const slidesResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          type: 'slides',
+          title: selectedModule.title,
+          description: selectedModule.description,
+          competency: competency,
+          targetLevel: targetLevel,
+          levelDescriptions: levelDescriptions,
+          language: 'English',
+          _nonce: `${Date.now()}-${Math.random()}`
+        })
+      });
+
+      if (!slidesResponse.ok) {
+        const error = await slidesResponse.json();
+        throw new Error(error.error || 'Failed to generate slides');
+      }
+
+      const slidesData = await slidesResponse.json();
+      const generatedSlides = slidesData.slides || [];
+
+      // Generate quiz
+      const quizResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          type: 'quiz',
+          title: selectedModule.title,
+          description: selectedModule.description,
+          competency: competency,
+          targetLevel: targetLevel,
+          language: 'English',
+          _nonce: `${Date.now()}-${Math.random()}`
+        })
+      });
+
+      if (!quizResponse.ok) {
+        const error = await quizResponse.json();
+        throw new Error(error.error || 'Failed to generate quiz');
+      }
+
+      const quizData = await quizResponse.json();
+      const generatedQuiz = quizData.questions || [];
+
+      // Save slides to database
+      for (let i = 0; i < generatedSlides.length; i++) {
+        const slide = generatedSlides[i];
+        await dbFetch('module_slides', {
+          method: 'POST',
+          body: JSON.stringify({
+            module_id: selectedModule.id,
+            slide_number: i + 1,
+            title: slide.title,
+            content: { key_points: slide.key_points || slide.content?.key_points || [] },
+            speaker_notes: slide.speaker_notes || ''
+          })
+        });
+      }
+
+      // Save questions to database
+      for (let i = 0; i < generatedQuiz.length; i++) {
+        const q = generatedQuiz[i];
+        await dbFetch('module_questions', {
+          method: 'POST',
+          body: JSON.stringify({
+            module_id: selectedModule.id,
+            question_text: q.question || q.question_text,
+            options: q.options,
+            correct_answer: q.correct_answer,
+            explanation: q.explanation || '',
+            sort_order: i + 1
+          })
+        });
+      }
+
+      // Reload the content
+      const slides = await dbFetch(`module_slides?module_id=eq.${selectedModule.id}&order=slide_number.asc`);
+      const questions = await dbFetch(`module_questions?module_id=eq.${selectedModule.id}&order=sort_order.asc`);
+      setEditSlides(slides || []);
+      setEditQuestions(questions || []);
+      
+      // Switch to slides tab to show the generated content
+      setEditTab('slides');
+      
+    } catch (error) {
+      console.error('Error generating content:', error);
+      setEditGenerateError(error.message || 'Failed to generate content');
+    } finally {
+      setGeneratingForEdit(false);
+    }
+  };
+
   // Generate Audio for all slides in a module
   const handleGenerateAudio = async (module) => {
     setOpenDropdown(null);
@@ -2459,7 +2593,30 @@ export default function TrainingModulesPage() {
                   {editTab === 'slides' && (
                     <div className="space-y-4">
                       {editSlides.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No slides in this module</p>
+                        <div className="text-center py-8">
+                          <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                          <p className="text-gray-500 mb-4">No slides in this module</p>
+                          <button
+                            onClick={handleGenerateForExistingModule}
+                            disabled={generatingForEdit}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {generatingForEdit ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Generating content...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                Generate with AI
+                              </>
+                            )}
+                          </button>
+                          {editGenerateError && (
+                            <p className="text-red-500 text-sm mt-2">{editGenerateError}</p>
+                          )}
+                        </div>
                       ) : (
                         editSlides.map((slide, index) => (
                           <div key={slide.id} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -2547,7 +2704,35 @@ export default function TrainingModulesPage() {
                   {editTab === 'quiz' && (
                     <div className="space-y-4">
                       {editQuestions.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No quiz questions in this module</p>
+                        <div className="text-center py-8">
+                          <ClipboardList className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                          <p className="text-gray-500 mb-4">No quiz questions in this module</p>
+                          {editSlides.length === 0 && (
+                            <button
+                              onClick={handleGenerateForExistingModule}
+                              disabled={generatingForEdit}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {generatingForEdit ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Generating content...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-4 h-4" />
+                                  Generate with AI
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {editSlides.length > 0 && (
+                            <p className="text-sm text-gray-400">Slides exist but no quiz. You can add questions manually.</p>
+                          )}
+                          {editGenerateError && (
+                            <p className="text-red-500 text-sm mt-2">{editGenerateError}</p>
+                          )}
+                        </div>
                       ) : (
                         editQuestions.map((question, index) => (
                           <div key={question.id} className="border border-gray-200 rounded-lg overflow-hidden">
