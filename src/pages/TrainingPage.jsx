@@ -29,7 +29,9 @@ import {
   Play,
   FileCheck,
   FileClock,
-  Target
+  Target,
+  MoreVertical,
+  Archive
 } from 'lucide-react';
 
 export default function TrainingPage() {
@@ -53,6 +55,7 @@ export default function TrainingPage() {
   const [editingModule, setEditingModule] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [openDropdown, setOpenDropdown] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -62,7 +65,8 @@ export default function TrainingPage() {
     content_type: 'generated',
     content_url: '',
     duration_minutes: 30,
-    status: 'draft'
+    status: 'draft',
+    owner_id: ''
   });
 
   useEffect(() => {
@@ -73,6 +77,15 @@ export default function TrainingPage() {
   useEffect(() => {
     setSearchParams({ tab: activeTab });
   }, [activeTab]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setOpenDropdown(null);
+    if (openDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [openDropdown]);
 
   const loadData = async () => {
     setLoading(true);
@@ -92,7 +105,7 @@ export default function TrainingPage() {
 
   const loadModules = async () => {
     try {
-      let url = 'training_modules?select=*,competency:competency_id(id,name)&order=created_at.desc';
+      let url = 'training_modules?select=*,competency:competency_id(id,name),created_by_user:created_by(id,full_name),owner:owner_id(id,full_name)&order=created_at.desc';
       if (clientId) {
         url += `&client_id=eq.${clientId}`;
       }
@@ -169,7 +182,8 @@ export default function TrainingPage() {
       content_type: 'generated',
       content_url: '',
       duration_minutes: 30,
-      status: 'draft'
+      status: 'draft',
+      owner_id: currentProfile?.id || ''
     });
     setError('');
     setShowModal(true);
@@ -184,7 +198,8 @@ export default function TrainingPage() {
       content_type: module.content_type || 'document',
       content_url: module.content_url || '',
       duration_minutes: module.duration_minutes || 30,
-      status: module.status || 'draft'
+      status: module.status || 'draft',
+      owner_id: module.owner_id || module.created_by || ''
     });
     setError('');
     setShowModal(true);
@@ -208,10 +223,13 @@ export default function TrainingPage() {
         content_url: formData.content_url,
         duration_minutes: parseInt(formData.duration_minutes) || 30,
         status: formData.status,
-        client_id: clientId || null
+        client_id: clientId || null,
+        owner_id: formData.owner_id || null
       };
 
       if (editingModule) {
+        // Add last_reviewed_at when editing
+        moduleData.last_reviewed_at = new Date().toISOString();
         await dbFetch(`training_modules?id=eq.${editingModule.id}`, {
           method: 'PATCH',
           body: JSON.stringify(moduleData)
@@ -375,10 +393,10 @@ export default function TrainingPage() {
             </button>
           </div>
 
-          {/* Modules List */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          {/* Modules Grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredModules.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="col-span-full bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
                 <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                 <p>No training modules yet</p>
                 <button
@@ -389,65 +407,158 @@ export default function TrainingPage() {
                 </button>
               </div>
             ) : (
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competency</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredModules.map((module) => (
-                    <tr key={module.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900">{module.title}</p>
-                        <p className="text-sm text-gray-500 truncate max-w-xs">{module.description}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">
-                          {module.competency?.name || '—'}
+              filteredModules.map((module) => (
+                <div key={module.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  {/* Card Header */}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate">{module.title}</h3>
+                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(module.status)}`}>
+                          {module.status === 'published' ? 'Published' : module.status === 'draft' ? 'Draft' : module.status}
                         </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600 capitalize">{module.content_type}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(module.status)}`}>
-                          {module.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {module.status === 'draft' && (
+                      </div>
+                      {/* Dropdown Menu */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenDropdown(openDropdown === module.id ? null : module.id)}
+                          className="p-1.5 hover:bg-gray-100 rounded-lg"
+                        >
+                          <MoreVertical className="w-4 h-4 text-gray-500" />
+                        </button>
+                        {openDropdown === module.id && (
+                          <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
                             <button
-                              onClick={() => handleUpdateStatus(module.id, 'published')}
-                              className="p-1 hover:bg-green-100 rounded text-green-600"
-                              title="Release"
+                              onClick={() => {
+                                handleEditModule(module);
+                                setOpenDropdown(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                             >
-                              <CheckCircle className="w-4 h-4" />
+                              <Edit2 className="w-4 h-4" />
+                              Edit
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleEditModule(module)}
-                            className="p-1 hover:bg-gray-100 rounded"
-                          >
-                            <Edit2 className="w-4 h-4 text-gray-500" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteModule(module.id)}
-                            className="p-1 hover:bg-red-100 rounded text-red-500"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            <button
+                              onClick={() => {
+                                // Preview functionality
+                                window.open(`/training/preview/${module.id}`, '_blank');
+                                setOpenDropdown(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Preview
+                            </button>
+                            {module.status === 'published' && (
+                              <button
+                                onClick={() => {
+                                  handleUpdateStatus(module.id, 'archived');
+                                  setOpenDropdown(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Archive className="w-4 h-4" />
+                                Archive
+                              </button>
+                            )}
+                            {module.status === 'draft' && (
+                              <button
+                                onClick={() => {
+                                  handleUpdateStatus(module.id, 'published');
+                                  setOpenDropdown(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Publish
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                // TODO: Assign users modal
+                                setOpenDropdown(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                            >
+                              <Users className="w-4 h-4" />
+                              Assign Users
+                            </button>
+                            <hr className="my-1" />
+                            <button
+                              onClick={() => {
+                                handleDeleteModule(module.id);
+                                setOpenDropdown(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Description */}
+                    <p className="mt-2 text-sm text-gray-500 line-clamp-2">{module.description || 'No description'}</p>
+                  </div>
+                  
+                  {/* Card Info */}
+                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2">
+                    {/* Competency & Client */}
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <Target className="w-3.5 h-3.5" />
+                      <span className="truncate">{module.competency?.name || 'No competency'}</span>
+                    </div>
+                    
+                    {/* Stats row */}
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      {module.slides_count !== undefined && (
+                        <span className="flex items-center gap-1">
+                          <FileText className="w-3.5 h-3.5" />
+                          {module.slides_count || 0} slides
+                        </span>
+                      )}
+                      {module.quiz_count !== undefined && (
+                        <span className="flex items-center gap-1">
+                          <FileCheck className="w-3.5 h-3.5" />
+                          {module.quiz_count || 0} questions
+                        </span>
+                      )}
+                      {module.duration_minutes && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          {module.duration_minutes} min
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Metadata: Created, Last Review, Owner */}
+                    <div className="pt-2 border-t border-gray-200 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Created:</span>
+                        <span className="text-gray-700">
+                          {module.created_at ? new Date(module.created_at).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Last review:</span>
+                        <span className="text-gray-700">
+                          {module.last_reviewed_at 
+                            ? new Date(module.last_reviewed_at).toLocaleDateString() 
+                            : 'Never'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Owner:</span>
+                        <span className="text-gray-700 truncate max-w-[120px]">
+                          {module.owner?.full_name || module.created_by_user?.full_name || '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -607,6 +718,20 @@ export default function TrainingPage() {
                   <option value="">No linked competency</option>
                   {competencies.map(comp => (
                     <option key={comp.id} value={comp.id}>{comp.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+                <select
+                  value={formData.owner_id}
+                  onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  <option value="">Select owner...</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.full_name}</option>
                   ))}
                 </select>
               </div>
