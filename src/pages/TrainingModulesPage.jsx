@@ -750,8 +750,14 @@ export default function TrainingModulesPage() {
     owner_id: ''
   });
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editTab, setEditTab] = useState('details'); // 'details', 'slides', 'quiz'
+  const [editSlides, setEditSlides] = useState([]);
+  const [editQuestions, setEditQuestions] = useState([]);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [editingSlideId, setEditingSlideId] = useState(null);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
 
-  const handleEditModule = (module) => {
+  const handleEditModule = async (module) => {
     setSelectedModule(module);
     setEditFormData({
       title: module.title || '',
@@ -759,8 +765,22 @@ export default function TrainingModulesPage() {
       pass_score: module.pass_score || 80,
       owner_id: module.owner_id || module.created_by || ''
     });
+    setEditTab('details');
     setShowEditModal(true);
     setOpenDropdown(null);
+    
+    // Load slides and questions
+    setLoadingContent(true);
+    try {
+      const slides = await dbFetch(`module_slides?module_id=eq.${module.id}&order=slide_number.asc`);
+      const questions = await dbFetch(`module_questions?module_id=eq.${module.id}&order=sort_order.asc`);
+      setEditSlides(slides || []);
+      setEditQuestions(questions || []);
+    } catch (error) {
+      console.error('Error loading content:', error);
+    } finally {
+      setLoadingContent(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -786,6 +806,34 @@ export default function TrainingModulesPage() {
       console.error('Error updating module:', error);
     } finally {
       setEditSubmitting(false);
+    }
+  };
+
+  const handleUpdateSlide = async (slideId, updates) => {
+    try {
+      await dbFetch(`module_slides?id=eq.${slideId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates)
+      });
+      // Update local state
+      setEditSlides(prev => prev.map(s => s.id === slideId ? { ...s, ...updates } : s));
+      setEditingSlideId(null);
+    } catch (error) {
+      console.error('Error updating slide:', error);
+    }
+  };
+
+  const handleUpdateQuestion = async (questionId, updates) => {
+    try {
+      await dbFetch(`module_questions?id=eq.${questionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates)
+      });
+      // Update local state
+      setEditQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } : q));
+      setEditingQuestionId(null);
+    } catch (error) {
+      console.error('Error updating question:', error);
     }
   };
 
@@ -2283,13 +2331,16 @@ export default function TrainingModulesPage() {
       {/* Edit Module Modal */}
       {showEditModal && selectedModule && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Edit2 className="w-5 h-5 text-blue-600" />
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900">Edit Module</h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Edit Module</h2>
+                  <p className="text-sm text-gray-500">{selectedModule.title}</p>
+                </div>
               </div>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -2299,65 +2350,284 @@ export default function TrainingModulesPage() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={editFormData.title}
-                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setEditTab('details')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  editTab === 'details'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Details
+              </button>
+              <button
+                onClick={() => setEditTab('slides')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  editTab === 'slides'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Slides ({editSlides.length})
+              </button>
+              <button
+                onClick={() => setEditTab('quiz')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  editTab === 'quiz'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Quiz ({editQuestions.length})
+              </button>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={editFormData.description}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pass Score (%)</label>
-                <input
-                  type="number"
-                  value={editFormData.pass_score}
-                  onChange={(e) => setEditFormData({ ...editFormData, pass_score: parseInt(e.target.value) || 80 })}
-                  min="1"
-                  max="100"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
-                <select
-                  value={editFormData.owner_id}
-                  onChange={(e) => setEditFormData({ ...editFormData, owner_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select owner...</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>{user.full_name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Show current metadata */}
-              <div className="pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1">
-                <div className="flex justify-between">
-                  <span>Created:</span>
-                  <span>{selectedModule.created_at ? new Date(selectedModule.created_at).toLocaleDateString() : '—'}</span>
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingContent ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 </div>
-                <div className="flex justify-between">
-                  <span>Last reviewed:</span>
-                  <span>{selectedModule.last_reviewed_at ? new Date(selectedModule.last_reviewed_at).toLocaleDateString() : 'Never'}</span>
-                </div>
-                <p className="text-gray-400 italic mt-2">Saving will update the "Last reviewed" date</p>
-              </div>
+              ) : (
+                <>
+                  {/* Details Tab */}
+                  {editTab === 'details' && (
+                    <div className="space-y-4 max-w-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={editFormData.title}
+                          onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea
+                          value={editFormData.description}
+                          onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pass Score (%)</label>
+                        <input
+                          type="number"
+                          value={editFormData.pass_score}
+                          onChange={(e) => setEditFormData({ ...editFormData, pass_score: parseInt(e.target.value) || 80 })}
+                          min="1"
+                          max="100"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+                        <select
+                          value={editFormData.owner_id}
+                          onChange={(e) => setEditFormData({ ...editFormData, owner_id: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select owner...</option>
+                          {users.map(user => (
+                            <option key={user.id} value={user.id}>{user.full_name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Show current metadata */}
+                      <div className="pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Created:</span>
+                          <span>{selectedModule.created_at ? new Date(selectedModule.created_at).toLocaleDateString() : '—'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Last reviewed:</span>
+                          <span>{selectedModule.last_reviewed_at ? new Date(selectedModule.last_reviewed_at).toLocaleDateString() : 'Never'}</span>
+                        </div>
+                        <p className="text-gray-400 italic mt-2">Saving will update the "Last reviewed" date</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Slides Tab */}
+                  {editTab === 'slides' && (
+                    <div className="space-y-4">
+                      {editSlides.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No slides in this module</p>
+                      ) : (
+                        editSlides.map((slide, index) => (
+                          <div key={slide.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200">
+                              <span className="font-medium text-gray-700">Slide {index + 1}: {slide.title}</span>
+                              <button
+                                onClick={() => setEditingSlideId(editingSlideId === slide.id ? null : slide.id)}
+                                className="text-sm text-blue-600 hover:text-blue-700"
+                              >
+                                {editingSlideId === slide.id ? 'Close' : 'Edit'}
+                              </button>
+                            </div>
+                            
+                            {editingSlideId === slide.id ? (
+                              <div className="p-4 space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                                  <input
+                                    type="text"
+                                    defaultValue={slide.title}
+                                    onBlur={(e) => {
+                                      if (e.target.value !== slide.title) {
+                                        handleUpdateSlide(slide.id, { title: e.target.value });
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                                  <textarea
+                                    defaultValue={slide.content}
+                                    rows={8}
+                                    onBlur={(e) => {
+                                      if (e.target.value !== slide.content) {
+                                        handleUpdateSlide(slide.id, { content: e.target.value });
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono"
+                                  />
+                                </div>
+                                {slide.speaker_notes && (
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Speaker Notes</label>
+                                    <textarea
+                                      defaultValue={slide.speaker_notes}
+                                      rows={3}
+                                      onBlur={(e) => {
+                                        if (e.target.value !== slide.speaker_notes) {
+                                          handleUpdateSlide(slide.id, { speaker_notes: e.target.value });
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="p-4">
+                                <div 
+                                  className="text-sm text-gray-600 prose prose-sm max-w-none"
+                                  dangerouslySetInnerHTML={{ __html: slide.content?.replace(/\n/g, '<br/>') || 'No content' }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Quiz Tab */}
+                  {editTab === 'quiz' && (
+                    <div className="space-y-4">
+                      {editQuestions.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No quiz questions in this module</p>
+                      ) : (
+                        editQuestions.map((question, index) => (
+                          <div key={question.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200">
+                              <span className="font-medium text-gray-700">Question {index + 1}</span>
+                              <button
+                                onClick={() => setEditingQuestionId(editingQuestionId === question.id ? null : question.id)}
+                                className="text-sm text-blue-600 hover:text-blue-700"
+                              >
+                                {editingQuestionId === question.id ? 'Close' : 'Edit'}
+                              </button>
+                            </div>
+                            
+                            {editingQuestionId === question.id ? (
+                              <div className="p-4 space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Question</label>
+                                  <textarea
+                                    defaultValue={question.question}
+                                    rows={2}
+                                    onBlur={(e) => {
+                                      if (e.target.value !== question.question) {
+                                        handleUpdateQuestion(question.id, { question: e.target.value });
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Options (one per line)</label>
+                                  <textarea
+                                    defaultValue={Array.isArray(question.options) ? question.options.join('\n') : ''}
+                                    rows={4}
+                                    onBlur={(e) => {
+                                      const newOptions = e.target.value.split('\n').filter(o => o.trim());
+                                      handleUpdateQuestion(question.id, { options: newOptions });
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (0-based index)</label>
+                                  <input
+                                    type="number"
+                                    defaultValue={question.correct_answer}
+                                    min="0"
+                                    onBlur={(e) => {
+                                      const val = parseInt(e.target.value);
+                                      if (val !== question.correct_answer) {
+                                        handleUpdateQuestion(question.id, { correct_answer: val });
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
+                                  <textarea
+                                    defaultValue={question.explanation || ''}
+                                    rows={2}
+                                    onBlur={(e) => {
+                                      if (e.target.value !== question.explanation) {
+                                        handleUpdateQuestion(question.id, { explanation: e.target.value });
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-4">
+                                <p className="text-sm text-gray-800 font-medium mb-2">{question.question}</p>
+                                <ul className="space-y-1">
+                                  {Array.isArray(question.options) && question.options.map((opt, i) => (
+                                    <li key={i} className={`text-sm flex items-center gap-2 ${i === question.correct_answer ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
+                                      {i === question.correct_answer ? <CheckCircle className="w-4 h-4" /> : <span className="w-4 h-4" />}
+                                      {opt}
+                                    </li>
+                                  ))}
+                                </ul>
+                                {question.explanation && (
+                                  <p className="text-xs text-gray-500 mt-2 italic">Explanation: {question.explanation}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
@@ -2365,16 +2635,18 @@ export default function TrainingModulesPage() {
                 onClick={() => setShowEditModal(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                Cancel
+                Close
               </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={editSubmitting || !editFormData.title.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {editSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editSubmitting ? 'Saving...' : 'Save Changes'}
-              </button>
+              {editTab === 'details' && (
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={editSubmitting || !editFormData.title.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {editSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {editSubmitting ? 'Saving...' : 'Save Details'}
+                </button>
+              )}
             </div>
           </div>
         </div>
