@@ -275,6 +275,7 @@ export default function TrainingModulesPage() {
     setUploadProgress(0);
     setProcessingFile(false);
     setImportMode('smart');
+    setEditingModuleId(null); // Reset - we're creating new, not editing
     setShowCreateModal(true);
   };
 
@@ -511,83 +512,132 @@ export default function TrainingModulesPage() {
     setFormError('');
 
     try {
-      // Create a module for each client and language combination
-      for (const clientId of formData.client_ids) {
-        for (const langCode of formData.audio_languages) {
-          const langLabel = languages.find(l => l.code === langCode)?.label || 'English';
-          const clientName = clients.find(c => c.id === clientId)?.name || '';
-          
-          // Add language suffix if multiple languages selected
-          const titleSuffix = formData.audio_languages.length > 1 ? ` (${langLabel})` : '';
-          
-          const modulePayload = {
-            title: formData.title + titleSuffix,
-            description: formData.description,
-            client_id: clientId,
-            pass_score: formData.pass_score,
-            max_attempts: formData.max_attempts,
-            has_audio: formData.has_audio,
-            audio_language: langCode,
-            content_type: createMethod === 'upload' ? 'uploaded' : 'generated',
-            original_file_name: uploadedFile?.name || null,
-            status: 'draft',
-            created_by: currentProfile?.id,
-            created_by_department: currentProfile?.department || null
-          };
+      // Check if we're editing an existing module or creating new
+      if (editingModuleId) {
+        // EDITING EXISTING MODULE - just save slides and questions
+        const moduleId = editingModuleId;
+        
+        // Delete existing slides and questions first
+        await dbFetch(`module_slides?module_id=eq.${moduleId}`, { method: 'DELETE' });
+        await dbFetch(`module_questions?module_id=eq.${moduleId}`, { method: 'DELETE' });
+        
+        // Save slides
+        if (generatedSlides.length > 0) {
+          const slidesPayload = generatedSlides.map((slide, index) => ({
+            module_id: moduleId,
+            slide_number: index + 1,
+            title: slide.title,
+            content: { key_points: slide.key_points },
+            audio_script: slide.audio_script
+          }));
 
-          const moduleResult = await dbFetch('training_modules?select=id', {
+          await dbFetch('module_slides', {
             method: 'POST',
-            body: JSON.stringify(modulePayload)
+            body: JSON.stringify(slidesPayload)
           });
+        }
 
-          const moduleId = moduleResult[0]?.id;
-          if (!moduleId) throw new Error('Failed to create module');
+        // Save quiz questions
+        if (generatedQuiz.length > 0) {
+          const questionsPayload = generatedQuiz.map((q, index) => ({
+            module_id: moduleId,
+            question_text: q.question_text,
+            question_type: 'multiple_choice',
+            options: q.options,
+            correct_answer: q.correct_answer,
+            points: q.points || 1,
+            sort_order: index
+          }));
 
-          // Link to competency
-          if (formData.competency_id) {
-            await dbFetch('competency_modules', {
+          await dbFetch('module_questions', {
+            method: 'POST',
+            body: JSON.stringify(questionsPayload)
+          });
+        }
+        
+        // Reset editing state
+        setEditingModuleId(null);
+        
+      } else {
+        // CREATING NEW MODULE(S)
+        // Create a module for each client and language combination
+        for (const clientId of formData.client_ids) {
+          for (const langCode of formData.audio_languages) {
+            const langLabel = languages.find(l => l.code === langCode)?.label || 'English';
+            const clientName = clients.find(c => c.id === clientId)?.name || '';
+            
+            // Add language suffix if multiple languages selected
+            const titleSuffix = formData.audio_languages.length > 1 ? ` (${langLabel})` : '';
+            
+            const modulePayload = {
+              title: formData.title + titleSuffix,
+              description: formData.description,
+              client_id: clientId,
+              pass_score: formData.pass_score,
+              max_attempts: formData.max_attempts,
+              has_audio: formData.has_audio,
+              audio_language: langCode,
+              content_type: createMethod === 'upload' ? 'uploaded' : 'generated',
+              original_file_name: uploadedFile?.name || null,
+              status: 'draft',
+              created_by: currentProfile?.id,
+              created_by_department: currentProfile?.department || null
+            };
+
+            const moduleResult = await dbFetch('training_modules?select=id', {
               method: 'POST',
-              body: JSON.stringify({
-                competency_id: formData.competency_id,
+              body: JSON.stringify(modulePayload)
+            });
+
+            const moduleId = moduleResult[0]?.id;
+            if (!moduleId) throw new Error('Failed to create module');
+
+            // Link to competency
+            if (formData.competency_id) {
+              await dbFetch('competency_modules', {
+                method: 'POST',
+                body: JSON.stringify({
+                  competency_id: formData.competency_id,
+                  module_id: moduleId,
+                  target_level: formData.target_level,
+                  is_mandatory: true
+                })
+              });
+            }
+
+            // Save slides
+            if (generatedSlides.length > 0) {
+              const slidesPayload = generatedSlides.map((slide, index) => ({
                 module_id: moduleId,
-                target_level: formData.target_level,
-                is_mandatory: true
-              })
-            });
-          }
+                slide_number: index + 1,
+                title: slide.title,
+                content: { key_points: slide.key_points },
+                audio_script: slide.audio_script
+              }));
 
-          // Save slides
-          if (generatedSlides.length > 0) {
-            const slidesPayload = generatedSlides.map((slide, index) => ({
-              module_id: moduleId,
-              slide_number: index + 1,
-              title: slide.title,
-              content: { key_points: slide.key_points },
-              audio_script: slide.audio_script
-            }));
+              await dbFetch('module_slides', {
+                method: 'POST',
+                body: JSON.stringify(slidesPayload)
+              });
+            }
 
-            await dbFetch('module_slides', {
-              method: 'POST',
-              body: JSON.stringify(slidesPayload)
-            });
-          }
+            // Save quiz questions
+            if (generatedQuiz.length > 0) {
+              const questionsPayload = generatedQuiz.map((q, index) => ({
+                module_id: moduleId,
+                question_text: q.question_text,
+                question_type: 'multiple_choice',
+                options: q.options,
+                correct_answer: q.correct_answer,
+                points: q.points || 1,
+                sort_order: index
+              }));
 
-          // Save quiz questions
-          if (generatedQuiz.length > 0) {
-            const questionsPayload = generatedQuiz.map((q, index) => ({
-              module_id: moduleId,
-              question_text: q.question_text,
-              question_type: 'multiple_choice',
-              options: q.options,
-              correct_answer: q.correct_answer,
-              points: q.points || 1,
-              sort_order: index
-            }));
-
-            await dbFetch('module_questions', {
-              method: 'POST',
-              body: JSON.stringify(questionsPayload)
-            });
+              await dbFetch('module_questions', {
+                method: 'POST',
+                body: JSON.stringify(questionsPayload)
+              });
+            }
           }
         }
       }
@@ -837,7 +887,7 @@ export default function TrainingModulesPage() {
     }
   };
 
-  // Generate AI content for existing module (in Edit modal)
+  // Generate AI content for existing module - opens the create wizard in generate mode
   const [generatingForEdit, setGeneratingForEdit] = useState(false);
   const [editGenerateError, setEditGenerateError] = useState('');
 
@@ -859,115 +909,41 @@ export default function TrainingModulesPage() {
       if (!competency) {
         throw new Error('No competency linked to this module. Please link a competency first.');
       }
-
-      const levelDescriptions = {
-        1: competency?.level_1_description || 'Can recognize the topic',
-        2: competency?.level_2_description || 'Can explain concepts',
-        3: competency?.level_3_description || 'Can perform with supervision',
-        4: competency?.level_4_description || 'Works independently',
-        5: competency?.level_5_description || 'Can teach others'
-      };
-
-      // Generate slides
-      const slidesResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        },
-        cache: 'no-store',
-        body: JSON.stringify({
-          type: 'slides',
-          title: selectedModule.title,
-          description: selectedModule.description,
-          competency: competency,
-          targetLevel: targetLevel,
-          levelDescriptions: levelDescriptions,
-          language: 'English',
-          _nonce: `${Date.now()}-${Math.random()}`
-        })
-      });
-
-      if (!slidesResponse.ok) {
-        const error = await slidesResponse.json();
-        throw new Error(error.error || 'Failed to generate slides');
-      }
-
-      const slidesData = await slidesResponse.json();
-      const generatedSlides = slidesData.slides || [];
-
-      // Generate quiz
-      const quizResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        },
-        cache: 'no-store',
-        body: JSON.stringify({
-          type: 'quiz',
-          title: selectedModule.title,
-          description: selectedModule.description,
-          competency: competency,
-          targetLevel: targetLevel,
-          language: 'English',
-          _nonce: `${Date.now()}-${Math.random()}`
-        })
-      });
-
-      if (!quizResponse.ok) {
-        const error = await quizResponse.json();
-        throw new Error(error.error || 'Failed to generate quiz');
-      }
-
-      const quizData = await quizResponse.json();
-      const generatedQuiz = quizData.questions || [];
-
-      // Save slides to database
-      for (let i = 0; i < generatedSlides.length; i++) {
-        const slide = generatedSlides[i];
-        await dbFetch('module_slides', {
-          method: 'POST',
-          body: JSON.stringify({
-            module_id: selectedModule.id,
-            slide_number: i + 1,
-            title: slide.title,
-            content: { key_points: slide.key_points || slide.content?.key_points || [] }
-          })
-        });
-      }
-
-      // Save questions to database
-      for (let i = 0; i < generatedQuiz.length; i++) {
-        const q = generatedQuiz[i];
-        await dbFetch('module_questions', {
-          method: 'POST',
-          body: JSON.stringify({
-            module_id: selectedModule.id,
-            question_text: q.question || q.question_text,
-            options: q.options,
-            correct_answer: q.correct_answer,
-            explanation: q.explanation || '',
-            sort_order: i + 1
-          })
-        });
-      }
-
-      // Reload the content
-      const slides = await dbFetch(`module_slides?module_id=eq.${selectedModule.id}&order=slide_number.asc`);
-      const questions = await dbFetch(`module_questions?module_id=eq.${selectedModule.id}&order=sort_order.asc`);
-      setEditSlides(slides || []);
-      setEditQuestions(questions || []);
       
-      // Switch to slides tab to show the generated content
-      setEditTab('slides');
+      // Close Edit modal
+      setShowEditModal(false);
+      
+      // Pre-fill the Create form with this module's data
+      setFormData({
+        title: selectedModule.title,
+        description: selectedModule.description || '',
+        client_ids: selectedModule.client_id ? [selectedModule.client_id] : [],
+        competency_id: competency.id,
+        target_level: targetLevel,
+        has_audio: selectedModule.has_audio ?? true,
+        audio_languages: ['en'],
+        pass_score: selectedModule.pass_score || 80
+      });
+      
+      // Set the module we're generating for (to save to existing instead of creating new)
+      setEditingModuleId(selectedModule.id);
+      
+      // Open Create modal and go to Step 1 to start generation
+      setCreateMethod('generate');
+      setGeneratedSlides([]);
+      setGeneratedQuiz([]);
+      setCreateStep(1);
+      setShowCreateModal(true);
       
     } catch (error) {
-      console.error('Error generating content:', error);
-      setEditGenerateError(error.message || 'Failed to generate content');
-    } finally {
+      console.error('Error preparing generation:', error);
+      setEditGenerateError(error.message || 'Failed to prepare generation');
       setGeneratingForEdit(false);
     }
+  };
+  
+  // Track if we're editing an existing module (vs creating new)
+  const [editingModuleId, setEditingModuleId] = useState(null);
   };
 
   // Generate Audio for all slides in a module
@@ -1556,12 +1532,17 @@ export default function TrainingModulesPage() {
                   <Sparkles className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Create Training Module</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {editingModuleId ? 'Generate Content for Module' : 'Create Training Module'}
+                  </h2>
                   <p className="text-sm text-gray-500">Step {createStep} of 3</p>
                 </div>
               </div>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setEditingModuleId(null);
+                }}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <X className="w-5 h-5 text-gray-500" />
@@ -2194,7 +2175,7 @@ export default function TrainingModulesPage() {
                   {generating ? 'Saving...' : (
                     <>
                       <Check className="w-4 h-4" />
-                      Save Module
+                      {editingModuleId ? 'Save Content' : 'Save Module'}
                     </>
                   )}
                 </button>
