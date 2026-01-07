@@ -2464,7 +2464,12 @@ export default function TrainingModulesPage() {
                         editSlides.map((slide, index) => (
                           <div key={slide.id} className="border border-gray-200 rounded-lg overflow-hidden">
                             <div className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200">
-                              <span className="font-medium text-gray-700">Slide {index + 1}: {slide.title}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                  {slide.slide_number || index + 1}
+                                </span>
+                                <span className="font-medium text-gray-700">{slide.title}</span>
+                              </div>
                               <button
                                 onClick={() => setEditingSlideId(editingSlideId === slide.id ? null : slide.id)}
                                 className="text-sm text-blue-600 hover:text-blue-700"
@@ -2489,16 +2494,18 @@ export default function TrainingModulesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Key Points (one per line)</label>
                                   <textarea
-                                    defaultValue={slide.content}
+                                    defaultValue={slide.content?.key_points?.join('\n') || ''}
                                     rows={8}
                                     onBlur={(e) => {
-                                      if (e.target.value !== slide.content) {
-                                        handleUpdateSlide(slide.id, { content: e.target.value });
-                                      }
+                                      const newPoints = e.target.value.split('\n').filter(p => p.trim());
+                                      handleUpdateSlide(slide.id, { 
+                                        content: { ...slide.content, key_points: newPoints }
+                                      });
                                     }}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                    placeholder="Enter key points, one per line"
                                   />
                                 </div>
                                 {slide.speaker_notes && (
@@ -2519,10 +2526,15 @@ export default function TrainingModulesPage() {
                               </div>
                             ) : (
                               <div className="p-4">
-                                <div 
-                                  className="text-sm text-gray-600 prose prose-sm max-w-none"
-                                  dangerouslySetInnerHTML={{ __html: slide.content?.replace(/\n/g, '<br/>') || 'No content' }}
-                                />
+                                {slide.content?.key_points && slide.content.key_points.length > 0 ? (
+                                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                    {slide.content.key_points.map((point, i) => (
+                                      <li key={i}>{point}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-gray-400 italic">No content</p>
+                                )}
                               </div>
                             )}
                           </div>
@@ -2554,18 +2566,19 @@ export default function TrainingModulesPage() {
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Question</label>
                                   <textarea
-                                    defaultValue={question.question}
+                                    defaultValue={question.question_text || question.question}
                                     rows={2}
                                     onBlur={(e) => {
-                                      if (e.target.value !== question.question) {
-                                        handleUpdateQuestion(question.id, { question: e.target.value });
+                                      const currentText = question.question_text || question.question;
+                                      if (e.target.value !== currentText) {
+                                        handleUpdateQuestion(question.id, { question_text: e.target.value });
                                       }
                                     }}
                                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Options (one per line)</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Options (one per line, e.g., "A) Option text")</label>
                                   <textarea
                                     defaultValue={Array.isArray(question.options) ? question.options.join('\n') : ''}
                                     rows={4}
@@ -2577,18 +2590,17 @@ export default function TrainingModulesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (0-based index)</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (e.g., "A", "B", "C", or "D")</label>
                                   <input
-                                    type="number"
+                                    type="text"
                                     defaultValue={question.correct_answer}
-                                    min="0"
                                     onBlur={(e) => {
-                                      const val = parseInt(e.target.value);
-                                      if (val !== question.correct_answer) {
-                                        handleUpdateQuestion(question.id, { correct_answer: val });
+                                      if (e.target.value !== question.correct_answer) {
+                                        handleUpdateQuestion(question.id, { correct_answer: e.target.value });
                                       }
                                     }}
                                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                    placeholder="A"
                                   />
                                 </div>
                                 <div>
@@ -2607,15 +2619,21 @@ export default function TrainingModulesPage() {
                               </div>
                             ) : (
                               <div className="p-4">
-                                <p className="text-sm text-gray-800 font-medium mb-2">{question.question}</p>
-                                <ul className="space-y-1">
+                                <p className="text-sm text-gray-800 font-medium mb-2">{question.question_text || question.question}</p>
+                                <div className="space-y-1">
                                   {Array.isArray(question.options) && question.options.map((opt, i) => (
-                                    <li key={i} className={`text-sm flex items-center gap-2 ${i === question.correct_answer ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
-                                      {i === question.correct_answer ? <CheckCircle className="w-4 h-4" /> : <span className="w-4 h-4" />}
+                                    <div
+                                      key={i}
+                                      className={`text-sm p-2 rounded ${
+                                        opt.startsWith(question.correct_answer)
+                                          ? 'bg-green-50 text-green-700 font-medium'
+                                          : 'text-gray-600'
+                                      }`}
+                                    >
                                       {opt}
-                                    </li>
+                                    </div>
                                   ))}
-                                </ul>
+                                </div>
                                 {question.explanation && (
                                   <p className="text-xs text-gray-500 mt-2 italic">Explanation: {question.explanation}</p>
                                 )}
