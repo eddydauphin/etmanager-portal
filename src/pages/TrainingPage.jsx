@@ -31,7 +31,11 @@ import {
   FileClock,
   Target,
   MoreVertical,
-  Archive
+  Archive,
+  Volume2,
+  Building2,
+  Globe,
+  Award
 } from 'lucide-react';
 
 export default function TrainingPage() {
@@ -105,7 +109,7 @@ export default function TrainingPage() {
 
   const loadModules = async () => {
     try {
-      let url = 'training_modules?select=*,competency:competency_id(id,name),created_by_user:created_by(id,full_name),owner:owner_id(id,full_name)&order=created_at.desc';
+      let url = 'training_modules?select=*,competency:competency_id(id,name),client:client_id(id,name),created_by_user:created_by(id,full_name),owner:owner_id(id,full_name)&order=created_at.desc';
       if (clientId) {
         url += `&client_id=eq.${clientId}`;
       }
@@ -228,7 +232,7 @@ export default function TrainingPage() {
       };
 
       if (editingModule) {
-        // Add last_reviewed_at when editing
+        // Update last_reviewed_at when editing
         moduleData.last_reviewed_at = new Date().toISOString();
         await dbFetch(`training_modules?id=eq.${editingModule.id}`, {
           method: 'PATCH',
@@ -408,153 +412,160 @@ export default function TrainingPage() {
               </div>
             ) : (
               filteredModules.map((module) => (
-                <div key={module.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  {/* Card Header */}
-                  <div className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{module.title}</h3>
-                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(module.status)}`}>
-                          {module.status === 'published' ? 'Published' : module.status === 'draft' ? 'Draft' : module.status}
-                        </span>
-                      </div>
-                      {/* Dropdown Menu */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === module.id ? null : module.id)}
-                          className="p-1.5 hover:bg-gray-100 rounded-lg"
-                        >
-                          <MoreVertical className="w-4 h-4 text-gray-500" />
-                        </button>
-                        {openDropdown === module.id && (
-                          <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                <div key={module.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                  {/* Header with title and dropdown */}
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-semibold text-gray-900 pr-2">{module.title}</h3>
+                    <div className="relative flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDropdown(openDropdown === module.id ? null : module.id);
+                        }}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg"
+                      >
+                        <MoreVertical className="w-4 h-4 text-gray-400" />
+                      </button>
+                      {openDropdown === module.id && (
+                        <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                          <button
+                            onClick={() => {
+                              handleEditModule(module);
+                              setOpenDropdown(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              window.open(`/training/preview/${module.id}`, '_blank');
+                              setOpenDropdown(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Preview
+                          </button>
+                          {module.status === 'published' && (
                             <button
                               onClick={() => {
-                                handleEditModule(module);
+                                handleUpdateStatus(module.id, 'archived');
                                 setOpenDropdown(null);
                               }}
                               className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                             >
-                              <Edit2 className="w-4 h-4" />
-                              Edit
+                              <Archive className="w-4 h-4" />
+                              Archive
                             </button>
-                            <button
-                              onClick={() => {
-                                // Preview functionality
-                                window.open(`/training/preview/${module.id}`, '_blank');
-                                setOpenDropdown(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <Eye className="w-4 h-4" />
-                              Preview
-                            </button>
-                            {module.status === 'published' && (
-                              <button
-                                onClick={() => {
-                                  handleUpdateStatus(module.id, 'archived');
-                                  setOpenDropdown(null);
-                                }}
-                                className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                              >
-                                <Archive className="w-4 h-4" />
-                                Archive
-                              </button>
-                            )}
-                            {module.status === 'draft' && (
-                              <button
-                                onClick={() => {
-                                  handleUpdateStatus(module.id, 'published');
-                                  setOpenDropdown(null);
-                                }}
-                                className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                                Publish
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                // TODO: Assign users modal
-                                setOpenDropdown(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                            >
-                              <Users className="w-4 h-4" />
-                              Assign Users
-                            </button>
-                            <hr className="my-1" />
-                            <button
-                              onClick={() => {
-                                handleDeleteModule(module.id);
-                                setOpenDropdown(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              // TODO: Assign users
+                              setOpenDropdown(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                          >
+                            <Users className="w-4 h-4" />
+                            Assign Users
+                          </button>
+                          <button
+                            onClick={() => {
+                              // TODO: Generate audio
+                              setOpenDropdown(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                            Generate Audio
+                          </button>
+                          <hr className="my-1" />
+                          <button
+                            onClick={() => {
+                              handleDeleteModule(module.id);
+                              setOpenDropdown(null);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    
-                    {/* Description */}
-                    <p className="mt-2 text-sm text-gray-500 line-clamp-2">{module.description || 'No description'}</p>
                   </div>
                   
-                  {/* Card Info */}
-                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2">
-                    {/* Competency & Client */}
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <Target className="w-3.5 h-3.5" />
-                      <span className="truncate">{module.competency?.name || 'No competency'}</span>
+                  {/* Status badge */}
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${getStatusColor(module.status)}`}>
+                    {module.status === 'published' ? 'Published' : module.status === 'draft' ? 'Draft' : module.status}
+                  </span>
+                  
+                  {/* Description */}
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-3">{module.description || 'No description'}</p>
+                  
+                  {/* Module info */}
+                  <div className="space-y-1.5 text-xs text-gray-600 mb-3">
+                    {module.client?.name && (
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>{module.client.name}</span>
+                      </div>
+                    )}
+                    {module.competency?.name && (
+                      <div className="flex items-center gap-2">
+                        <Target className="w-3.5 h-3.5" />
+                        <span>{module.competency.name}</span>
+                        {module.target_level && <span>• Level {module.target_level}</span>}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Stats row */}
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+                    <span className="flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5" />
+                      {module.slides_count || 0} slides
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <FileCheck className="w-3.5 h-3.5" />
+                      {module.quiz_count || 0} questions
+                    </span>
+                  </div>
+                  
+                  {/* Language and pass rate */}
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+                    <span className="flex items-center gap-1">
+                      <Globe className="w-3.5 h-3.5" />
+                      {module.language || 'English'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5" />
+                      Pass: {module.pass_percentage || 80}%
+                    </span>
+                  </div>
+                  
+                  {/* Metadata: Created, Last Review, Owner */}
+                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Created:</span>
+                      <span className="text-gray-600">
+                        {module.created_at ? new Date(module.created_at).toLocaleDateString() : '—'}
+                      </span>
                     </div>
-                    
-                    {/* Stats row */}
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                      {module.slides_count !== undefined && (
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-3.5 h-3.5" />
-                          {module.slides_count || 0} slides
-                        </span>
-                      )}
-                      {module.quiz_count !== undefined && (
-                        <span className="flex items-center gap-1">
-                          <FileCheck className="w-3.5 h-3.5" />
-                          {module.quiz_count || 0} questions
-                        </span>
-                      )}
-                      {module.duration_minutes && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {module.duration_minutes} min
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Last review:</span>
+                      <span className="text-gray-600">
+                        {module.last_reviewed_at 
+                          ? new Date(module.last_reviewed_at).toLocaleDateString() 
+                          : 'Never'}
+                      </span>
                     </div>
-                    
-                    {/* Metadata: Created, Last Review, Owner */}
-                    <div className="pt-2 border-t border-gray-200 space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">Created:</span>
-                        <span className="text-gray-700">
-                          {module.created_at ? new Date(module.created_at).toLocaleDateString() : '—'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">Last review:</span>
-                        <span className="text-gray-700">
-                          {module.last_reviewed_at 
-                            ? new Date(module.last_reviewed_at).toLocaleDateString() 
-                            : 'Never'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">Owner:</span>
-                        <span className="text-gray-700 truncate max-w-[120px]">
-                          {module.owner?.full_name || module.created_by_user?.full_name || '—'}
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Owner:</span>
+                      <span className="text-gray-600 truncate max-w-[120px]">
+                        {module.owner?.full_name || module.created_by_user?.full_name || '—'}
+                      </span>
                     </div>
                   </div>
                 </div>
