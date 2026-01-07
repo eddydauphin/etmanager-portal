@@ -43,6 +43,7 @@ export default function TrainingModulesPage() {
   const [competencies, setCompetencies] = useState([]);
   const [clients, setClients] = useState([]);
   const [users, setUsers] = useState([]);
+  const [tags, setTags] = useState([]); // Competency tags
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -66,16 +67,22 @@ export default function TrainingModulesPage() {
   // Create form state
   const [createStep, setCreateStep] = useState(1); // 1: Basic info, 2: Content, 3: Quiz
   const [createMethod, setCreateMethod] = useState(null); // 'generate' or 'upload'
+  const [competencyMode, setCompetencyMode] = useState('existing'); // 'existing' or 'new'
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    client_ids: [], // Changed to array for multi-select
+    client_ids: [],
     competency_id: '',
     target_level: 3,
     pass_score: 80,
     max_attempts: 3,
     has_audio: true,
-    audio_languages: ['en'] // Changed to array for multi-select
+    audio_languages: ['en'],
+    // New competency fields
+    new_competency_name: '',
+    new_competency_description: '',
+    new_competency_tag_ids: [],
+    new_competency_owner_id: ''
   });
   const [generating, setGenerating] = useState(false);
   const [generatedSlides, setGeneratedSlides] = useState([]);
@@ -115,7 +122,7 @@ export default function TrainingModulesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadModules(), loadCompetencies(), loadClients(), loadUsers()]);
+      await Promise.all([loadModules(), loadCompetencies(), loadClients(), loadUsers(), loadTags()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -226,6 +233,23 @@ export default function TrainingModulesPage() {
     }
   };
 
+  const loadTags = async () => {
+    try {
+      let url = 'competency_tags?select=*&order=name.asc';
+      
+      // Filter by client for non-super_admin users
+      // Include tags where client_id matches OR client_id is null (global tags)
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&or=(client_id.eq.${currentProfile.client_id},client_id.is.null)`;
+      }
+      
+      const data = await dbFetch(url);
+      setTags(data || []);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+    }
+  };
+
   const loadAssignedUsers = async (moduleId) => {
     try {
       const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles(id,full_name,email)`);
@@ -264,10 +288,16 @@ export default function TrainingModulesPage() {
       pass_score: 80,
       max_attempts: 3,
       has_audio: true,
-      audio_languages: ['en']
+      audio_languages: ['en'],
+      // New competency fields
+      new_competency_name: '',
+      new_competency_description: '',
+      new_competency_tag_ids: [],
+      new_competency_owner_id: ''
     });
     setCreateStep(1);
     setCreateMethod(null);
+    setCompetencyMode('existing');
     setGeneratedSlides([]);
     setGeneratedQuiz([]);
     setFormError('');
@@ -275,15 +305,24 @@ export default function TrainingModulesPage() {
     setUploadProgress(0);
     setProcessingFile(false);
     setImportMode('smart');
-    setEditingModuleId(null); // Creating new, not editing existing
+    setEditingModuleId(null);
     setShowCreateModal(true);
   };
 
   // Generate content with AI
   const handleGenerateContent = async () => {
-    if (!formData.title || formData.client_ids.length === 0 || !formData.competency_id) {
-      setFormError('Please fill in all required fields');
-      return;
+    // Validate based on competency mode
+    if (competencyMode === 'existing') {
+      if (!formData.title || formData.client_ids.length === 0 || !formData.competency_id) {
+        setFormError('Please fill in all required fields');
+        return;
+      }
+    } else {
+      // Creating new competency
+      if (!formData.title || formData.client_ids.length === 0 || !formData.new_competency_name) {
+        setFormError('Please fill in all required fields including competency name');
+        return;
+      }
     }
 
     if (formData.audio_languages.length === 0) {
@@ -295,20 +334,86 @@ export default function TrainingModulesPage() {
     setFormError('');
 
     try {
-      // Try to find competency locally first, otherwise fetch it
-      let competency = competencies.find(c => c.id === formData.competency_id);
+      let competency;
+      let competencyId = formData.competency_id;
       
-      if (!competency) {
-        // Fetch competency directly if not in local list
-        console.log('Competency not found locally, fetching from DB...');
-        const fetchedData = await dbFetch(`competencies?id=eq.${formData.competency_id}`);
-        competency = fetchedData?.[0];
+      // If creating new competency, create it first
+      if (competencyMode === 'new') {
+        console.log('Creating new competency:', formData.new_competency_name);
+        
+        const competencyPayload = {
+          name: formData.new_competency_name,
+          description: formData.new_competency_description || formData.description,
+          owner_id: formData.new_competency_owner_id || currentProfile?.id || null,
+          training_developer_id: currentProfile?.id || null,
+          level_1_description: 'Awareness - Can recognize the topic',
+          level_2_description: 'Knowledge - Can explain concepts',
+          level_3_description: 'Practitioner - Can perform with supervision',
+          level_4_description: 'Proficient - Works independently',
+          level_5_description: 'Expert - Can teach others',
+          is_active: true
+        };
+        
+        const competencyResult = await dbFetch('competencies?select=*', {
+          method: 'POST',
+          body: JSON.stringify(competencyPayload)
+        });
+        
+        competency = competencyResult?.[0];
+        competencyId = competency?.id;
+        
+        if (!competencyId) {
+          throw new Error('Failed to create competency');
+        }
+        
+        // Link competency to clients
+        for (const clientId of formData.client_ids) {
+          await dbFetch('competency_clients', {
+            method: 'POST',
+            body: JSON.stringify({
+              competency_id: competencyId,
+              client_id: clientId
+            })
+          });
+        }
+        
+        // Link competency to tags
+        if (formData.new_competency_tag_ids.length > 0) {
+          for (const tagId of formData.new_competency_tag_ids) {
+            await dbFetch('competency_tag_links', {
+              method: 'POST',
+              body: JSON.stringify({
+                competency_id: competencyId,
+                tag_id: tagId
+              })
+            });
+          }
+        }
+        
+        // Update formData with new competency ID
+        setFormData(prev => ({ ...prev, competency_id: competencyId }));
+        
+        // Reload competencies list
+        await loadCompetencies();
+        
+        console.log('Created competency:', competency);
+      } else {
+        // Using existing competency - find it
+        competency = competencies.find(c => c.id === formData.competency_id);
+        
+        if (!competency) {
+          // Fetch competency directly if not in local list
+          console.log('Competency not found locally, fetching from DB...');
+          const fetchedData = await dbFetch(`competencies?id=eq.${formData.competency_id}`);
+          competency = fetchedData?.[0];
+        }
       }
       
       // Debug logging
       console.log('=== GENERATE CONTENT DEBUG ===');
       console.log('Form title:', formData.title);
-      console.log('Selected competency_id:', formData.competency_id);
+      console.log('Competency mode:', competencyMode);
+      console.log('Competency ID:', competencyId);
       console.log('Found competency:', competency);
       console.log('==============================');
       
@@ -1620,18 +1725,145 @@ export default function TrainingModulesPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Competency *</label>
-                      <select
-                        value={formData.competency_id}
-                        onChange={(e) => setFormData({ ...formData, competency_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select competency</option>
-                        {competencies.map(comp => (
-                          <option key={comp.id} value={comp.id}>{comp.name}</option>
-                        ))}
-                      </select>
+                      <div className="space-y-2">
+                        {/* Competency mode toggle */}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCompetencyMode('existing')}
+                            className={`flex-1 px-3 py-1.5 text-sm rounded-lg border ${
+                              competencyMode === 'existing'
+                                ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            Select existing
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCompetencyMode('new')}
+                            className={`flex-1 px-3 py-1.5 text-sm rounded-lg border ${
+                              competencyMode === 'new'
+                                ? 'bg-green-50 border-green-500 text-green-700'
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            + Create new
+                          </button>
+                        </div>
+                        
+                        {competencyMode === 'existing' ? (
+                          <select
+                            value={formData.competency_id}
+                            onChange={(e) => setFormData({ ...formData, competency_id: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select competency</option>
+                            {competencies.map(comp => (
+                              <option key={comp.id} value={comp.id}>{comp.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={formData.new_competency_name}
+                            onChange={(e) => {
+                              setFormData({ 
+                                ...formData, 
+                                new_competency_name: e.target.value,
+                                // Auto-fill training title if empty
+                                title: formData.title || `${e.target.value} Training`
+                              });
+                            }}
+                            className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-green-50"
+                            placeholder="New competency name"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {/* New competency additional fields */}
+                  {competencyMode === 'new' && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                      <p className="text-sm font-medium text-green-800">New Competency Details</p>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                        <textarea
+                          value={formData.new_competency_description}
+                          onChange={(e) => setFormData({ ...formData, new_competency_description: e.target.value })}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                          placeholder="What does this competency cover..."
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Tags</label>
+                          <div className="flex flex-wrap gap-1 p-2 border border-gray-200 rounded-lg bg-white min-h-[38px]">
+                            {formData.new_competency_tag_ids.length > 0 ? (
+                              formData.new_competency_tag_ids.map(tagId => {
+                                const tag = tags.find(t => t.id === tagId);
+                                return tag ? (
+                                  <span
+                                    key={tagId}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-white"
+                                    style={{ backgroundColor: tag.color || '#3B82F6' }}
+                                  >
+                                    {tag.name}
+                                    <button
+                                      type="button"
+                                      onClick={() => setFormData({
+                                        ...formData,
+                                        new_competency_tag_ids: formData.new_competency_tag_ids.filter(id => id !== tagId)
+                                      })}
+                                      className="hover:bg-white/20 rounded"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </span>
+                                ) : null;
+                              })
+                            ) : (
+                              <span className="text-gray-400 text-xs">Click to add...</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {tags.filter(t => !formData.new_competency_tag_ids.includes(t.id)).slice(0, 5).map(tag => (
+                              <button
+                                key={tag.id}
+                                type="button"
+                                onClick={() => setFormData({
+                                  ...formData,
+                                  new_competency_tag_ids: [...formData.new_competency_tag_ids, tag.id]
+                                })}
+                                className="px-2 py-0.5 rounded text-xs border border-gray-200 hover:bg-gray-50"
+                                style={{ color: tag.color || '#3B82F6' }}
+                              >
+                                + {tag.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Owner (Expert)</label>
+                          <select
+                            value={formData.new_competency_owner_id}
+                            onChange={(e) => setFormData({ ...formData, new_competency_owner_id: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                          >
+                            <option value="">Select owner...</option>
+                            {users.map(user => (
+                              <option key={user.id} value={user.id}>{user.full_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
