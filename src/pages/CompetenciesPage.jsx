@@ -315,13 +315,17 @@ export default function CompetenciesPage() {
     target_level: 3,
     current_level: 0,
     target_date: '',
-    coach_id: ''
+    coach_id: '',
+    development_method: '', // coaching, e_learning, on_the_job, self_study
+    selected_module_ids: [] // for e-learning
   });
   const [assignError, setAssignError] = useState('');
   const [assigning, setAssigning] = useState(false);
   
   // NEW: Existing user competencies and validation
   const [existingUserCompetencies, setExistingUserCompetencies] = useState([]);
+  const [linkedTrainingModules, setLinkedTrainingModules] = useState([]); // Training modules linked to competency
+  const [allTrainingModules, setAllTrainingModules] = useState([]); // All available training modules
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [showValidateModal, setShowValidateModal] = useState(false);
   const [competencyToValidate, setCompetencyToValidate] = useState(null);
@@ -642,19 +646,15 @@ export default function CompetenciesPage() {
   // NEW: Handle assign competency to users
   const handleOpenAssignModal = async (competency) => {
     setCompetencyToAssign(competency);
-    setAssignFormData({
-      user_ids: [],
-      target_level: 3,
-      current_level: 0,
-      target_date: '',
-      coach_id: competency.owner_id || ''
-    });
     setAssignError('');
+    setLinkedTrainingModules([]);
+    setAllTrainingModules([]);
     setShowAssignModal(true);
     
-    // Load existing user competencies for this competency
+    // Load existing user competencies and training modules
     setLoadingExisting(true);
     try {
+      // Load existing user competencies
       const existing = await dbFetch(
         `user_competencies?competency_id=eq.${competency.id}&select=*`
       );
@@ -669,9 +669,47 @@ export default function CompetenciesPage() {
       } else {
         setExistingUserCompetencies([]);
       }
+      
+      // Load linked training modules for this competency
+      const linkedModules = await dbFetch(
+        `training_modules?competency_id=eq.${competency.id}&status=eq.published&select=id,title,duration_minutes`
+      );
+      setLinkedTrainingModules(linkedModules || []);
+      
+      // Load all available training modules (for manual selection)
+      const clientId = competency.client_ids?.[0] || currentProfile?.client_id;
+      let allModulesUrl = 'training_modules?status=eq.published&select=id,title,duration_minutes,competency_id';
+      if (clientId) {
+        allModulesUrl += `&client_id=eq.${clientId}`;
+      }
+      const allModules = await dbFetch(allModulesUrl);
+      setAllTrainingModules(allModules || []);
+      
+      // Set default development method based on linked training
+      const hasLinkedTraining = linkedModules && linkedModules.length > 0;
+      setAssignFormData({
+        user_ids: [],
+        target_level: 3,
+        current_level: 0,
+        target_date: '',
+        coach_id: competency.owner_id || '',
+        development_method: hasLinkedTraining ? 'e_learning' : '', // Default to e-learning if modules exist
+        selected_module_ids: hasLinkedTraining ? linkedModules.map(m => m.id) : []
+      });
     } catch (error) {
       console.error('Error loading existing competencies:', error);
       setExistingUserCompetencies([]);
+      setLinkedTrainingModules([]);
+      setAllTrainingModules([]);
+      setAssignFormData({
+        user_ids: [],
+        target_level: 3,
+        current_level: 0,
+        target_date: '',
+        coach_id: competency.owner_id || '',
+        development_method: '',
+        selected_module_ids: []
+      });
     } finally {
       setLoadingExisting(false);
     }
@@ -757,17 +795,23 @@ export default function CompetenciesPage() {
       if (assignFormData.user_ids.length === 0) {
         throw new Error('Please select at least one user');
       }
+      
+      // Require development method if not already competent
+      if (assignFormData.current_level === 0 && !assignFormData.development_method) {
+        throw new Error('Please select a development method');
+      }
 
-      const coachId = assignFormData.coach_id || competencyToAssign.owner_id || null;
+      const coachId = assignFormData.coach_id || null;
       const targetDate = assignFormData.target_date || null;
       const targetLevel = assignFormData.target_level || 3;
       const currentLevel = assignFormData.current_level || 0;
       const isAlreadyCompetent = currentLevel > 0;
+      const developmentMethod = assignFormData.development_method;
 
       // Get client_id from competency (use first client if multiple)
       const clientId = competencyToAssign.client_ids?.[0] || currentProfile?.client_id;
 
-      // For each selected user, create user_competencies record and coaching activity
+      // For each selected user, create user_competencies record and development activities
       for (const userId of assignFormData.user_ids) {
         // Check if user already has this competency
         const existing = await dbFetch(
@@ -810,27 +854,129 @@ export default function CompetenciesPage() {
               client_id: clientId
             })
           });
-        } else if (coachId) {
-          // Auto-create coaching activity only if not already competent
-          await dbFetch('development_activities', {
-            method: 'POST',
-            body: JSON.stringify({
-              type: 'coaching',
-              title: `Coaching: ${competencyToAssign.name}`,
-              description: `Coaching session for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
-              objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name}`,
-              success_criteria: `Trainee demonstrates competency at Level ${targetLevel} and is validated by coach`,
-              trainee_id: userId,
-              assigned_by: currentProfile.id,
-              coach_id: coachId,
-              competency_id: competencyToAssign.id,
-              target_level: targetLevel,
-              start_date: new Date().toISOString().split('T')[0],
-              due_date: targetDate,
-              status: 'pending',
-              client_id: clientId
-            })
-          });
+        } else {
+          // Create development activities based on selected method
+          switch (developmentMethod) {
+            case 'e_learning':
+              // Assign selected training modules
+              const modulesToAssign = assignFormData.selected_module_ids.length > 0 
+                ? allTrainingModules.filter(m => assignFormData.selected_module_ids.includes(m.id))
+                : linkedTrainingModules;
+              
+              for (const module of modulesToAssign) {
+                // Check if user already has this training assigned
+                const existingTraining = await dbFetch(
+                  `user_training?user_id=eq.${userId}&module_id=eq.${module.id}`
+                );
+                
+                if (!existingTraining || existingTraining.length === 0) {
+                  await dbFetch('user_training', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      user_id: userId,
+                      module_id: module.id,
+                      assigned_by: currentProfile.id,
+                      status: 'not_started',
+                      due_date: targetDate,
+                      client_id: clientId
+                    })
+                  });
+                }
+              }
+              
+              // Create training development activity
+              if (modulesToAssign.length > 0) {
+                await dbFetch('development_activities', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    type: 'training',
+                    title: `E-Learning: ${competencyToAssign.name}`,
+                    description: `Complete ${modulesToAssign.length} training module(s) for ${competencyToAssign.name}`,
+                    objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name} through e-learning`,
+                    success_criteria: `Complete all assigned training modules and pass assessments`,
+                    trainee_id: userId,
+                    assigned_by: currentProfile.id,
+                    coach_id: coachId,
+                    competency_id: competencyToAssign.id,
+                    target_level: targetLevel,
+                    start_date: new Date().toISOString().split('T')[0],
+                    due_date: targetDate,
+                    status: 'pending',
+                    client_id: clientId
+                  })
+                });
+              }
+              break;
+              
+            case 'coaching':
+              // Create coaching activity
+              await dbFetch('development_activities', {
+                method: 'POST',
+                body: JSON.stringify({
+                  type: 'coaching',
+                  title: `Coaching: ${competencyToAssign.name}`,
+                  description: `Coaching session for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
+                  objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name}`,
+                  success_criteria: `Trainee demonstrates competency at Level ${targetLevel} and is validated by coach`,
+                  trainee_id: userId,
+                  assigned_by: currentProfile.id,
+                  coach_id: coachId,
+                  competency_id: competencyToAssign.id,
+                  target_level: targetLevel,
+                  start_date: new Date().toISOString().split('T')[0],
+                  due_date: targetDate,
+                  status: 'pending',
+                  client_id: clientId
+                })
+              });
+              break;
+              
+            case 'on_the_job':
+              // Create on-the-job / task activity
+              await dbFetch('development_activities', {
+                method: 'POST',
+                body: JSON.stringify({
+                  type: 'task',
+                  title: `On-the-Job Training: ${competencyToAssign.name}`,
+                  description: `Hands-on learning for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
+                  objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name} through practical experience`,
+                  success_criteria: `Demonstrate competency through supervised practical work`,
+                  trainee_id: userId,
+                  assigned_by: currentProfile.id,
+                  coach_id: coachId, // Supervisor
+                  competency_id: competencyToAssign.id,
+                  target_level: targetLevel,
+                  start_date: new Date().toISOString().split('T')[0],
+                  due_date: targetDate,
+                  status: 'pending',
+                  client_id: clientId
+                })
+              });
+              break;
+              
+            case 'self_study':
+              // Create self-study activity (no coach required)
+              await dbFetch('development_activities', {
+                method: 'POST',
+                body: JSON.stringify({
+                  type: 'task',
+                  title: `Self-Study: ${competencyToAssign.name}`,
+                  description: `Independent learning for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
+                  objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name} through self-directed study`,
+                  success_criteria: `Complete self-study materials and demonstrate competency`,
+                  trainee_id: userId,
+                  assigned_by: currentProfile.id,
+                  coach_id: null,
+                  competency_id: competencyToAssign.id,
+                  target_level: targetLevel,
+                  start_date: new Date().toISOString().split('T')[0],
+                  due_date: targetDate,
+                  status: 'pending',
+                  client_id: clientId
+                })
+              });
+              break;
+          }
         }
       }
 
@@ -2155,9 +2301,189 @@ export default function CompetenciesPage() {
                 <p className="text-xs text-gray-500 mt-1">
                   {assignFormData.current_level > 0 
                     ? `Will be validated at Level ${assignFormData.current_level}` 
-                    : 'Requires coaching to develop competency'}
+                    : 'Select a development method below'}
                 </p>
               </div>
+
+              {/* Development Method - only show if not already competent */}
+              {assignFormData.current_level === 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Development Method *
+                  </label>
+                  <div className="space-y-2">
+                    {/* Coaching */}
+                    <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      assignFormData.development_method === 'coaching' 
+                        ? 'border-purple-500 bg-purple-50' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="development_method"
+                        value="coaching"
+                        checked={assignFormData.development_method === 'coaching'}
+                        onChange={(e) => setAssignFormData({ ...assignFormData, development_method: e.target.value })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Coaching</p>
+                        <p className="text-xs text-gray-500">One-on-one guidance with an assigned coach</p>
+                      </div>
+                    </label>
+                    
+                    {/* E-Learning */}
+                    <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      assignFormData.development_method === 'e_learning' 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="development_method"
+                        value="e_learning"
+                        checked={assignFormData.development_method === 'e_learning'}
+                        onChange={(e) => setAssignFormData({ 
+                          ...assignFormData, 
+                          development_method: e.target.value,
+                          selected_module_ids: linkedTrainingModules.map(m => m.id)
+                        })}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">E-Learning</p>
+                          {linkedTrainingModules.length > 0 && (
+                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                              {linkedTrainingModules.length} module{linkedTrainingModules.length > 1 ? 's' : ''} linked
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500">Complete training modules online</p>
+                      </div>
+                    </label>
+                    
+                    {/* On-the-Job */}
+                    <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      assignFormData.development_method === 'on_the_job' 
+                        ? 'border-orange-500 bg-orange-50' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="development_method"
+                        value="on_the_job"
+                        checked={assignFormData.development_method === 'on_the_job'}
+                        onChange={(e) => setAssignFormData({ ...assignFormData, development_method: e.target.value })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">On-the-Job</p>
+                        <p className="text-xs text-gray-500">Learning by doing with supervisor guidance</p>
+                      </div>
+                    </label>
+                    
+                    {/* Self-Study */}
+                    <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      assignFormData.development_method === 'self_study' 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="development_method"
+                        value="self_study"
+                        checked={assignFormData.development_method === 'self_study'}
+                        onChange={(e) => setAssignFormData({ ...assignFormData, development_method: e.target.value })}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Self-Study</p>
+                        <p className="text-xs text-gray-500">Independent learning at own pace</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* E-Learning Module Selection - show when e_learning is selected */}
+              {assignFormData.current_level === 0 && assignFormData.development_method === 'e_learning' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Training Modules to Assign
+                  </label>
+                  {linkedTrainingModules.length > 0 ? (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-600 mb-2">
+                        The following modules are linked to this competency and will be assigned:
+                      </p>
+                      <ul className="space-y-1">
+                        {linkedTrainingModules.map(module => (
+                          <li key={module.id} className="text-sm text-blue-800 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-blue-600" />
+                            {module.title}
+                            {module.duration_minutes && (
+                              <span className="text-xs text-blue-500">({module.duration_minutes} min)</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : allTrainingModules.length > 0 ? (
+                    <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
+                      {allTrainingModules.map(module => (
+                        <label
+                          key={module.id}
+                          className={`flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer ${
+                            assignFormData.selected_module_ids.includes(module.id) ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={assignFormData.selected_module_ids.includes(module.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAssignFormData({
+                                  ...assignFormData,
+                                  selected_module_ids: [...assignFormData.selected_module_ids, module.id]
+                                });
+                              } else {
+                                setAssignFormData({
+                                  ...assignFormData,
+                                  selected_module_ids: assignFormData.selected_module_ids.filter(id => id !== module.id)
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 rounded"
+                          />
+                          <span className="text-sm text-gray-700">{module.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">No training modules available. Create modules in the Training page first.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Coach Selection - show for coaching and on_the_job */}
+              {assignFormData.current_level === 0 && (assignFormData.development_method === 'coaching' || assignFormData.development_method === 'on_the_job') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {assignFormData.development_method === 'coaching' ? 'Coach' : 'Supervisor'} *
+                  </label>
+                  <select
+                    value={assignFormData.coach_id}
+                    onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  >
+                    <option value="">Select {assignFormData.development_method === 'coaching' ? 'coach' : 'supervisor'}...</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>{user.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Select Users */}
               <div>
@@ -2305,25 +2631,6 @@ export default function CompetenciesPage() {
                   <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} user(s) selected</p>
                 )}
               </div>
-
-              {/* Coach - only show if not already competent */}
-              {(!assignFormData.current_level || assignFormData.current_level === 0) && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Coach (Optional)
-                  </label>
-                  <select
-                    value={assignFormData.coach_id}
-                    onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                  >
-                    <option value="">Use competency owner ({competencyToAssign.owner?.full_name || 'None'})</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.id}>{user.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Target Date - only show if not already competent */}
               {(!assignFormData.current_level || assignFormData.current_level === 0) && (
