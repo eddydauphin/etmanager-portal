@@ -932,8 +932,7 @@ export default function TrainingModulesPage() {
             module_id: selectedModule.id,
             slide_number: i + 1,
             title: slide.title,
-            content: { key_points: slide.key_points || slide.content?.key_points || [] },
-            speaker_notes: slide.speaker_notes || ''
+            content: { key_points: slide.key_points || slide.content?.key_points || [] }
           })
         });
       }
@@ -2665,21 +2664,6 @@ export default function TrainingModulesPage() {
                                     placeholder="Enter key points, one per line"
                                   />
                                 </div>
-                                {slide.speaker_notes && (
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Speaker Notes</label>
-                                    <textarea
-                                      defaultValue={slide.speaker_notes}
-                                      rows={3}
-                                      onBlur={(e) => {
-                                        if (e.target.value !== slide.speaker_notes) {
-                                          handleUpdateSlide(slide.id, { speaker_notes: e.target.value });
-                                        }
-                                      }}
-                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                                    />
-                                  </div>
-                                )}
                               </div>
                             ) : (
                               <div className="p-4">

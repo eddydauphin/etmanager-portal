@@ -1221,8 +1221,7 @@ export default function CompetenciesPage() {
                         module_id: moduleId,
                         slide_number: i + 1,
                         title: slide.title,
-                        content: { key_points: slide.key_points || slide.content?.key_points || [] },
-                        speaker_notes: slide.speaker_notes || ''
+                        content: { key_points: slide.key_points || slide.content?.key_points || [] }
                       })
                     });
                   }
