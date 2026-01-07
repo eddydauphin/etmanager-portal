@@ -2358,13 +2358,20 @@ export default function TrainingModulesPage() {
               {createStep === 1 && createMethod === 'generate' && (
                 <button
                   onClick={handleGenerateContent}
-                  disabled={generating || !formData.title || formData.client_ids.length === 0 || !formData.competency_id || formData.audio_languages.length === 0}
+                  disabled={
+                    generating || 
+                    !formData.title || 
+                    formData.client_ids.length === 0 || 
+                    formData.audio_languages.length === 0 ||
+                    (competencyMode === 'existing' && !formData.competency_id) ||
+                    (competencyMode === 'new' && !formData.new_competency_name)
+                  }
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {generating ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Generating...
+                      {competencyMode === 'new' ? 'Creating Competency & Generating...' : 'Generating...'}
                     </>
                   ) : (
                     <>
