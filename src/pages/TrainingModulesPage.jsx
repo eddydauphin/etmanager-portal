@@ -944,7 +944,6 @@ export default function TrainingModulesPage() {
   
   // Track if we're editing an existing module (vs creating new)
   const [editingModuleId, setEditingModuleId] = useState(null);
-  };
 
   // Generate Audio for all slides in a module
   const handleGenerateAudio = async (module) => {
