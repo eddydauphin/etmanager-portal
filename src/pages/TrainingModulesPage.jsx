@@ -275,7 +275,7 @@ export default function TrainingModulesPage() {
     setUploadProgress(0);
     setProcessingFile(false);
     setImportMode('smart');
-    setEditingModuleId(null); // Reset - we're creating new, not editing
+    setEditingModuleId(null); // Creating new, not editing existing
     setShowCreateModal(true);
   };
 
@@ -512,16 +512,16 @@ export default function TrainingModulesPage() {
     setFormError('');
 
     try {
-      // Check if we're editing an existing module or creating new
+      // Check if we're saving to an existing module
       if (editingModuleId) {
-        // EDITING EXISTING MODULE - just save slides and questions
+        // SAVING TO EXISTING MODULE
         const moduleId = editingModuleId;
         
-        // Delete existing slides and questions first
+        // Delete existing slides and questions
         await dbFetch(`module_slides?module_id=eq.${moduleId}`, { method: 'DELETE' });
         await dbFetch(`module_questions?module_id=eq.${moduleId}`, { method: 'DELETE' });
         
-        // Save slides
+        // Save new slides
         if (generatedSlides.length > 0) {
           const slidesPayload = generatedSlides.map((slide, index) => ({
             module_id: moduleId,
@@ -537,7 +537,7 @@ export default function TrainingModulesPage() {
           });
         }
 
-        // Save quiz questions
+        // Save new quiz questions
         if (generatedQuiz.length > 0) {
           const questionsPayload = generatedQuiz.map((q, index) => ({
             module_id: moduleId,
@@ -555,16 +555,13 @@ export default function TrainingModulesPage() {
           });
         }
         
-        // Reset editing state
         setEditingModuleId(null);
         
       } else {
         // CREATING NEW MODULE(S)
-        // Create a module for each client and language combination
         for (const clientId of formData.client_ids) {
           for (const langCode of formData.audio_languages) {
             const langLabel = languages.find(l => l.code === langCode)?.label || 'English';
-            const clientName = clients.find(c => c.id === clientId)?.name || '';
             
             // Add language suffix if multiple languages selected
             const titleSuffix = formData.audio_languages.length > 1 ? ` (${langLabel})` : '';
@@ -887,9 +884,10 @@ export default function TrainingModulesPage() {
     }
   };
 
-  // Generate AI content for existing module - opens the create wizard in generate mode
+  // Generate AI content for existing module - uses the Create wizard
   const [generatingForEdit, setGeneratingForEdit] = useState(false);
   const [editGenerateError, setEditGenerateError] = useState('');
+  const [editingModuleId, setEditingModuleId] = useState(null); // Track if we're generating for existing module
 
   const handleGenerateForExistingModule = async () => {
     if (!selectedModule) return;
@@ -907,11 +905,17 @@ export default function TrainingModulesPage() {
       const targetLevel = competencyLink?.[0]?.target_level || 3;
       
       if (!competency) {
-        throw new Error('No competency linked to this module. Please link a competency first.');
+        setEditGenerateError('No competency linked to this module. Please link a competency first.');
+        setGeneratingForEdit(false);
+        return;
       }
       
       // Close Edit modal
       setShowEditModal(false);
+      setGeneratingForEdit(false);
+      
+      // Store the module ID we're generating for
+      setEditingModuleId(selectedModule.id);
       
       // Pre-fill the Create form with this module's data
       setFormData({
@@ -922,17 +926,16 @@ export default function TrainingModulesPage() {
         target_level: targetLevel,
         has_audio: selectedModule.has_audio ?? true,
         audio_languages: ['en'],
-        pass_score: selectedModule.pass_score || 80
+        pass_score: selectedModule.pass_score || 80,
+        max_attempts: 3
       });
       
-      // Set the module we're generating for (to save to existing instead of creating new)
-      setEditingModuleId(selectedModule.id);
-      
-      // Open Create modal and go to Step 1 to start generation
+      // Open Create modal with generate method selected
       setCreateMethod('generate');
       setGeneratedSlides([]);
       setGeneratedQuiz([]);
       setCreateStep(1);
+      setFormError('');
       setShowCreateModal(true);
       
     } catch (error) {
@@ -941,9 +944,6 @@ export default function TrainingModulesPage() {
       setGeneratingForEdit(false);
     }
   };
-  
-  // Track if we're editing an existing module (vs creating new)
-  const [editingModuleId, setEditingModuleId] = useState(null);
 
   // Generate Audio for all slides in a module
   const handleGenerateAudio = async (module) => {
@@ -1532,7 +1532,7 @@ export default function TrainingModulesPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
-                    {editingModuleId ? 'Generate Content for Module' : 'Create Training Module'}
+                    {editingModuleId ? 'Generate Content' : 'Create Training Module'}
                   </h2>
                   <p className="text-sm text-gray-500">Step {createStep} of 3</p>
                 </div>
