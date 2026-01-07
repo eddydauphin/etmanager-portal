@@ -298,7 +298,15 @@ export default function CompetenciesPage() {
     level_3_description: 'Practitioner - Can perform with supervision',
     level_4_description: 'Proficient - Works independently',
     level_5_description: 'Expert - Can teach others',
-    is_active: true
+    is_active: true,
+    // Training module options
+    training_option: 'none', // 'none', 'create', 'link'
+    training_module_title: '',
+    training_module_description: '',
+    training_target_level: 3,
+    training_developer_assignment: '', // Who will develop the content
+    training_generate_now: false, // Generate content immediately or assign for later
+    link_module_id: '' // For linking existing module
   });
   const [tagFormData, setTagFormData] = useState({ // Renamed from tagFormData
     name: '',
@@ -326,6 +334,7 @@ export default function CompetenciesPage() {
   const [existingUserCompetencies, setExistingUserCompetencies] = useState([]);
   const [linkedTrainingModules, setLinkedTrainingModules] = useState([]); // Training modules linked to competency
   const [allTrainingModules, setAllTrainingModules] = useState([]); // All available training modules
+  const [availableModulesToLink, setAvailableModulesToLink] = useState([]); // Modules available for linking (not yet linked to a competency)
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [showValidateModal, setShowValidateModal] = useState(false);
   const [competencyToValidate, setCompetencyToValidate] = useState(null);
@@ -605,23 +614,63 @@ export default function CompetenciesPage() {
   });
 
   // Handle create/edit competency
-  const handleOpenModal = (competency = null) => {
+  const handleOpenModal = async (competency = null) => {
     if (competency) {
       setEditingCompetency(competency);
-      setFormData({
-        name: competency.name || '',
-        description: competency.description || '',
-        tag_ids: competency.tag_ids || [],
-        client_ids: competency.client_ids || [],
-        owner_id: competency.owner_id || '',
-        training_developer_id: competency.training_developer_id || '',
-        level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
-        level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
-        level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
-        level_4_description: competency.level_4_description || 'Proficient - Works independently',
-        level_5_description: competency.level_5_description || 'Expert - Can teach others',
-        is_active: competency.is_active ?? true
-      });
+      
+      // Load linked modules for this competency
+      try {
+        const linkedModulesData = await dbFetch(
+          `competency_modules?competency_id=eq.${competency.id}&select=module_id,training_modules!inner(id,title)`
+        );
+        const linkedModuleIds = (linkedModulesData || []).map(cm => cm.module_id);
+        
+        setFormData({
+          name: competency.name || '',
+          description: competency.description || '',
+          tag_ids: competency.tag_ids || [],
+          client_ids: competency.client_ids || [],
+          owner_id: competency.owner_id || '',
+          training_developer_id: competency.training_developer_id || '',
+          level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
+          level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
+          level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
+          level_4_description: competency.level_4_description || 'Proficient - Works independently',
+          level_5_description: competency.level_5_description || 'Expert - Can teach others',
+          is_active: competency.is_active ?? true,
+          // Training options - when editing, show as 'link' if modules exist
+          training_option: linkedModuleIds.length > 0 ? 'link' : 'none',
+          training_module_title: '',
+          training_module_description: '',
+          training_target_level: 3,
+          training_developer_assignment: competency.training_developer_id || '',
+          training_generate_now: false,
+          link_module_id: linkedModuleIds[0] || ''
+        });
+      } catch (error) {
+        console.error('Error loading linked modules:', error);
+        setFormData({
+          name: competency.name || '',
+          description: competency.description || '',
+          tag_ids: competency.tag_ids || [],
+          client_ids: competency.client_ids || [],
+          owner_id: competency.owner_id || '',
+          training_developer_id: competency.training_developer_id || '',
+          level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
+          level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
+          level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
+          level_4_description: competency.level_4_description || 'Proficient - Works independently',
+          level_5_description: competency.level_5_description || 'Expert - Can teach others',
+          is_active: competency.is_active ?? true,
+          training_option: 'none',
+          training_module_title: '',
+          training_module_description: '',
+          training_target_level: 3,
+          training_developer_assignment: '',
+          training_generate_now: false,
+          link_module_id: ''
+        });
+      }
     } else {
       setEditingCompetency(null);
       setFormData({
@@ -636,9 +685,33 @@ export default function CompetenciesPage() {
         level_3_description: 'Practitioner - Can perform with supervision',
         level_4_description: 'Proficient - Works independently',
         level_5_description: 'Expert - Can teach others',
-        is_active: true
+        is_active: true,
+        training_option: 'none',
+        training_module_title: '',
+        training_module_description: '',
+        training_target_level: 3,
+        training_developer_assignment: '',
+        training_generate_now: false,
+        link_module_id: ''
       });
     }
+    
+    // Load available modules for linking (modules not yet linked to any competency)
+    try {
+      const allModules = await dbFetch(
+        'training_modules?select=id,title,status&order=title.asc'
+      );
+      const linkedModulesData = await dbFetch(
+        'competency_modules?select=module_id'
+      );
+      const linkedModuleIds = new Set((linkedModulesData || []).map(cm => cm.module_id));
+      const unlinkedModules = (allModules || []).filter(m => !linkedModuleIds.has(m.id));
+      setAvailableModulesToLink(unlinkedModules);
+    } catch (error) {
+      console.error('Error loading available modules:', error);
+      setAvailableModulesToLink([]);
+    }
+    
     setFormError('');
     setShowModal(true);
   };
@@ -1063,6 +1136,68 @@ export default function CompetenciesPage() {
           method: 'POST',
           body: JSON.stringify(tagAssociations)
         });
+      }
+
+      // Handle training module creation/linking
+      if (competencyId && formData.training_option === 'create') {
+        // Create new training module
+        const moduleTitle = formData.training_module_title || `${formData.name} Training`;
+        const moduleDescription = formData.training_module_description || formData.description || '';
+        const developerId = formData.training_developer_assignment || currentProfile?.id;
+        
+        const moduleResult = await dbFetch('training_modules?select=id', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: moduleTitle,
+            description: moduleDescription,
+            client_id: formData.client_ids[0], // Use first client
+            created_by: currentProfile?.id,
+            owner_id: developerId,
+            status: 'draft',
+            pass_score: 80,
+            has_audio: true
+          })
+        });
+        
+        const moduleId = moduleResult?.[0]?.id;
+        
+        if (moduleId) {
+          // Link module to competency via junction table
+          await dbFetch('competency_modules', {
+            method: 'POST',
+            body: JSON.stringify({
+              competency_id: competencyId,
+              module_id: moduleId,
+              target_level: formData.training_target_level
+            })
+          });
+          
+          // If generate now is selected, redirect to training page
+          if (formData.training_generate_now) {
+            await loadCompetencies();
+            setShowModal(false);
+            // Navigate to training page with the module
+            window.location.href = `/training?module=${moduleId}&generate=true`;
+            return;
+          }
+        }
+      } else if (competencyId && formData.training_option === 'link' && formData.link_module_id) {
+        // Link existing module to competency
+        // First check if link already exists
+        const existingLink = await dbFetch(
+          `competency_modules?competency_id=eq.${competencyId}&module_id=eq.${formData.link_module_id}`
+        );
+        
+        if (!existingLink || existingLink.length === 0) {
+          await dbFetch('competency_modules', {
+            method: 'POST',
+            body: JSON.stringify({
+              competency_id: competencyId,
+              module_id: formData.link_module_id,
+              target_level: formData.training_target_level
+            })
+          });
+        }
       }
 
       await loadCompetencies();
@@ -1923,6 +2058,186 @@ export default function CompetenciesPage() {
                       />
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Training Material Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Training Material
+                </label>
+                <div className="space-y-3">
+                  {/* No training needed */}
+                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                    formData.training_option === 'none' 
+                      ? 'border-gray-400 bg-gray-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="training_option"
+                      value="none"
+                      checked={formData.training_option === 'none'}
+                      onChange={(e) => setFormData({ ...formData, training_option: e.target.value })}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">No training module needed</p>
+                      <p className="text-xs text-gray-500">Competency will be developed via coaching, on-the-job, or self-study</p>
+                    </div>
+                  </label>
+                  
+                  {/* Create training module */}
+                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                    formData.training_option === 'create' 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="training_option"
+                      value="create"
+                      checked={formData.training_option === 'create'}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        training_option: e.target.value,
+                        training_module_title: formData.training_module_title || `${formData.name} Training`,
+                        training_module_description: formData.training_module_description || formData.description
+                      })}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">Create training module</p>
+                      <p className="text-xs text-gray-500">Generate e-learning content for this competency</p>
+                    </div>
+                  </label>
+                  
+                  {/* Create training module - expanded options */}
+                  {formData.training_option === 'create' && (
+                    <div className="ml-6 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Module Title</label>
+                        <input
+                          type="text"
+                          value={formData.training_module_title}
+                          onChange={(e) => setFormData({ ...formData, training_module_title: e.target.value })}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+                          placeholder={`${formData.name} Training`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Module Description</label>
+                        <textarea
+                          value={formData.training_module_description}
+                          onChange={(e) => setFormData({ ...formData, training_module_description: e.target.value })}
+                          rows={2}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+                          placeholder="What will users learn..."
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Target Level</label>
+                          <select
+                            value={formData.training_target_level}
+                            onChange={(e) => setFormData({ ...formData, training_target_level: parseInt(e.target.value) })}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+                          >
+                            {[1, 2, 3, 4, 5].map(level => (
+                              <option key={level} value={level}>Level {level}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Training Developer *</label>
+                          <select
+                            value={formData.training_developer_assignment}
+                            onChange={(e) => setFormData({ ...formData, training_developer_assignment: e.target.value })}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+                          >
+                            <option value="">Select developer...</option>
+                            {users.map(user => (
+                              <option key={user.id} value={user.id}>{user.full_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <p className="text-xs text-blue-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        The training developer will create slides & quiz content
+                      </p>
+                      
+                      {/* Generate now option */}
+                      <div className="pt-2 border-t border-blue-200">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.training_generate_now}
+                            onChange={(e) => setFormData({ ...formData, training_generate_now: e.target.checked })}
+                            className="w-4 h-4 text-blue-600 rounded"
+                          />
+                          <span className="text-sm text-gray-700">Generate content now (opens AI generator)</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Link existing module */}
+                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                    formData.training_option === 'link' 
+                      ? 'border-purple-500 bg-purple-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="training_option"
+                      value="link"
+                      checked={formData.training_option === 'link'}
+                      onChange={(e) => setFormData({ ...formData, training_option: e.target.value })}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">Link existing training module</p>
+                      <p className="text-xs text-gray-500">Connect an existing module to this competency</p>
+                    </div>
+                  </label>
+                  
+                  {/* Link existing module - dropdown */}
+                  {formData.training_option === 'link' && (
+                    <div className="ml-6 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Module</label>
+                        {availableModulesToLink.length > 0 ? (
+                          <select
+                            value={formData.link_module_id}
+                            onChange={(e) => setFormData({ ...formData, link_module_id: e.target.value })}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+                          >
+                            <option value="">Select module...</option>
+                            {availableModulesToLink.map(module => (
+                              <option key={module.id} value={module.id}>
+                                {module.title} {module.status === 'draft' ? '(Draft)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No available modules to link. Create a module in the Training page first.</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Target Level</label>
+                        <select
+                          value={formData.training_target_level}
+                          onChange={(e) => setFormData({ ...formData, training_target_level: parseInt(e.target.value) })}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+                        >
+                          {[1, 2, 3, 4, 5].map(level => (
+                            <option key={level} value={level}>Level {level}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
