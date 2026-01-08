@@ -1,121 +1,75 @@
 // ============================================================================
-// DEVELOPMENT CENTER PAGE
-// Unified view: Competencies + Training + Coaching + OJT Tasks
-// One page to manage all development activities
+// DEVELOPMENT CENTER PAGE - REDESIGNED
+// Single guided wizard for: Competency → Tags → Training → Assignment
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import {
   Target,
   Plus,
   Search,
-  Filter,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
+  ChevronLeft,
   BookOpen,
-  MessageSquare,
-  ClipboardList,
   Users,
-  User,
-  Calendar,
-  Clock,
   CheckCircle,
   AlertTriangle,
-  TrendingUp,
   X,
-  Edit2,
-  Trash2,
   Sparkles,
-  Award,
   Loader2,
-  MoreVertical,
-  Eye,
-  Play,
-  FileText,
   Tag,
-  Building2,
-  ArrowRight,
-  Zap,
-  RefreshCw
+  Edit2,
+  Link,
+  Check
 } from 'lucide-react';
-
-// Import existing components
-import CompetencyMaturityDashboard from '../components/CompetencyMaturityDashboard';
-import CompetencyGapAnalysis from '../components/CompetencyGapAnalysis';
 
 export default function DevelopmentCenterPage() {
   const { profile: currentProfile } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const clientId = currentProfile?.client_id;
   
-  // View mode: 'competencies' (default), 'team', 'individual'
-  const [viewMode, setViewMode] = useState('competencies');
-  const [selectedUserId, setSelectedUserId] = useState(null);
-  
-  // Data
+  // Data state
   const [competencies, setCompetencies] = useState([]);
   const [userCompetencies, setUserCompetencies] = useState([]);
   const [trainingModules, setTrainingModules] = useState([]);
   const [users, setUsers] = useState([]);
   const [tags, setTags] = useState([]);
-  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Filters
+  // UI state
   const [searchTerm, setSearchTerm] = useState('');
-  const [tagFilter, setTagFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all'); // all, gap, achieved
+  const [expandedId, setExpandedId] = useState(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [editingCompetency, setEditingCompetency] = useState(null);
   
-  // Expanded competencies (to show details)
-  const [expandedCompetencies, setExpandedCompetencies] = useState(new Set());
-  
-  // Modals
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showTrainingModal, setShowTrainingModal] = useState(false);
-  const [showCoachingModal, setShowCoachingModal] = useState(false);
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [selectedCompetency, setSelectedCompetency] = useState(null);
-  const [selectedUserCompetency, setSelectedUserCompetency] = useState(null);
-  
-  // Form states
-  const [formData, setFormData] = useState({
+  // Wizard form state
+  const [wizardData, setWizardData] = useState({
     name: '',
     description: '',
     tag_ids: [],
-    client_ids: [],
-    level_1_description: 'Awareness - Can recognize the topic',
-    level_2_description: 'Knowledge - Can explain concepts',
-    level_3_description: 'Practitioner - Can perform with supervision',
-    level_4_description: 'Proficient - Works independently',
-    level_5_description: 'Expert - Can teach others'
-  });
-  
-  const [assignFormData, setAssignFormData] = useState({
-    user_ids: [],
-    target_level: 3,
-    current_level: 0,
-    due_date: '',
-    development_method: '' // training, coaching, ojt, mixed
+    newTagName: '',
+    newTagColor: '#3B82F6',
+    trainingOption: 'none',
+    linkedModuleId: '',
+    generateTitle: '',
+    assignments: [],
   });
   
   const [submitting, setSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generatedSlides, setGeneratedSlides] = useState([]);
+  const [generatedQuiz, setGeneratedQuiz] = useState([]);
   const [formError, setFormError] = useState('');
-
-  // Client ID
-  const clientId = currentProfile?.client_id;
 
   // ==========================================================================
   // DATA LOADING
   // ==========================================================================
   
   useEffect(() => {
-    if (currentProfile) {
-      loadData();
-    }
+    if (currentProfile) loadData();
   }, [currentProfile]);
 
   const loadData = async () => {
@@ -126,8 +80,7 @@ export default function DevelopmentCenterPage() {
         loadUserCompetencies(),
         loadTrainingModules(),
         loadUsers(),
-        loadTags(),
-        loadClients()
+        loadTags()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -138,28 +91,23 @@ export default function DevelopmentCenterPage() {
 
   const loadCompetencies = async () => {
     try {
-      let url = 'competencies?select=*,competency_tag_links(tag_id,competency_tags(id,name,color)),competency_clients(client_id,clients(id,name)),competency_modules(module_id,target_level,training_modules(id,title,status))&is_active=eq.true&order=name.asc';
+      const data = await dbFetch(
+        'competencies?select=*,competency_tag_links(tag_id,competency_tags(id,name,color)),competency_clients(client_id),competency_modules(module_id,target_level,training_modules(id,title,status))&is_active=eq.true&order=name.asc'
+      );
       
-      const data = await dbFetch(url);
-      
-      // Transform data
       const transformed = (data || []).map(comp => ({
         ...comp,
         tags: comp.competency_tag_links?.map(tl => tl.competency_tags).filter(Boolean) || [],
         client_ids: comp.competency_clients?.map(cc => cc.client_id).filter(Boolean) || [],
-        clients: comp.competency_clients?.map(cc => cc.clients).filter(Boolean) || [],
         training_modules: comp.competency_modules?.map(cm => ({
           ...cm.training_modules,
           target_level: cm.target_level
         })).filter(tm => tm?.id) || []
       }));
       
-      // Filter by client access
       let filtered = transformed;
       if (currentProfile?.role !== 'super_admin' && clientId) {
-        filtered = transformed.filter(comp => 
-          comp.client_ids?.includes(clientId)
-        );
+        filtered = transformed.filter(comp => comp.client_ids?.includes(clientId));
       }
       
       setCompetencies(filtered);
@@ -172,7 +120,6 @@ export default function DevelopmentCenterPage() {
     try {
       let userIds = [];
       
-      // Determine which users to load based on role
       if (currentProfile?.role === 'trainee') {
         userIds = [currentProfile.id];
       } else if (currentProfile?.role === 'team_lead') {
@@ -180,6 +127,12 @@ export default function DevelopmentCenterPage() {
           `profiles?select=id&reports_to_id=eq.${currentProfile.id}&is_active=eq.true`
         );
         userIds = teamUsers?.map(u => u.id) || [];
+        if (userIds.length === 0 && clientId) {
+          const clientUsers = await dbFetch(
+            `profiles?select=id&client_id=eq.${clientId}&role=eq.trainee&is_active=eq.true`
+          );
+          userIds = clientUsers?.map(u => u.id) || [];
+        }
         userIds.push(currentProfile.id);
       } else if (clientId) {
         const clientUsers = await dbFetch(
@@ -205,12 +158,10 @@ export default function DevelopmentCenterPage() {
 
   const loadTrainingModules = async () => {
     try {
-      let url = 'training_modules?select=id,title,status,competency_modules(competency_id,target_level)&order=title.asc';
-      
+      let url = 'training_modules?select=id,title,status&order=title.asc';
       if (currentProfile?.role !== 'super_admin' && clientId) {
         url += `&client_id=eq.${clientId}`;
       }
-      
       const data = await dbFetch(url);
       setTrainingModules(data || []);
     } catch (error) {
@@ -220,12 +171,10 @@ export default function DevelopmentCenterPage() {
 
   const loadUsers = async () => {
     try {
-      let url = 'profiles?select=id,full_name,email,role,department&is_active=eq.true&order=full_name.asc';
-      
+      let url = 'profiles?select=id,full_name,email,role&is_active=eq.true&order=full_name.asc';
       if (currentProfile?.role !== 'super_admin' && clientId) {
         url += `&client_id=eq.${clientId}`;
       }
-      
       const data = await dbFetch(url);
       setUsers(data || []);
     } catch (error) {
@@ -236,11 +185,9 @@ export default function DevelopmentCenterPage() {
   const loadTags = async () => {
     try {
       let url = 'competency_tags?select=*&order=name.asc';
-      
       if (currentProfile?.role !== 'super_admin' && clientId) {
         url += `&or=(client_id.eq.${clientId},client_id.is.null)`;
       }
-      
       const data = await dbFetch(url);
       setTags(data || []);
     } catch (error) {
@@ -248,255 +195,409 @@ export default function DevelopmentCenterPage() {
     }
   };
 
-  const loadClients = async () => {
-    try {
-      let url = 'clients?select=id,name&order=name.asc';
-      
-      if (currentProfile?.role !== 'super_admin' && clientId) {
-        url += `&id=eq.${clientId}`;
-      }
-      
-      const data = await dbFetch(url);
-      setClients(data || []);
-    } catch (error) {
-      console.error('Error loading clients:', error);
-    }
-  };
-
   // ==========================================================================
   // COMPUTED VALUES
   // ==========================================================================
   
-  // Get competencies with their user assignments
   const enrichedCompetencies = competencies.map(comp => {
     const assignments = userCompetencies.filter(uc => uc.competency_id === comp.id);
-    const totalAssigned = assignments.length;
-    const achieved = assignments.filter(a => a.current_level >= a.target_level).length;
-    const gaps = assignments.filter(a => a.current_level < a.target_level);
-    const avgGap = gaps.length > 0 
-      ? gaps.reduce((sum, g) => sum + (g.target_level - g.current_level), 0) / gaps.length 
-      : 0;
+    const achieved = assignments.filter(a => (a.current_level || 0) >= (a.target_level || 3)).length;
+    const gaps = assignments.filter(a => (a.current_level || 0) < (a.target_level || 3));
     
     return {
       ...comp,
       assignments,
-      totalAssigned,
+      totalAssigned: assignments.length,
       achieved,
       gapCount: gaps.length,
-      avgGap: avgGap.toFixed(1),
       hasTraining: comp.training_modules?.some(tm => tm.status === 'published')
     };
   });
   
-  // Apply filters
-  const filteredCompetencies = enrichedCompetencies.filter(comp => {
-    const matchesSearch = comp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      comp.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTag = tagFilter === 'all' || comp.tags?.some(t => t.id === tagFilter);
-    const matchesStatus = statusFilter === 'all' ||
-      (statusFilter === 'gap' && comp.gapCount > 0) ||
-      (statusFilter === 'achieved' && comp.gapCount === 0 && comp.totalAssigned > 0);
-    return matchesSearch && matchesTag && matchesStatus;
-  });
+  const filteredCompetencies = enrichedCompetencies.filter(comp =>
+    comp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    comp.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  // Stats
   const stats = {
     totalCompetencies: competencies.length,
     totalAssignments: userCompetencies.length,
-    totalGaps: userCompetencies.filter(uc => uc.current_level < uc.target_level).length,
-    totalAchieved: userCompetencies.filter(uc => uc.current_level >= uc.target_level).length,
-    trainingAvailable: trainingModules.filter(tm => tm.status === 'published').length
+    totalGaps: userCompetencies.filter(uc => (uc.current_level || 0) < (uc.target_level || 3)).length,
+    totalAchieved: userCompetencies.filter(uc => (uc.current_level || 0) >= (uc.target_level || 3)).length
   };
 
+  const trainees = users.filter(u => u.role === 'trainee');
+
   // ==========================================================================
-  // HANDLERS
+  // WIZARD HANDLERS
   // ==========================================================================
   
-  const toggleExpand = (compId) => {
-    const newExpanded = new Set(expandedCompetencies);
-    if (newExpanded.has(compId)) {
-      newExpanded.delete(compId);
+  const openWizard = (competency = null) => {
+    if (competency) {
+      setEditingCompetency(competency);
+      setWizardData({
+        name: competency.name,
+        description: competency.description || '',
+        tag_ids: competency.tags?.map(t => t.id) || [],
+        newTagName: '',
+        newTagColor: '#3B82F6',
+        trainingOption: competency.hasTraining ? 'link' : 'none',
+        linkedModuleId: competency.training_modules?.[0]?.id || '',
+        generateTitle: `${competency.name} Training`,
+        assignments: competency.assignments?.map(a => ({
+          user_id: a.user_id,
+          target_level: a.target_level || 3,
+          due_date: a.due_date || '',
+          methods: ['training']
+        })) || []
+      });
     } else {
-      newExpanded.add(compId);
+      setEditingCompetency(null);
+      setWizardData({
+        name: '',
+        description: '',
+        tag_ids: [],
+        newTagName: '',
+        newTagColor: '#3B82F6',
+        trainingOption: 'none',
+        linkedModuleId: '',
+        generateTitle: '',
+        assignments: []
+      });
     }
-    setExpandedCompetencies(newExpanded);
+    setWizardStep(1);
+    setGeneratedSlides([]);
+    setGeneratedQuiz([]);
+    setFormError('');
+    setShowWizard(true);
   };
 
-  const handleCreateCompetency = async () => {
-    setSubmitting(true);
+  const closeWizard = () => {
+    setShowWizard(false);
+    setEditingCompetency(null);
+    setWizardStep(1);
     setFormError('');
+  };
+
+  const handleCreateTag = async () => {
+    if (!wizardData.newTagName.trim()) return;
     
     try {
-      if (!formData.name.trim()) {
-        throw new Error('Competency name is required');
-      }
-      
-      // Create competency
-      const result = await dbFetch('competencies?select=id', {
+      const result = await dbFetch('competency_tags?select=id', {
         method: 'POST',
         body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
-          level_1_description: formData.level_1_description,
-          level_2_description: formData.level_2_description,
-          level_3_description: formData.level_3_description,
-          level_4_description: formData.level_4_description,
-          level_5_description: formData.level_5_description,
-          is_active: true
+          name: wizardData.newTagName.trim(),
+          color: wizardData.newTagColor,
+          client_id: clientId || null
         })
       });
       
-      const compId = result?.[0]?.id;
-      if (!compId) throw new Error('Failed to create competency');
-      
-      // Link to clients
-      for (const cid of formData.client_ids) {
-        await dbFetch('competency_clients', {
-          method: 'POST',
-          body: JSON.stringify({ competency_id: compId, client_id: cid })
-        });
+      if (result?.[0]?.id) {
+        await loadTags();
+        setWizardData(prev => ({
+          ...prev,
+          tag_ids: [...prev.tag_ids, result[0].id],
+          newTagName: '',
+          newTagColor: '#3B82F6'
+        }));
       }
-      
-      // Link to tags
-      for (const tagId of formData.tag_ids) {
-        await dbFetch('competency_tag_links', {
-          method: 'POST',
-          body: JSON.stringify({ competency_id: compId, tag_id: tagId })
-        });
-      }
-      
-      await loadCompetencies();
-      setShowCreateModal(false);
-      resetForm();
-      
     } catch (error) {
-      console.error('Error creating competency:', error);
-      setFormError(error.message);
-    } finally {
-      setSubmitting(false);
+      console.error('Error creating tag:', error);
     }
   };
 
-  const handleAssignCompetency = async () => {
+  const handleGenerateContent = async () => {
+    if (!wizardData.name) {
+      setFormError('Please enter a competency name first');
+      return;
+    }
+    
+    setGenerating(true);
+    setFormError('');
+    
+    try {
+      const prompt = `Create a professional training module for "${wizardData.name}".
+Description: ${wizardData.description || wizardData.name}
+
+Generate:
+1. 5-7 training slides with title, content (2-3 paragraphs), and key points
+2. 5 quiz questions (multiple choice, 4 options each)
+
+Target audience: Manufacturing/food industry professionals
+Level: Practitioner (able to perform with some supervision)
+
+Respond in JSON format only, no other text:
+{
+  "slides": [
+    {"title": "...", "content": "...", "key_points": ["...", "..."]}
+  ],
+  "quiz": [
+    {"question": "...", "options": ["A", "B", "C", "D"], "correct_answer": 0, "explanation": "..."}
+  ]
+}`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4096,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      const data = await response.json();
+      const content = data.content?.[0]?.text || '';
+      
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        setGeneratedSlides(parsed.slides || []);
+        setGeneratedQuiz(parsed.quiz || []);
+        setWizardData(prev => ({
+          ...prev,
+          generateTitle: `${wizardData.name} Training`
+        }));
+      }
+    } catch (error) {
+      console.error('Error generating content:', error);
+      setFormError('Failed to generate content. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const toggleUserAssignment = (userId) => {
+    setWizardData(prev => {
+      const existing = prev.assignments.find(a => a.user_id === userId);
+      if (existing) {
+        return { ...prev, assignments: prev.assignments.filter(a => a.user_id !== userId) };
+      } else {
+        return {
+          ...prev,
+          assignments: [...prev.assignments, {
+            user_id: userId,
+            target_level: 3,
+            due_date: '',
+            methods: wizardData.trainingOption !== 'none' ? ['training'] : ['coaching']
+          }]
+        };
+      }
+    });
+  };
+
+  const updateAssignment = (userId, field, value) => {
+    setWizardData(prev => ({
+      ...prev,
+      assignments: prev.assignments.map(a =>
+        a.user_id === userId ? { ...a, [field]: value } : a
+      )
+    }));
+  };
+
+  const handleSubmitWizard = async () => {
     setSubmitting(true);
     setFormError('');
     
     try {
-      if (assignFormData.user_ids.length === 0) {
-        throw new Error('Please select at least one user');
+      if (!wizardData.name.trim()) {
+        throw new Error('Competency name is required');
       }
       
-      for (const userId of assignFormData.user_ids) {
-        // Check if already assigned
+      let competencyId = editingCompetency?.id;
+      
+      // Create/Update Competency
+      if (editingCompetency) {
+        await dbFetch(`competencies?id=eq.${competencyId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: wizardData.name,
+            description: wizardData.description
+          })
+        });
+        await dbFetch(`competency_tag_links?competency_id=eq.${competencyId}`, { method: 'DELETE' });
+      } else {
+        const result = await dbFetch('competencies?select=id', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: wizardData.name,
+            description: wizardData.description,
+            is_active: true,
+            level_1_description: 'Awareness - Can recognize the topic',
+            level_2_description: 'Knowledge - Can explain concepts',
+            level_3_description: 'Practitioner - Can perform with supervision',
+            level_4_description: 'Proficient - Works independently',
+            level_5_description: 'Expert - Can teach others'
+          })
+        });
+        competencyId = result?.[0]?.id;
+        if (!competencyId) throw new Error('Failed to create competency');
+        
+        if (clientId) {
+          await dbFetch('competency_clients', {
+            method: 'POST',
+            body: JSON.stringify({ competency_id: competencyId, client_id: clientId })
+          });
+        }
+      }
+      
+      // Link tags
+      for (const tagId of wizardData.tag_ids) {
+        await dbFetch('competency_tag_links', {
+          method: 'POST',
+          body: JSON.stringify({ competency_id: competencyId, tag_id: tagId })
+        });
+      }
+      
+      // Handle Training
+      let moduleId = null;
+      
+      if (wizardData.trainingOption === 'generate' && generatedSlides.length > 0) {
+        const moduleResult = await dbFetch('training_modules?select=id', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: wizardData.generateTitle || `${wizardData.name} Training`,
+            description: wizardData.description,
+            client_id: clientId,
+            status: 'draft',
+            pass_score: 80,
+            max_attempts: 3,
+            created_by: currentProfile?.id
+          })
+        });
+        moduleId = moduleResult?.[0]?.id;
+        
+        if (moduleId) {
+          for (let i = 0; i < generatedSlides.length; i++) {
+            const slide = generatedSlides[i];
+            await dbFetch('module_slides', {
+              method: 'POST',
+              body: JSON.stringify({
+                module_id: moduleId,
+                order_index: i,
+                title: slide.title,
+                content: slide.content,
+                key_points: slide.key_points
+              })
+            });
+          }
+          
+          for (let i = 0; i < generatedQuiz.length; i++) {
+            const q = generatedQuiz[i];
+            await dbFetch('module_questions', {
+              method: 'POST',
+              body: JSON.stringify({
+                module_id: moduleId,
+                order_index: i,
+                question: q.question,
+                options: q.options,
+                correct_answer: q.correct_answer,
+                explanation: q.explanation
+              })
+            });
+          }
+          
+          await dbFetch('competency_modules', {
+            method: 'POST',
+            body: JSON.stringify({
+              competency_id: competencyId,
+              module_id: moduleId,
+              target_level: 3
+            })
+          });
+        }
+      } else if (wizardData.trainingOption === 'link' && wizardData.linkedModuleId) {
+        moduleId = wizardData.linkedModuleId;
         const existing = await dbFetch(
-          `user_competencies?user_id=eq.${userId}&competency_id=eq.${selectedCompetency.id}`
+          `competency_modules?competency_id=eq.${competencyId}&module_id=eq.${moduleId}`
+        );
+        if (!existing || existing.length === 0) {
+          await dbFetch('competency_modules', {
+            method: 'POST',
+            body: JSON.stringify({
+              competency_id: competencyId,
+              module_id: moduleId,
+              target_level: 3
+            })
+          });
+        }
+      }
+      
+      // Handle Assignments
+      for (const assignment of wizardData.assignments) {
+        const existing = await dbFetch(
+          `user_competencies?user_id=eq.${assignment.user_id}&competency_id=eq.${competencyId}`
         );
         
         if (existing && existing.length > 0) {
-          // Update existing
           await dbFetch(`user_competencies?id=eq.${existing[0].id}`, {
             method: 'PATCH',
             body: JSON.stringify({
-              target_level: assignFormData.target_level,
-              due_date: assignFormData.due_date || null
+              target_level: assignment.target_level,
+              due_date: assignment.due_date || null
             })
           });
         } else {
-          // Create new
           await dbFetch('user_competencies', {
             method: 'POST',
             body: JSON.stringify({
-              user_id: userId,
-              competency_id: selectedCompetency.id,
-              target_level: assignFormData.target_level,
-              current_level: assignFormData.current_level,
-              due_date: assignFormData.due_date || null,
+              user_id: assignment.user_id,
+              competency_id: competencyId,
+              target_level: assignment.target_level,
+              current_level: 0,
+              due_date: assignment.due_date || null,
               status: 'in_progress'
             })
           });
         }
         
-        // Create development activity based on method
-        if (assignFormData.development_method) {
-          await dbFetch('development_activities', {
-            method: 'POST',
-            body: JSON.stringify({
-              trainee_id: userId,
-              type: assignFormData.development_method === 'training' ? 'training' : 
-                    assignFormData.development_method === 'coaching' ? 'coaching' : 'on_the_job',
-              title: `${selectedCompetency.name} Development`,
-              description: `Develop ${selectedCompetency.name} competency to Level ${assignFormData.target_level}`,
-              competency_id: selectedCompetency.id,
-              target_level: assignFormData.target_level,
-              status: 'pending',
-              due_date: assignFormData.due_date || null,
-              created_by: currentProfile?.id
-            })
-          });
+        if (moduleId && assignment.methods?.includes('training')) {
+          const existingTraining = await dbFetch(
+            `user_training?user_id=eq.${assignment.user_id}&module_id=eq.${moduleId}`
+          );
+          if (!existingTraining || existingTraining.length === 0) {
+            await dbFetch('user_training', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: assignment.user_id,
+                module_id: moduleId,
+                status: 'pending',
+                due_date: assignment.due_date || null,
+                assigned_by: currentProfile?.id
+              })
+            });
+          }
         }
       }
       
-      await loadUserCompetencies();
-      setShowAssignModal(false);
-      resetAssignForm();
+      await loadData();
+      closeWizard();
       
     } catch (error) {
-      console.error('Error assigning competency:', error);
-      setFormError(error.message);
+      console.error('Error saving:', error);
+      setFormError(error.message || 'Failed to save. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-      tag_ids: [],
-      client_ids: currentProfile?.client_id ? [currentProfile.client_id] : [],
-      level_1_description: 'Awareness - Can recognize the topic',
-      level_2_description: 'Knowledge - Can explain concepts',
-      level_3_description: 'Practitioner - Can perform with supervision',
-      level_4_description: 'Proficient - Works independently',
-      level_5_description: 'Expert - Can teach others'
-    });
-    setFormError('');
-  };
-
-  const resetAssignForm = () => {
-    setAssignFormData({
-      user_ids: [],
-      target_level: 3,
-      current_level: 0,
-      due_date: '',
-      development_method: ''
-    });
-    setSelectedCompetency(null);
-    setFormError('');
-  };
-
-  const openAssignModal = (competency) => {
-    setSelectedCompetency(competency);
-    setAssignFormData({
-      user_ids: [],
-      target_level: 3,
-      current_level: 0,
-      due_date: '',
-      development_method: competency.hasTraining ? 'training' : ''
-    });
-    setShowAssignModal(true);
-  };
-
+  // ==========================================================================
+  // RENDER
+  // ==========================================================================
+  
   const getGapColor = (current, target) => {
-    const gap = target - current;
+    const gap = (target || 3) - (current || 0);
     if (gap <= 0) return 'text-green-600 bg-green-50';
     if (gap === 1) return 'text-amber-600 bg-amber-50';
     return 'text-red-600 bg-red-50';
   };
 
-  // ==========================================================================
-  // RENDER
-  // ==========================================================================
+  const tagColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
   if (loading) {
     return (
@@ -512,13 +613,10 @@ export default function DevelopmentCenterPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Development Center</h1>
-          <p className="text-gray-600 mt-1">Manage competencies, training, and development activities</p>
+          <p className="text-gray-600 mt-1">Create competencies, training materials, and track progress</p>
         </div>
         <button
-          onClick={() => {
-            resetForm();
-            setShowCreateModal(true);
-          }}
+          onClick={() => openWizard()}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-5 h-5" />
@@ -526,8 +624,8 @@ export default function DevelopmentCenterPage() {
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 border border-gray-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -572,107 +670,53 @@ export default function DevelopmentCenterPage() {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <BookOpen className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.trainingAvailable}</p>
-              <p className="text-xs text-gray-500">Training Ready</p>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Spider Graph */}
-      <CompetencyMaturityDashboard
-        profile={currentProfile}
-        clientId={clientId}
-        users={users}
-        initialScope={currentProfile?.role === 'trainee' ? 'individual' : 'team'}
-      />
-
-      {/* Gap Analysis */}
-      <CompetencyGapAnalysis
-        profile={currentProfile}
-        clientId={clientId}
-        viewMode={currentProfile?.role === 'trainee' ? 'individual' : 'manager'}
-        maxRows={10}
-        showFilters={true}
-      />
-
-      {/* Filters */}
+      {/* Search */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search competencies..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg"
-              />
-            </div>
-          </div>
-          
-          <select
-            value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg"
-          >
-            <option value="all">All Tags</option>
-            {tags.map(tag => (
-              <option key={tag.id} value={tag.id}>{tag.name}</option>
-            ))}
-          </select>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg"
-          >
-            <option value="all">All Status</option>
-            <option value="gap">Has Gaps</option>
-            <option value="achieved">All Achieved</option>
-          </select>
-          
-          <button
-            onClick={loadData}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search competencies..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg"
+          />
         </div>
       </div>
 
       {/* Competencies List */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {filteredCompetencies.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <Target className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500 font-medium">No competencies found</p>
-            <p className="text-gray-400 text-sm mt-1">Create a competency to get started</p>
+            <p className="text-gray-500 font-medium">No competencies yet</p>
+            <p className="text-gray-400 text-sm mt-1">Create your first competency to get started</p>
+            <button
+              onClick={() => openWizard()}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              New Competency
+            </button>
           </div>
         ) : (
           filteredCompetencies.map(comp => (
             <div key={comp.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              {/* Competency Header */}
-              <div 
+              {/* Header */}
+              <div
                 className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-                onClick={() => toggleExpand(comp.id)}
+                onClick={() => setExpandedId(expandedId === comp.id ? null : comp.id)}
               >
-                <div className="flex items-center gap-4">
-                  <button className="p-1">
-                    {expandedCompetencies.has(comp.id) ? (
+                <div className="flex items-center gap-3">
+                  <button className="p-1 hover:bg-gray-100 rounded">
+                    {expandedId === comp.id ? (
                       <ChevronDown className="w-5 h-5 text-gray-400" />
                     ) : (
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     )}
                   </button>
-                  
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-gray-900">{comp.name}</h3>
@@ -686,22 +730,23 @@ export default function DevelopmentCenterPage() {
                         </span>
                       ))}
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">{comp.description || 'No description'}</p>
+                    {comp.description && (
+                      <p className="text-sm text-gray-500 mt-0.5">{comp.description}</p>
+                    )}
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-6">
-                  {/* Stats */}
                   <div className="flex items-center gap-4 text-sm">
-                    <div className="text-center">
+                    <div className="text-center px-3">
                       <p className="font-bold text-gray-900">{comp.totalAssigned}</p>
                       <p className="text-xs text-gray-500">Assigned</p>
                     </div>
-                    <div className="text-center">
+                    <div className="text-center px-3">
                       <p className="font-bold text-green-600">{comp.achieved}</p>
                       <p className="text-xs text-gray-500">Achieved</p>
                     </div>
-                    <div className="text-center">
+                    <div className="text-center px-3">
                       <p className={`font-bold ${comp.gapCount > 0 ? 'text-red-600' : 'text-gray-400'}`}>
                         {comp.gapCount}
                       </p>
@@ -709,157 +754,78 @@ export default function DevelopmentCenterPage() {
                     </div>
                   </div>
                   
-                  {/* Training indicator */}
                   {comp.hasTraining ? (
                     <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
                       <BookOpen className="w-3 h-3" />
-                      Training Ready
+                      Training
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs font-medium">
-                      <Zap className="w-3 h-3" />
+                    <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-medium">
+                      <BookOpen className="w-3 h-3" />
                       No Training
                     </span>
                   )}
                   
-                  {/* Actions */}
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => openAssignModal(comp)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="Assign to users"
-                    >
-                      <Users className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => window.location.href = `/training?create=true&competency=${comp.id}`}
-                      className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg"
-                      title="Create training"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openWizard(comp);
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
               
-              {/* Expanded Content */}
-              {expandedCompetencies.has(comp.id) && (
+              {/* Expanded */}
+              {expandedId === comp.id && (
                 <div className="border-t border-gray-100 p-4 bg-gray-50">
-                  {/* Level Descriptions */}
-                  <div className="mb-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">LEVEL DEFINITIONS</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[1, 2, 3, 4, 5].map(level => (
-                        <div key={level} className="bg-white rounded-lg p-2 border border-gray-200">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
-                              {level}
-                            </span>
-                            <span className="text-xs font-medium text-gray-700">
-                              {level === 1 ? 'Awareness' : level === 2 ? 'Knowledge' : level === 3 ? 'Practitioner' : level === 4 ? 'Proficient' : 'Expert'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-500">
-                            {comp[`level_${level}_description`] || '—'}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Linked Training Modules */}
-                  {comp.training_modules?.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-medium text-gray-500 mb-2">LINKED TRAINING</p>
-                      <div className="flex flex-wrap gap-2">
-                        {comp.training_modules.map(tm => (
-                          <a
-                            key={tm.id}
-                            href={`/training?module=${tm.id}`}
-                            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
-                          >
-                            <BookOpen className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm font-medium text-gray-700">{tm.title}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-xs ${
-                              tm.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {tm.status}
-                            </span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Assigned Users */}
                   {comp.assignments?.length > 0 ? (
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 mb-2">ASSIGNED USERS</p>
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-3">Assigned Users</p>
                       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">User</th>
-                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Current</th>
-                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Target</th>
-                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Gap</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Due Date</th>
-                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Actions</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">User</th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Current</th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Target</th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Gap</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
-                            {comp.assignments.map(assignment => {
-                              const gap = assignment.target_level - assignment.current_level;
+                            {comp.assignments.map(a => {
+                              const gap = (a.target_level || 3) - (a.current_level || 0);
                               return (
-                                <tr key={assignment.id} className="hover:bg-gray-50">
-                                  <td className="px-3 py-2">
+                                <tr key={a.id}>
+                                  <td className="px-4 py-2">
                                     <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
-                                        {assignment.user?.full_name?.charAt(0) || '?'}
+                                      <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-medium">
+                                        {a.user?.full_name?.charAt(0) || '?'}
                                       </div>
-                                      <span className="font-medium text-gray-900">{assignment.user?.full_name}</span>
+                                      <span className="font-medium text-gray-900">{a.user?.full_name}</span>
                                     </div>
                                   </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
-                                      {assignment.current_level}
+                                  <td className="px-4 py-2 text-center">
+                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                                      {a.current_level || 0}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 font-bold text-xs">
-                                      {assignment.target_level}
+                                  <td className="px-4 py-2 text-center">
+                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
+                                      {a.target_level || 3}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getGapColor(assignment.current_level, assignment.target_level)}`}>
-                                      {gap <= 0 ? (
-                                        <><CheckCircle className="w-3 h-3" /> Done</>
-                                      ) : (
-                                        <><AlertTriangle className="w-3 h-3" /> -{gap}</>
-                                      )}
+                                  <td className="px-4 py-2 text-center">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getGapColor(a.current_level, a.target_level)}`}>
+                                      {gap <= 0 ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                      {gap <= 0 ? 'Done' : `-${gap}`}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2 text-gray-500 text-xs">
-                                    {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : '—'}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <div className="flex items-center justify-center gap-1">
-                                      {gap > 0 && (
-                                        <>
-                                          {comp.hasTraining && (
-                                            <button className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Assign training">
-                                              <BookOpen className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                          <button className="p-1 text-purple-600 hover:bg-purple-50 rounded" title="Schedule coaching">
-                                            <MessageSquare className="w-4 h-4" />
-                                          </button>
-                                          <button className="p-1 text-green-600 hover:bg-green-50 rounded" title="Assign task">
-                                            <ClipboardList className="w-4 h-4" />
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
+                                  <td className="px-4 py-2 text-gray-500 text-xs">
+                                    {a.due_date ? new Date(a.due_date).toLocaleDateString() : '—'}
                                   </td>
                                 </tr>
                               );
@@ -869,14 +835,14 @@ export default function DevelopmentCenterPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-gray-500">
+                    <div className="text-center py-6">
                       <Users className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                      <p className="text-sm">No users assigned to this competency</p>
+                      <p className="text-gray-500 text-sm">No users assigned yet</p>
                       <button
-                        onClick={() => openAssignModal(comp)}
+                        onClick={() => openWizard(comp)}
                         className="mt-2 text-blue-600 hover:underline text-sm"
                       >
-                        Assign Users →
+                        Edit & Assign Users →
                       </button>
                     </div>
                   )}
@@ -887,280 +853,260 @@ export default function DevelopmentCenterPage() {
         )}
       </div>
 
-      {/* Create Competency Modal */}
-      {showCreateModal && (
+      {/* WIZARD MODAL */}
+      {showWizard && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Create Competency</h2>
-              <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {formError}
-                </div>
-              )}
-              
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                  placeholder="e.g., Spray Drying Operations"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                  placeholder="Brief description of this competency..."
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
-                  <div className="flex flex-wrap gap-1 p-2 border border-gray-200 rounded-lg min-h-[40px]">
-                    {formData.tag_ids.map(tagId => {
-                      const tag = tags.find(t => t.id === tagId);
-                      return tag ? (
-                        <span
-                          key={tagId}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-white"
-                          style={{ backgroundColor: tag.color || '#3B82F6' }}
-                        >
-                          {tag.name}
-                          <button
-                            type="button"
-                            onClick={() => setFormData({
-                              ...formData,
-                              tag_ids: formData.tag_ids.filter(id => id !== tagId)
-                            })}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ) : null;
-                    })}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {tags.filter(t => !formData.tag_ids.includes(t.id)).map(tag => (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onClick={() => setFormData({
-                          ...formData,
-                          tag_ids: [...formData.tag_ids, tag.id]
-                        })}
-                        className="px-2 py-0.5 rounded text-xs border border-gray-200 hover:bg-gray-50"
-                        style={{ color: tag.color || '#3B82F6' }}
-                      >
-                        + {tag.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Clients *</label>
-                  <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto">
-                    {clients.map(client => (
-                      <label key={client.id} className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.client_ids.includes(client.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, client_ids: [...formData.client_ids, client.id] });
-                            } else {
-                              setFormData({ ...formData, client_ids: formData.client_ids.filter(id => id !== client.id) });
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 rounded"
-                        />
-                        <span className="text-sm text-gray-700">{client.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateCompetency}
-                disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Create Competency
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Assign Modal */}
-      {showAssignModal && selectedCompetency && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Assign Competency</h2>
-                <p className="text-sm text-gray-500">{selectedCompetency.name}</p>
-              </div>
-              <button onClick={() => setShowAssignModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {formError}
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Users *</label>
-                <div className="border border-gray-200 rounded-lg p-2 max-h-40 overflow-y-auto">
-                  {users.filter(u => u.role === 'trainee').map(user => (
-                    <label key={user.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={assignFormData.user_ids.includes(user.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setAssignFormData({ ...assignFormData, user_ids: [...assignFormData.user_ids, user.id] });
-                          } else {
-                            setAssignFormData({ ...assignFormData, user_ids: assignFormData.user_ids.filter(id => id !== user.id) });
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded"
-                      />
-                      <span className="text-sm text-gray-700">{user.full_name}</span>
-                    </label>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {editingCompetency ? 'Edit Competency' : 'New Competency'}
+                </h2>
+                <div className="flex items-center gap-2 mt-2">
+                  {[1, 2, 3].map(step => (
+                    <div key={step} className="flex items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        wizardStep === step ? 'bg-blue-600 text-white' :
+                        wizardStep > step ? 'bg-green-500 text-white' :
+                        'bg-gray-200 text-gray-500'
+                      }`}>
+                        {wizardStep > step ? <Check className="w-4 h-4" /> : step}
+                      </div>
+                      {step < 3 && (
+                        <div className={`w-12 h-1 mx-1 rounded ${wizardStep > step ? 'bg-green-500' : 'bg-gray-200'}`} />
+                      )}
+                    </div>
                   ))}
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {wizardStep === 1 && 'Define competency & tags'}
+                  {wizardStep === 2 && 'Training material'}
+                  {wizardStep === 3 && 'Assign to users'}
+                </p>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Level</label>
-                  <select
-                    value={assignFormData.current_level}
-                    onChange={(e) => setAssignFormData({ ...assignFormData, current_level: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                  >
-                    <option value={0}>0 - Not Started</option>
-                    <option value={1}>1 - Awareness</option>
-                    <option value={2}>2 - Knowledge</option>
-                    <option value={3}>3 - Practitioner</option>
-                    <option value={4}>4 - Proficient</option>
-                    <option value={5}>5 - Expert</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Level *</label>
-                  <select
-                    value={assignFormData.target_level}
-                    onChange={(e) => setAssignFormData({ ...assignFormData, target_level: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                  >
-                    <option value={1}>1 - Awareness</option>
-                    <option value={2}>2 - Knowledge</option>
-                    <option value={3}>3 - Practitioner</option>
-                    <option value={4}>4 - Proficient</option>
-                    <option value={5}>5 - Expert</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                <input
-                  type="date"
-                  value={assignFormData.due_date}
-                  onChange={(e) => setAssignFormData({ ...assignFormData, due_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Development Method</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAssignFormData({ ...assignFormData, development_method: 'training' })}
-                    className={`p-3 rounded-lg border text-center ${
-                      assignFormData.development_method === 'training'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <BookOpen className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs font-medium">Training</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssignFormData({ ...assignFormData, development_method: 'coaching' })}
-                    className={`p-3 rounded-lg border text-center ${
-                      assignFormData.development_method === 'coaching'
-                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <MessageSquare className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs font-medium">Coaching</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssignFormData({ ...assignFormData, development_method: 'ojt' })}
-                    className={`p-3 rounded-lg border text-center ${
-                      assignFormData.development_method === 'ojt'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <ClipboardList className="w-5 h-5 mx-auto mb-1" />
-                    <span className="text-xs font-medium">OJT Task</span>
-                  </button>
-                </div>
-              </div>
+              <button onClick={closeWizard} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
             </div>
             
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowAssignModal(false)}
-                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {formError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  {formError}
+                </div>
+              )}
+              
+              {/* STEP 1 */}
+              {wizardStep === 1 && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Competency Name *</label>
+                    <input
+                      type="text"
+                      value={wizardData.name}
+                      onChange={(e) => setWizardData({ ...wizardData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., Spray Drying Operations"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={wizardData.description}
+                      onChange={(e) => setWizardData({ ...wizardData, description: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                      placeholder="Brief description..."
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {wizardData.tag_ids.map(tagId => {
+                        const tag = tags.find(t => t.id === tagId);
+                        return tag ? (
+                          <span key={tagId} className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm font-medium text-white" style={{ backgroundColor: tag.color || '#3B82F6' }}>
+                            {tag.name}
+                            <button onClick={() => setWizardData({ ...wizardData, tag_ids: wizardData.tag_ids.filter(id => id !== tagId) })} className="hover:bg-white/20 rounded">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                      {wizardData.tag_ids.length === 0 && <span className="text-gray-400 text-sm">No tags selected</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {tags.filter(t => !wizardData.tag_ids.includes(t.id)).map(tag => (
+                        <button key={tag.id} onClick={() => setWizardData({ ...wizardData, tag_ids: [...wizardData.tag_ids, tag.id] })} className="px-2 py-1 rounded text-sm border border-gray-200 hover:bg-gray-50" style={{ color: tag.color || '#3B82F6' }}>
+                          + {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                      <Tag className="w-4 h-4 text-gray-400" />
+                      <input type="text" value={wizardData.newTagName} onChange={(e) => setWizardData({ ...wizardData, newTagName: e.target.value })} placeholder="New tag name..." className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded" />
+                      <div className="flex gap-1">
+                        {tagColors.map(color => (
+                          <button key={color} onClick={() => setWizardData({ ...wizardData, newTagColor: color })} className={`w-6 h-6 rounded-full border-2 ${wizardData.newTagColor === color ? 'border-gray-900' : 'border-transparent'}`} style={{ backgroundColor: color }} />
+                        ))}
+                      </div>
+                      <button onClick={handleCreateTag} disabled={!wizardData.newTagName.trim()} className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">Add</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* STEP 2 */}
+              {wizardStep === 2 && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-4">How will users develop this competency?</p>
+                  
+                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'none' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={wizardData.trainingOption === 'none'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'none' })} className="mt-1" />
+                    <div>
+                      <p className="font-medium text-gray-900">No training module</p>
+                      <p className="text-sm text-gray-500">Develop through coaching or on-the-job tasks only</p>
+                    </div>
+                  </label>
+                  
+                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'generate' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={wizardData.trainingOption === 'generate'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'generate' })} className="mt-1" />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        Generate with AI
+                      </p>
+                      <p className="text-sm text-gray-500">Create slides and quiz automatically</p>
+                    </div>
+                  </label>
+                  
+                  {wizardData.trainingOption === 'generate' && (
+                    <div className="ml-7 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      {generatedSlides.length === 0 ? (
+                        <div className="text-center">
+                          <button onClick={handleGenerateContent} disabled={generating || !wizardData.name} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 inline-flex items-center gap-2">
+                            {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Sparkles className="w-4 h-4" />Generate Content</>}
+                          </button>
+                          <p className="text-xs text-amber-700 mt-2">Will create 5-7 slides and 5 quiz questions</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Content Generated!</p>
+                            <button onClick={handleGenerateContent} className="text-sm text-amber-700 hover:underline">Regenerate</button>
+                          </div>
+                          <p className="text-sm text-gray-600">{generatedSlides.length} slides, {generatedQuiz.length} quiz questions</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'link' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={wizardData.trainingOption === 'link'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'link' })} className="mt-1" />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 flex items-center gap-2"><Link className="w-4 h-4 text-blue-500" />Link existing training</p>
+                      <p className="text-sm text-gray-500">Connect to an existing training module</p>
+                    </div>
+                  </label>
+                  
+                  {wizardData.trainingOption === 'link' && (
+                    <div className="ml-7">
+                      <select value={wizardData.linkedModuleId} onChange={(e) => setWizardData({ ...wizardData, linkedModuleId: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                        <option value="">Select a training module...</option>
+                        {trainingModules.map(tm => (
+                          <option key={tm.id} value={tm.id}>{tm.title} {tm.status === 'published' ? '✓' : '(draft)'}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* STEP 3 */}
+              {wizardStep === 3 && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-4">Assign this competency to team members with target levels</p>
+                  
+                  {trainees.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+                      <p>No trainees found</p>
+                      <p className="text-sm">You can skip this step and assign later</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {trainees.map(user => {
+                        const assignment = wizardData.assignments.find(a => a.user_id === user.id);
+                        const isSelected = !!assignment;
+                        return (
+                          <div key={user.id} className={`p-3 border rounded-lg ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                            <div className="flex items-center gap-3">
+                              <input type="checkbox" checked={isSelected} onChange={() => toggleUserAssignment(user.id)} className="w-4 h-4 text-blue-600 rounded" />
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900">{user.full_name}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <label className="text-xs text-gray-500">Target</label>
+                                    <select value={assignment.target_level} onChange={(e) => updateAssignment(user.id, 'target_level', parseInt(e.target.value))} className="block w-20 px-2 py-1 text-sm border border-gray-200 rounded">
+                                      {[1, 2, 3, 4, 5].map(l => <option key={l} value={l}>Level {l}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-gray-500">Due Date</label>
+                                    <input type="date" value={assignment.due_date} onChange={(e) => updateAssignment(user.id, 'due_date', e.target.value)} className="block px-2 py-1 text-sm border border-gray-200 rounded" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 flex items-center justify-between">
+              <button onClick={() => wizardStep > 1 ? setWizardStep(wizardStep - 1) : closeWizard()} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2">
+                <ChevronLeft className="w-4 h-4" />
+                {wizardStep === 1 ? 'Cancel' : 'Back'}
               </button>
-              <button
-                onClick={handleAssignCompetency}
-                disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Assign
-              </button>
+              
+              <div className="flex items-center gap-2">
+                {wizardStep === 3 && (
+                  <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                    Skip & Save
+                  </button>
+                )}
+                
+                {wizardStep < 3 ? (
+                  <button onClick={() => {
+                    if (wizardStep === 1 && !wizardData.name.trim()) {
+                      setFormError('Please enter a competency name');
+                      return;
+                    }
+                    setFormError('');
+                    setWizardStep(wizardStep + 1);
+                  }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
+                    {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Update' : 'Create'} Competency</>}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
