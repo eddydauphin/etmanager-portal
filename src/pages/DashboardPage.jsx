@@ -512,7 +512,7 @@ function MyTrainingDevelopmentSection({ profile }) {
     try {
       // Get competencies where current user is the training developer
       const competencies = await dbFetch(
-        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
+        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_tag_links(competency_tags(name,color))&is_active=eq.true`
       );
       
       if (!competencies || competencies.length === 0) {
@@ -620,15 +620,15 @@ function MyTrainingDevelopmentSection({ profile }) {
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
             >
               <div className="flex items-center gap-2">
-                {item.competency_categories?.color && (
+                {item.competency_tag_links?.[0]?.competency_tags?.color && (
                   <div 
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.competency_categories.color }}
+                    style={{ backgroundColor: item.competency_tag_links[0].competency_tags.color }}
                   />
                 )}
                 <div>
                   <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">{item.competency_categories?.name || 'Uncategorized'}</p>
+                  <p className="text-xs text-gray-500">{item.competency_tag_links?.[0]?.competency_tags?.name || 'Uncategorized'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1072,7 +1072,7 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     setLoadingCompetencies(true);
     try {
       const data = await dbFetch(
-        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_categories(name,color))&order=created_at.desc`
+        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_tag_links(competency_tags(name,color)))&order=created_at.desc`
       );
       setTraineeCompetencies(data || []);
     } catch (error) {
@@ -1604,16 +1604,16 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                   {traineeCompetencies.map(comp => (
                     <div key={comp.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <div className="flex items-center gap-3">
-                        {comp.competencies?.competency_categories?.color && (
+                        {comp.competencies?.competency_tag_links?.[0]?.competency_tags?.color && (
                           <div 
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: comp.competencies.competency_categories.color }}
+                            style={{ backgroundColor: comp.competencies.competency_tag_links[0].competency_tags.color }}
                           />
                         )}
                         <div>
                           <p className="font-medium text-gray-900">{comp.competencies?.name || 'Unknown'}</p>
                           <p className="text-xs text-gray-500">
-                            {comp.competencies?.competency_categories?.name || 'Uncategorized'}
+                            {comp.competencies?.competency_tag_links?.[0]?.competency_tags?.name || 'Uncategorized'}
                           </p>
                         </div>
                       </div>

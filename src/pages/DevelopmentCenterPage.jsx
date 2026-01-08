@@ -411,57 +411,88 @@ export default function DevelopmentCenterPage() {
     setFormError('');
     
     try {
-      const prompt = `Create a professional training module for "${wizardData.name}".
-Description: ${wizardData.description || wizardData.name}
-
-Generate:
-1. 5-7 training slides with title, content (2-3 paragraphs), and key points
-2. 5 quiz questions (multiple choice, 4 options each)
-
-Target audience: Manufacturing/food industry professionals
-Level: Practitioner (able to perform with some supervision)
-
-Respond in JSON format only, no other text:
-{
-  "slides": [
-    {"title": "...", "content": "...", "key_points": ["...", "..."]}
-  ],
-  "quiz": [
-    {"question": "...", "options": ["A", "B", "C", "D"], "correct_answer": 0, "explanation": "..."}
-  ]
-}`;
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      console.log('Generating content for:', wizardData.name);
+      
+      // Generate slides using the backend API
+      const slidesResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
         method: 'POST',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         },
+        cache: 'no-store',
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          messages: [{ role: 'user', content: prompt }]
+          type: 'slides',
+          title: `${wizardData.name} Training`,
+          description: wizardData.description || wizardData.name,
+          competency: {
+            name: wizardData.name,
+            description: wizardData.description || wizardData.name,
+            level_3_description: 'Can perform with supervision'
+          },
+          targetLevel: 3,
+          levelDescriptions: {
+            1: 'Can recognize the topic',
+            2: 'Can explain concepts',
+            3: 'Can perform with supervision',
+            4: 'Works independently',
+            5: 'Can teach others'
+          },
+          language: 'English',
+          _nonce: `${Date.now()}-${Math.random()}`
         })
       });
 
-      const data = await response.json();
-      const content = data.content?.[0]?.text || '';
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        setGeneratedSlides(parsed.slides || []);
-        setGeneratedQuiz(parsed.quiz || []);
-        setWizardData(prev => ({
-          ...prev,
-          generateTitle: `${wizardData.name} Training`
-        }));
+      if (!slidesResponse.ok) {
+        const error = await slidesResponse.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to generate slides');
       }
+
+      const slidesData = await slidesResponse.json();
+      console.log('Generated slides:', slidesData.slides?.length);
+      
+      // Generate quiz
+      const quizResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          type: 'quiz',
+          title: `${wizardData.name} Training`,
+          description: wizardData.description || wizardData.name,
+          competency: {
+            name: wizardData.name,
+            description: wizardData.description || wizardData.name
+          },
+          targetLevel: 3,
+          language: 'English',
+          _nonce: `${Date.now()}-${Math.random()}`
+        })
+      });
+
+      if (!quizResponse.ok) {
+        const error = await quizResponse.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to generate quiz');
+      }
+
+      const quizData = await quizResponse.json();
+      console.log('Generated quiz:', quizData.questions?.length);
+      
+      setGeneratedSlides(slidesData.slides || []);
+      setGeneratedQuiz(quizData.questions || []);
+      setWizardData(prev => ({
+        ...prev,
+        generateTitle: `${wizardData.name} Training`
+      }));
+      
     } catch (error) {
       console.error('Error generating content:', error);
-      setFormError('Failed to generate content. Please try again.');
+      setFormError(error.message || 'Failed to generate content. Please try again.');
     } finally {
       setGenerating(false);
     }
