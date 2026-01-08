@@ -65,6 +65,7 @@ import {
 
 // Import Competency Maturity Dashboard component
 import CompetencyMaturityDashboard from '../components/CompetencyMaturityDashboard';
+import CompetencyGapAnalysis from '../components/CompetencyGapAnalysis';
 
 // ============================================================================
 // LAYOUT DEFINITIONS
@@ -622,7 +623,7 @@ function MyTrainingDevelopmentSection({ profile }) {
           {pending.slice(0, 5).map(item => (
             <Link
               key={item.id}
-              to="/training"
+              to={`/training?create=true&competency=${item.id}`}
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
             >
               <div className="flex items-center gap-2">
@@ -3132,6 +3133,20 @@ function ClientAdminDashboard() {
         clientId={clientId}
         users={users}
         initialScope="organization"
+      />
+
+      {/* Competency Gap Analysis - Clear table view */}
+      <CompetencyGapAnalysis 
+        profile={profile}
+        clientId={clientId}
+        viewMode="manager"
+        maxRows={10}
+        showFilters={true}
+        onActionClick={(action, row) => {
+          if (action === 'coaching' || action === 'activity') {
+            setShowDevModal(true);
+          }
+        }}
       />
 
       {/* Organization Hierarchy */}
