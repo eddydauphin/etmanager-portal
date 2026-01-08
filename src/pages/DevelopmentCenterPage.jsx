@@ -483,7 +483,6 @@ Respond in JSON format only, no other text:
       // Create/Update Competency
       // Determine training_developer_id based on option
       const trainingDeveloperId = wizardData.trainingOption === 'assign' ? wizardData.training_developer_id : null;
-      const trainingDueDate = wizardData.trainingOption === 'assign' ? wizardData.training_due_date : null;
       
       if (editingCompetency) {
         await dbFetch(`competencies?id=eq.${competencyId}`, {
@@ -491,8 +490,7 @@ Respond in JSON format only, no other text:
           body: JSON.stringify({
             name: wizardData.name,
             description: wizardData.description,
-            training_developer_id: trainingDeveloperId,
-            training_due_date: trainingDueDate || null
+            training_developer_id: trainingDeveloperId
           })
         });
         await dbFetch(`competency_tag_links?competency_id=eq.${competencyId}`, { method: 'DELETE' });
@@ -504,7 +502,6 @@ Respond in JSON format only, no other text:
             description: wizardData.description,
             is_active: true,
             training_developer_id: trainingDeveloperId,
-            training_due_date: trainingDueDate || null,
             level_1_description: 'Awareness - Can recognize the topic',
             level_2_description: 'Knowledge - Can explain concepts',
             level_3_description: 'Practitioner - Can perform with supervision',
