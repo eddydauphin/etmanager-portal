@@ -22,6 +22,7 @@ import {
   Loader2,
   Tag,
   Edit2,
+  Trash2,
   Link,
   Check
 } from 'lucide-react';
@@ -65,6 +66,7 @@ export default function DevelopmentCenterPage() {
   const [generatedSlides, setGeneratedSlides] = useState([]);
   const [generatedQuiz, setGeneratedQuiz] = useState([]);
   const [formError, setFormError] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // competency to delete
 
   // ==========================================================================
   // DATA LOADING
@@ -322,6 +324,28 @@ export default function DevelopmentCenterPage() {
     setEditingCompetency(null);
     setWizardStep(1);
     setFormError('');
+  };
+
+  const handleDeleteCompetency = async (competency) => {
+    try {
+      // Delete related records first
+      await dbFetch(`competency_tag_links?competency_id=eq.${competency.id}`, { method: 'DELETE' });
+      await dbFetch(`competency_clients?competency_id=eq.${competency.id}`, { method: 'DELETE' });
+      await dbFetch(`competency_modules?competency_id=eq.${competency.id}`, { method: 'DELETE' });
+      await dbFetch(`user_competencies?competency_id=eq.${competency.id}`, { method: 'DELETE' });
+      
+      // Delete the competency (or soft delete by setting is_active = false)
+      await dbFetch(`competencies?id=eq.${competency.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: false })
+      });
+      
+      setDeleteConfirm(null);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting competency:', error);
+      alert('Failed to delete competency. Please try again.');
+    }
   };
 
   const handleCreateTag = async () => {
@@ -824,15 +848,28 @@ Respond in JSON format only, no other text:
                     </span>
                   )}
                   
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openWizard(comp);
-                    }}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openWizard(comp);
+                      }}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                      title="Edit"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm(comp);
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -1212,6 +1249,40 @@ Respond in JSON format only, no other text:
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Competency</h3>
+            </div>
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              This will also remove all user assignments and training links. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteCompetency(deleteConfirm)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
