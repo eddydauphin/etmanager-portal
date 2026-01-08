@@ -885,11 +885,13 @@ Respond in JSON format only, no other text:
                               <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Target</th>
                               <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Gap</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due</th>
+                              {comp.hasTraining && <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Actions</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
                             {comp.assignments.map(a => {
                               const gap = (a.target_level || 3) - (a.current_level || 0);
+                              const publishedModule = comp.training_modules?.find(tm => tm.status === 'published');
                               return (
                                 <tr key={a.id}>
                                   <td className="px-4 py-2">
@@ -919,6 +921,48 @@ Respond in JSON format only, no other text:
                                   <td className="px-4 py-2 text-gray-500 text-xs">
                                     {a.due_date ? new Date(a.due_date).toLocaleDateString() : '—'}
                                   </td>
+                                  {comp.hasTraining && (
+                                    <td className="px-4 py-2 text-center">
+                                      {gap > 0 && publishedModule && (
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            try {
+                                              // Check if already assigned
+                                              const existing = await dbFetch(
+                                                `user_training?user_id=eq.${a.user_id}&module_id=eq.${publishedModule.id}`
+                                              );
+                                              if (existing && existing.length > 0) {
+                                                alert('Training already assigned to this user');
+                                                return;
+                                              }
+                                              // Create assignment
+                                              await dbFetch('user_training', {
+                                                method: 'POST',
+                                                body: JSON.stringify({
+                                                  user_id: a.user_id,
+                                                  module_id: publishedModule.id,
+                                                  status: 'pending',
+                                                  due_date: a.due_date || null,
+                                                  assigned_by: currentProfile?.id
+                                                })
+                                              });
+                                              alert(`Training assigned to ${a.user?.full_name}`);
+                                            } catch (error) {
+                                              console.error('Error assigning training:', error);
+                                              alert('Failed to assign training');
+                                            }
+                                          }}
+                                          className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                                        >
+                                          Assign Training
+                                        </button>
+                                      )}
+                                      {gap <= 0 && (
+                                        <span className="text-xs text-green-600">✓ Complete</span>
+                                      )}
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
