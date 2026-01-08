@@ -24,7 +24,8 @@ import {
   Edit2,
   Trash2,
   Link,
-  Check
+  Check,
+  Award
 } from 'lucide-react';
 
 export default function DevelopmentCenterPage() {
@@ -67,6 +68,8 @@ export default function DevelopmentCenterPage() {
   const [generatedQuiz, setGeneratedQuiz] = useState([]);
   const [formError, setFormError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null); // competency to delete
+  const [userTrainingMap, setUserTrainingMap] = useState({}); // { oduleId_oduleId: status }
+  const [validateModal, setValidateModal] = useState(null); // { assignment, competency }
 
   // ==========================================================================
   // DATA LOADING
@@ -84,7 +87,8 @@ export default function DevelopmentCenterPage() {
         loadUserCompetencies(),
         loadTrainingModules(),
         loadUsers(),
-        loadTags()
+        loadTags(),
+        loadUserTraining()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -227,6 +231,28 @@ export default function DevelopmentCenterPage() {
       setTags(data || []);
     } catch (error) {
       console.error('Error loading tags:', error);
+    }
+  };
+
+  const loadUserTraining = async () => {
+    try {
+      // Get all user_training records to know completion status
+      let url = 'user_training?select=user_id,module_id,status,score,completed_at';
+      const data = await dbFetch(url);
+      
+      // Create a map: { oduleId: { status, score, completed_at } }
+      const map = {};
+      (data || []).forEach(ut => {
+        const key = `${ut.user_id}_${ut.module_id}`;
+        map[key] = {
+          status: ut.status,
+          score: ut.score,
+          completed_at: ut.completed_at
+        };
+      });
+      setUserTrainingMap(map);
+    } catch (error) {
+      console.error('Error loading user training:', error);
     }
   };
 
@@ -451,6 +477,7 @@ Respond in JSON format only, no other text:
           ...prev,
           assignments: [...prev.assignments, {
             user_id: userId,
+            current_level: 0,
             target_level: 3,
             due_date: '',
             methods: wizardData.trainingOption !== 'none' ? ['training'] : ['coaching']
@@ -613,24 +640,32 @@ Respond in JSON format only, no other text:
             method: 'PATCH',
             body: JSON.stringify({
               target_level: assignment.target_level,
-              due_date: assignment.due_date || null
+              current_level: assignment.current_level || existing[0].current_level || 0,
+              due_date: assignment.due_date || null,
+              status: (assignment.current_level || 0) >= assignment.target_level ? 'achieved' : 'in_progress'
             })
           });
         } else {
+          const currentLevel = assignment.current_level || 0;
+          const isAlreadyCompetent = currentLevel >= assignment.target_level;
+          
           await dbFetch('user_competencies', {
             method: 'POST',
             body: JSON.stringify({
               user_id: assignment.user_id,
               competency_id: competencyId,
               target_level: assignment.target_level,
-              current_level: 0,
+              current_level: currentLevel,
               due_date: assignment.due_date || null,
-              status: 'in_progress'
+              status: isAlreadyCompetent ? 'achieved' : 'in_progress',
+              last_assessed: currentLevel > 0 ? new Date().toISOString() : null
             })
           });
         }
         
-        if (moduleId && assignment.methods?.includes('training')) {
+        // Only assign training if current_level < target (user has gap)
+        const hasGap = (assignment.current_level || 0) < assignment.target_level;
+        if (moduleId && hasGap && assignment.methods?.includes('training')) {
           const existingTraining = await dbFetch(
             `user_training?user_id=eq.${assignment.user_id}&module_id=eq.${moduleId}`
           );
@@ -891,7 +926,6 @@ Respond in JSON format only, no other text:
                           <tbody className="divide-y divide-gray-100">
                             {comp.assignments.map(a => {
                               const gap = (a.target_level || 3) - (a.current_level || 0);
-                              const publishedModule = comp.training_modules?.find(tm => tm.status === 'published');
                               return (
                                 <tr key={a.id}>
                                   <td className="px-4 py-2">
@@ -923,44 +957,75 @@ Respond in JSON format only, no other text:
                                   </td>
                                   {comp.hasTraining && (
                                     <td className="px-4 py-2 text-center">
-                                      {gap > 0 && publishedModule && (
-                                        <button
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            try {
-                                              // Check if already assigned
-                                              const existing = await dbFetch(
-                                                `user_training?user_id=eq.${a.user_id}&module_id=eq.${publishedModule.id}`
-                                              );
-                                              if (existing && existing.length > 0) {
-                                                alert('Training already assigned to this user');
-                                                return;
-                                              }
-                                              // Create assignment
-                                              await dbFetch('user_training', {
-                                                method: 'POST',
-                                                body: JSON.stringify({
-                                                  user_id: a.user_id,
-                                                  module_id: publishedModule.id,
-                                                  status: 'pending',
-                                                  due_date: a.due_date || null,
-                                                  assigned_by: currentProfile?.id
-                                                })
-                                              });
-                                              alert(`Training assigned to ${a.user?.full_name}`);
-                                            } catch (error) {
-                                              console.error('Error assigning training:', error);
-                                              alert('Failed to assign training');
-                                            }
-                                          }}
-                                          className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                                        >
-                                          Assign Training
-                                        </button>
-                                      )}
-                                      {gap <= 0 && (
-                                        <span className="text-xs text-green-600">✓ Complete</span>
-                                      )}
+                                      {(() => {
+                                        const publishedModule = comp.training_modules?.find(tm => tm.status === 'published');
+                                        if (!publishedModule) return <span className="text-xs text-gray-400">No module</span>;
+                                        
+                                        const trainingKey = `${a.user_id}_${publishedModule.id}`;
+                                        const trainingStatus = userTrainingMap[trainingKey];
+                                        
+                                        // Training completed/passed - show Validate button
+                                        if (trainingStatus?.status === 'passed' || trainingStatus?.status === 'completed') {
+                                          if (gap > 0) {
+                                            return (
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setValidateModal({ assignment: a, competency: comp, trainingStatus });
+                                                }}
+                                                className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 font-medium"
+                                              >
+                                                ✓ Validate Level
+                                              </button>
+                                            );
+                                          } else {
+                                            return <span className="text-xs text-green-600 font-medium">✓ Validated</span>;
+                                          }
+                                        }
+                                        
+                                        // Training in progress
+                                        if (trainingStatus?.status === 'in_progress') {
+                                          return <span className="text-xs text-blue-600">In Progress...</span>;
+                                        }
+                                        
+                                        // Training assigned but not started
+                                        if (trainingStatus?.status === 'pending') {
+                                          return <span className="text-xs text-gray-500">Assigned</span>;
+                                        }
+                                        
+                                        // Not assigned yet - show assign button
+                                        if (gap > 0) {
+                                          return (
+                                            <button
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                try {
+                                                  await dbFetch('user_training', {
+                                                    method: 'POST',
+                                                    body: JSON.stringify({
+                                                      user_id: a.user_id,
+                                                      module_id: publishedModule.id,
+                                                      status: 'pending',
+                                                      due_date: a.due_date || null,
+                                                      assigned_by: currentProfile?.id
+                                                    })
+                                                  });
+                                                  await loadUserTraining();
+                                                  alert(`Training assigned to ${a.user?.full_name}`);
+                                                } catch (error) {
+                                                  console.error('Error assigning training:', error);
+                                                  alert('Failed to assign training');
+                                                }
+                                              }}
+                                              className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                                            >
+                                              Assign Training
+                                            </button>
+                                          );
+                                        }
+                                        
+                                        return <span className="text-xs text-green-600">✓ Complete</span>;
+                                      })()}
                                     </td>
                                   )}
                                 </tr>
@@ -1235,25 +1300,49 @@ Respond in JSON format only, no other text:
                                 <p className="text-xs text-gray-500">{user.email}</p>
                               </div>
                               {isSelected && (
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <div>
-                                    <label className="text-xs text-gray-500">Target</label>
-                                    <select value={assignment.target_level} onChange={(e) => updateAssignment(user.id, 'target_level', parseInt(e.target.value))} className="block w-20 px-2 py-1 text-sm border border-gray-200 rounded">
-                                      {[1, 2, 3, 4, 5].map(l => <option key={l} value={l}>Level {l}</option>)}
+                                    <label className="text-xs text-gray-500">Current</label>
+                                    <select 
+                                      value={assignment.current_level || 0} 
+                                      onChange={(e) => updateAssignment(user.id, 'current_level', parseInt(e.target.value))} 
+                                      className="block w-20 px-2 py-1 text-sm border border-gray-200 rounded"
+                                    >
+                                      <option value={0}>0</option>
+                                      {[1, 2, 3, 4].map(l => <option key={l} value={l}>{l}</option>)}
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="text-xs text-gray-500">Due Date</label>
-                                    <input type="date" value={assignment.due_date} onChange={(e) => updateAssignment(user.id, 'due_date', e.target.value)} className="block px-2 py-1 text-sm border border-gray-200 rounded" />
+                                    <label className="text-xs text-gray-500">Target</label>
+                                    <select value={assignment.target_level} onChange={(e) => updateAssignment(user.id, 'target_level', parseInt(e.target.value))} className="block w-20 px-2 py-1 text-sm border border-gray-200 rounded">
+                                      {[1, 2, 3, 4, 5].map(l => <option key={l} value={l}>{l}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-gray-500">Due</label>
+                                    <input type="date" value={assignment.due_date} onChange={(e) => updateAssignment(user.id, 'due_date', e.target.value)} className="block w-32 px-2 py-1 text-sm border border-gray-200 rounded" />
                                   </div>
                                 </div>
                               )}
                             </div>
+                            {isSelected && (assignment.current_level || 0) > 0 && (
+                              <p className="text-xs text-green-600 mt-2 ml-7">
+                                ✓ Will be validated at Level {assignment.current_level} (prior experience)
+                              </p>
+                            )}
                           </div>
                         );
                       })}
                     </div>
                   )}
+                  
+                  {/* Level 5 Note */}
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-700 flex items-center gap-2">
+                      <Award className="w-4 h-4" />
+                      <span><strong>Level 5 (Expert)</strong> cannot be granted directly. It requires nomination and approval through the Expert Network.</span>
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1323,6 +1412,99 @@ Respond in JSON format only, no other text:
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validate Level Modal */}
+      {validateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-amber-100 rounded-full">
+                <Award className="w-6 h-6 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Validate Competency Level</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm text-green-800 font-medium">
+                  ✓ {validateModal.assignment.user?.full_name} passed the training
+                </p>
+                {validateModal.trainingStatus?.score && (
+                  <p className="text-sm text-green-700">Score: {validateModal.trainingStatus.score}%</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Set achieved level for "{validateModal.competency.name}"
+                </label>
+                <select
+                  id="validateLevel"
+                  defaultValue={Math.min(validateModal.assignment.target_level || 3, 4)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                >
+                  {[1, 2, 3, 4].map(level => (
+                    <option key={level} value={level}>
+                      Level {level} {level === validateModal.assignment.target_level ? '(Target)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                  <Award className="w-3 h-3" />
+                  Level 5 (Expert) requires nomination to the Expert Network
+                </p>
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                Current level: {validateModal.assignment.current_level || 0} → 
+                Target: {validateModal.assignment.target_level || 3}
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setValidateModal(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const levelSelect = document.getElementById('validateLevel');
+                    const newLevel = parseInt(levelSelect.value);
+                    
+                    if (newLevel >= 5) {
+                      alert('Level 5 requires nomination to the Expert Network. Please use the Expert Network page to nominate.');
+                      return;
+                    }
+                    
+                    // Update user_competencies
+                    await dbFetch(`user_competencies?id=eq.${validateModal.assignment.id}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        current_level: newLevel,
+                        status: newLevel >= validateModal.assignment.target_level ? 'achieved' : 'in_progress',
+                        last_assessed: new Date().toISOString()
+                      })
+                    });
+                    
+                    setValidateModal(null);
+                    await loadData();
+                    alert(`${validateModal.assignment.user?.full_name}'s level updated to ${newLevel}`);
+                  } catch (error) {
+                    console.error('Error validating level:', error);
+                    alert('Failed to validate level');
+                  }
+                }}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+              >
+                Validate Level
               </button>
             </div>
           </div>
