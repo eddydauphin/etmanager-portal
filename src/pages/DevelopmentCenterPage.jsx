@@ -126,19 +126,19 @@ export default function DevelopmentCenterPage() {
         userIds = [currentProfile.id];
       } else if (currentProfile?.role === 'team_lead') {
         const teamUsers = await dbFetch(
-          `profiles?select=id&reports_to_id=eq.${currentProfile.id}&is_active=eq.true`
+          `profiles?select=id,full_name,email&reports_to_id=eq.${currentProfile.id}&is_active=eq.true`
         );
         userIds = teamUsers?.map(u => u.id) || [];
         if (userIds.length === 0 && clientId) {
           const clientUsers = await dbFetch(
-            `profiles?select=id&client_id=eq.${clientId}&role=eq.trainee&is_active=eq.true`
+            `profiles?select=id,full_name,email&client_id=eq.${clientId}&role=eq.trainee&is_active=eq.true`
           );
           userIds = clientUsers?.map(u => u.id) || [];
         }
         userIds.push(currentProfile.id);
       } else if (clientId) {
         const clientUsers = await dbFetch(
-          `profiles?select=id&client_id=eq.${clientId}&is_active=eq.true`
+          `profiles?select=id,full_name,email&client_id=eq.${clientId}&is_active=eq.true`
         );
         userIds = clientUsers?.map(u => u.id) || [];
       }
@@ -148,13 +148,44 @@ export default function DevelopmentCenterPage() {
         return;
       }
       
-      const data = await dbFetch(
-        `user_competencies?select=*,user:user_id(id,full_name,email),competency:competency_id(id,name)&user_id=in.(${userIds.join(',')})&order=created_at.desc`
+      // Get user_competencies without FK join
+      const ucData = await dbFetch(
+        `user_competencies?select=*&user_id=in.(${userIds.join(',')})&order=created_at.desc`
       );
       
-      setUserCompetencies(data || []);
+      if (!ucData || ucData.length === 0) {
+        setUserCompetencies([]);
+        return;
+      }
+      
+      // Get user details separately
+      const userProfiles = await dbFetch(
+        `profiles?select=id,full_name,email&id=in.(${userIds.join(',')})`
+      );
+      const userMap = {};
+      (userProfiles || []).forEach(u => userMap[u.id] = u);
+      
+      // Get competency details separately  
+      const compIds = [...new Set(ucData.map(uc => uc.competency_id).filter(Boolean))];
+      let compMap = {};
+      if (compIds.length > 0) {
+        const compData = await dbFetch(
+          `competencies?select=id,name&id=in.(${compIds.join(',')})`
+        );
+        (compData || []).forEach(c => compMap[c.id] = c);
+      }
+      
+      // Combine data
+      const enriched = ucData.map(uc => ({
+        ...uc,
+        user: userMap[uc.user_id] || null,
+        competency: compMap[uc.competency_id] || null
+      }));
+      
+      setUserCompetencies(enriched);
     } catch (error) {
       console.error('Error loading user competencies:', error);
+      setUserCompetencies([]);
     }
   };
 
