@@ -65,7 +65,6 @@ import {
 
 // Import Competency Maturity Dashboard component
 import CompetencyMaturityDashboard from '../components/CompetencyMaturityDashboard';
-import CompetencyGapAnalysis from '../components/CompetencyGapAnalysis';
 
 // ============================================================================
 // LAYOUT DEFINITIONS
@@ -513,7 +512,7 @@ function MyTrainingDevelopmentSection({ profile }) {
     try {
       // Get competencies where current user is the training developer
       const competencies = await dbFetch(
-        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_tag_links(competency_tags(id,name,color))&is_active=eq.true`
+        `competencies?training_developer_id=eq.${profile.id}&select=id,name,description,competency_categories(name,color)&is_active=eq.true`
       );
       
       if (!competencies || competencies.length === 0) {
@@ -521,12 +520,6 @@ function MyTrainingDevelopmentSection({ profile }) {
         setLoading(false);
         return;
       }
-      
-      // Transform to include tags array
-      const transformedCompetencies = competencies.map(comp => ({
-        ...comp,
-        tags: comp.competency_tag_links?.map(tl => tl.competency_tags).filter(Boolean) || []
-      }));
 
       // Get competency_modules to check which competencies have modules
       const competencyModules = await dbFetch('competency_modules?select=competency_id,module_id');
@@ -541,7 +534,7 @@ function MyTrainingDevelopmentSection({ profile }) {
       });
       
       // Enrich competencies with module status
-      const enriched = transformedCompetencies.map(comp => {
+      const enriched = competencies.map(comp => {
         // Find modules linked to this competency
         const linkedModuleIds = competencyModules
           ?.filter(cm => cm.competency_id === comp.id)
@@ -623,21 +616,19 @@ function MyTrainingDevelopmentSection({ profile }) {
           {pending.slice(0, 5).map(item => (
             <Link
               key={item.id}
-              to={`/training?create=true&competency=${item.id}`}
+              to="/training"
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100"
             >
               <div className="flex items-center gap-2">
-                {item.tags?.length > 0 && (
+                {item.competency_categories?.color && (
                   <div 
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.tags[0]?.color || '#3B82F6' }}
+                    style={{ backgroundColor: item.competency_categories.color }}
                   />
                 )}
                 <div>
                   <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {item.tags?.length > 0 ? item.tags.map(t => t.name).join(', ') : 'No tags'}
-                  </p>
+                  <p className="text-xs text-gray-500">{item.competency_categories?.name || 'Uncategorized'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1081,17 +1072,9 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     setLoadingCompetencies(true);
     try {
       const data = await dbFetch(
-        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_tag_links(competency_tags(id,name,color)))&order=created_at.desc`
+        `user_competencies?user_id=eq.${traineeId}&select=*,competencies(id,name,competency_categories(name,color))&order=created_at.desc`
       );
-      // Transform to add tags array to competencies
-      const transformed = (data || []).map(uc => ({
-        ...uc,
-        competencies: uc.competencies ? {
-          ...uc.competencies,
-          tags: uc.competencies.competency_tag_links?.map(tl => tl.competency_tags).filter(Boolean) || []
-        } : null
-      }));
-      setTraineeCompetencies(transformed);
+      setTraineeCompetencies(data || []);
     } catch (error) {
       console.error('Error loading trainee competencies:', error);
     } finally {
@@ -1621,18 +1604,16 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                   {traineeCompetencies.map(comp => (
                     <div key={comp.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <div className="flex items-center gap-3">
-                        {comp.competencies?.tags?.length > 0 && (
+                        {comp.competencies?.competency_categories?.color && (
                           <div 
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: comp.competencies.tags[0]?.color || '#3B82F6' }}
+                            style={{ backgroundColor: comp.competencies.competency_categories.color }}
                           />
                         )}
                         <div>
                           <p className="font-medium text-gray-900">{comp.competencies?.name || 'Unknown'}</p>
                           <p className="text-xs text-gray-500">
-                            {comp.competencies?.tags?.length > 0 
-                              ? comp.competencies.tags.map(t => t.name).join(', ') 
-                              : 'No tags'}
+                            {comp.competencies?.competency_categories?.name || 'Uncategorized'}
                           </p>
                         </div>
                       </div>
@@ -1782,6 +1763,7 @@ function TeamLeadDashboard() {
   });
   const [teamMembersList, setTeamMembersList] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [pendingValidations, setPendingValidations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
 
@@ -1874,9 +1856,58 @@ function TeamLeadDashboard() {
           } else {
             setRecentActivity([]);
           }
+          
+          // Load pending validations - training completed but competency not updated
+          const completedTrainingIds = recentTraining?.filter(t => t.status === 'passed' || t.status === 'completed') || [];
+          if (completedTrainingIds.length > 0) {
+            const pendingList = [];
+            
+            for (const training of completedTrainingIds) {
+              // Find the competency linked to this training module
+              const competencyModule = await dbFetch(
+                `competency_modules?select=competency_id,competencies(id,name)&module_id=eq.${training.module_id}`
+              );
+              
+              if (competencyModule && competencyModule.length > 0) {
+                const compId = competencyModule[0].competency_id;
+                
+                // Check if user has this competency and if current_level < target_level
+                const userComp = await dbFetch(
+                  `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${compId}`
+                );
+                
+                if (userComp && userComp.length > 0) {
+                  const uc = userComp[0];
+                  const hasGap = (uc.current_level || 0) < (uc.target_level || 3);
+                  
+                  if (hasGap) {
+                    // Get user info
+                    const userInfo = await dbFetch(`profiles?select=full_name&id=eq.${training.user_id}`);
+                    
+                    pendingList.push({
+                      id: uc.id,
+                      user_id: training.user_id,
+                      user_name: userInfo?.[0]?.full_name || 'Unknown',
+                      competency_id: compId,
+                      competency_name: competencyModule[0].competencies?.name || 'Unknown',
+                      current_level: uc.current_level || 0,
+                      target_level: uc.target_level || 3,
+                      training_score: training.score,
+                      completed_at: training.completed_at
+                    });
+                  }
+                }
+              }
+            }
+            
+            setPendingValidations(pendingList);
+          } else {
+            setPendingValidations([]);
+          }
         } else {
           // No team members, but still set empty recent activity
           setRecentActivity([]);
+          setPendingValidations([]);
         }
       }
     } catch (error) {
@@ -1973,6 +2004,51 @@ function TeamLeadDashboard() {
           )}
         </div>
       </div>
+
+      {/* Pending Validations - Training completed but competency not validated */}
+      {pendingValidations.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Award className="w-5 h-5 text-amber-600" />
+            <h3 className="text-lg font-semibold text-amber-800">Pending Validations</h3>
+            <span className="px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full text-xs font-medium">
+              {pendingValidations.length}
+            </span>
+          </div>
+          <p className="text-sm text-amber-700 mb-4">
+            These team members completed training and need their competency level validated.
+          </p>
+          <div className="space-y-3">
+            {pendingValidations.map(item => (
+              <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-amber-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-medium">
+                    {item.user_name?.charAt(0) || '?'}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{item.user_name}</p>
+                    <p className="text-sm text-gray-600">{item.competency_name}</p>
+                    <p className="text-xs text-gray-500">
+                      Level {item.current_level} → {item.target_level} • Score: {item.training_score || '—'}%
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">
+                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
+                  </span>
+                  <button
+                    onClick={() => window.location.href = '/development-center'}
+                    className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
+                  >
+                    Validate
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Competency Maturity Dashboard */}
       <CompetencyMaturityDashboard 
@@ -3133,20 +3209,6 @@ function ClientAdminDashboard() {
         clientId={clientId}
         users={users}
         initialScope="organization"
-      />
-
-      {/* Competency Gap Analysis - Clear table view */}
-      <CompetencyGapAnalysis 
-        profile={profile}
-        clientId={clientId}
-        viewMode="manager"
-        maxRows={10}
-        showFilters={true}
-        onActionClick={(action, row) => {
-          if (action === 'coaching' || action === 'activity') {
-            setShowDevModal(true);
-          }
-        }}
       />
 
       {/* Organization Hierarchy */}
