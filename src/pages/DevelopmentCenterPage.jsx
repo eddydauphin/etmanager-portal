@@ -52,7 +52,9 @@ export default function DevelopmentCenterPage() {
     tag_ids: [],
     newTagName: '',
     newTagColor: '#3B82F6',
-    trainingOption: 'none',
+    trainingOption: 'none', // 'none', 'later', 'assign', 'generate', 'link'
+    training_developer_id: '',
+    training_due_date: '',
     linkedModuleId: '',
     generateTitle: '',
     assignments: [],
@@ -92,7 +94,7 @@ export default function DevelopmentCenterPage() {
   const loadCompetencies = async () => {
     try {
       const data = await dbFetch(
-        'competencies?select=*,competency_tag_links(tag_id,competency_tags(id,name,color)),competency_clients(client_id),competency_modules(module_id,target_level,training_modules(id,title,status))&is_active=eq.true&order=name.asc'
+        'competencies?select=*,training_developer:training_developer_id(id,full_name),competency_tag_links(tag_id,competency_tags(id,name,color)),competency_clients(client_id),competency_modules(module_id,target_level,training_modules(id,title,status))&is_active=eq.true&order=name.asc'
       );
       
       const transformed = (data || []).map(comp => ({
@@ -235,13 +237,23 @@ export default function DevelopmentCenterPage() {
   const openWizard = (competency = null) => {
     if (competency) {
       setEditingCompetency(competency);
+      // Determine training option based on existing data
+      let trainingOpt = 'none';
+      if (competency.hasTraining) {
+        trainingOpt = 'link';
+      } else if (competency.training_developer_id) {
+        trainingOpt = 'assign';
+      }
+      
       setWizardData({
         name: competency.name,
         description: competency.description || '',
         tag_ids: competency.tags?.map(t => t.id) || [],
         newTagName: '',
         newTagColor: '#3B82F6',
-        trainingOption: competency.hasTraining ? 'link' : 'none',
+        trainingOption: trainingOpt,
+        training_developer_id: competency.training_developer_id || '',
+        training_due_date: competency.training_due_date || '',
         linkedModuleId: competency.training_modules?.[0]?.id || '',
         generateTitle: `${competency.name} Training`,
         assignments: competency.assignments?.map(a => ({
@@ -260,6 +272,8 @@ export default function DevelopmentCenterPage() {
         newTagName: '',
         newTagColor: '#3B82F6',
         trainingOption: 'none',
+        training_developer_id: '',
+        training_due_date: '',
         linkedModuleId: '',
         generateTitle: '',
         assignments: []
@@ -412,12 +426,18 @@ Respond in JSON format only, no other text:
       let competencyId = editingCompetency?.id;
       
       // Create/Update Competency
+      // Determine training_developer_id based on option
+      const trainingDeveloperId = wizardData.trainingOption === 'assign' ? wizardData.training_developer_id : null;
+      const trainingDueDate = wizardData.trainingOption === 'assign' ? wizardData.training_due_date : null;
+      
       if (editingCompetency) {
         await dbFetch(`competencies?id=eq.${competencyId}`, {
           method: 'PATCH',
           body: JSON.stringify({
             name: wizardData.name,
-            description: wizardData.description
+            description: wizardData.description,
+            training_developer_id: trainingDeveloperId,
+            training_due_date: trainingDueDate || null
           })
         });
         await dbFetch(`competency_tag_links?competency_id=eq.${competencyId}`, { method: 'DELETE' });
@@ -428,6 +448,8 @@ Respond in JSON format only, no other text:
             name: wizardData.name,
             description: wizardData.description,
             is_active: true,
+            training_developer_id: trainingDeveloperId,
+            training_due_date: trainingDueDate || null,
             level_1_description: 'Awareness - Can recognize the topic',
             level_2_description: 'Knowledge - Can explain concepts',
             level_3_description: 'Practitioner - Can perform with supervision',
@@ -759,6 +781,11 @@ Respond in JSON format only, no other text:
                       <BookOpen className="w-3 h-3" />
                       Training
                     </span>
+                  ) : comp.training_developer_id ? (
+                    <span className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium" title={`Assigned to ${comp.training_developer?.full_name || 'someone'}`}>
+                      <Users className="w-3 h-3" />
+                      In Development
+                    </span>
                   ) : (
                     <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-medium">
                       <BookOpen className="w-3 h-3" />
@@ -967,21 +994,68 @@ Respond in JSON format only, no other text:
                   <p className="text-sm text-gray-600 mb-4">How will users develop this competency?</p>
                   
                   <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'none' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'none'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'none' })} className="mt-1" />
+                    <input type="radio" checked={wizardData.trainingOption === 'none'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'none', training_developer_id: '' })} className="mt-1" />
                     <div>
                       <p className="font-medium text-gray-900">No training module</p>
                       <p className="text-sm text-gray-500">Develop through coaching or on-the-job tasks only</p>
                     </div>
                   </label>
                   
-                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'generate' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'generate'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'generate' })} className="mt-1" />
+                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'later' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={wizardData.trainingOption === 'later'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'later', training_developer_id: '' })} className="mt-1" />
+                    <div>
+                      <p className="font-medium text-gray-900">Develop later</p>
+                      <p className="text-sm text-gray-500">Mark as "Training Needed" - assign developer later</p>
+                    </div>
+                  </label>
+                  
+                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'assign' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={wizardData.trainingOption === 'assign'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'assign' })} className="mt-1" />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-purple-500" />
+                        Assign to team member
+                      </p>
+                      <p className="text-sm text-gray-500">Delegate training development to someone in your team</p>
+                    </div>
+                  </label>
+                  
+                  {wizardData.trainingOption === 'assign' && (
+                    <div className="ml-7 p-4 bg-purple-50 rounded-lg border border-purple-200 space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Assign to *</label>
+                        <select 
+                          value={wizardData.training_developer_id} 
+                          onChange={(e) => setWizardData({ ...wizardData, training_developer_id: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                        >
+                          <option value="">Select team member...</option>
+                          {users.filter(u => u.id !== currentProfile?.id).map(user => (
+                            <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Due date</label>
+                        <input 
+                          type="date" 
+                          value={wizardData.training_due_date} 
+                          onChange={(e) => setWizardData({ ...wizardData, training_due_date: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                        />
+                      </div>
+                      <p className="text-xs text-purple-700">This will appear in their "Development Tasks" on the dashboard</p>
+                    </div>
+                  )}
+                  
+                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'generate' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" checked={wizardData.trainingOption === 'generate'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'generate', training_developer_id: '' })} className="mt-1" />
                     <div className="flex-1">
                       <p className="font-medium text-gray-900 flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-amber-500" />
                         Generate with AI
                       </p>
-                      <p className="text-sm text-gray-500">Create slides and quiz automatically</p>
+                      <p className="text-sm text-gray-500">Create slides and quiz automatically now</p>
                     </div>
                   </label>
                   
@@ -1007,7 +1081,7 @@ Respond in JSON format only, no other text:
                   )}
                   
                   <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'link' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'link'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'link' })} className="mt-1" />
+                    <input type="radio" checked={wizardData.trainingOption === 'link'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'link', training_developer_id: '' })} className="mt-1" />
                     <div className="flex-1">
                       <p className="font-medium text-gray-900 flex items-center gap-2"><Link className="w-4 h-4 text-blue-500" />Link existing training</p>
                       <p className="text-sm text-gray-500">Connect to an existing training module</p>
