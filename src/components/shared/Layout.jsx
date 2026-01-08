@@ -16,7 +16,8 @@ import {
   FileText,
   BookOpen,
   Network,
-  ClipboardList
+  ClipboardList,
+  Rocket
 } from 'lucide-react';
 
 // ============================================================================
@@ -28,6 +29,7 @@ const ALL_CAPABILITIES = {
   clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
   users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
   expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
+  development_center: { icon: Rocket, label: 'Development Center', path: '/development-center', description: 'Unified competency & training management' },
   competencies: { icon: Target, label: 'Competencies', path: '/competencies', description: 'Manage competency framework' },
   profiles: { icon: FileText, label: 'Profiles', path: '/profiles', description: 'Manage competency profiles' },
   development: { icon: ClipboardList, label: 'Development', path: '/development', description: 'Manage development activities' },
@@ -62,31 +64,31 @@ export function getDefaultCapabilities(role) {
     case 'super_admin':
       return {
         dashboard: true, clients: true, users: true, expert_network: true,
-        competencies: true, profiles: true, development: true, training: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'client_admin':
       return {
         dashboard: true, clients: false, users: true, expert_network: true,
-        competencies: true, profiles: true, development: true, training: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'category_admin':
       return {
         dashboard: true, clients: false, users: true, expert_network: false,
-        competencies: true, profiles: true, development: true, training: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'site_admin':
       return {
         dashboard: true, clients: false, users: true, expert_network: false,
-        competencies: true, profiles: true, development: true, training: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'team_lead':
       return {
         dashboard: true, clients: false, users: true, expert_network: false,
-        competencies: true, profiles: true, development: true, training: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true
       };
     case 'trainee':
@@ -139,7 +141,7 @@ function Layout() {
     // Define menu order
     const menuOrder = role === 'trainee' 
       ? ['dashboard', 'my_progress', 'my_plan', 'my_training', 'settings']
-      : ['dashboard', 'clients', 'users', 'expert_network', 'competencies', 'profiles', 'development', 'training', 'reports', 'settings'];
+      : ['dashboard', 'clients', 'users', 'expert_network', 'development_center', 'competencies', 'profiles', 'development', 'training', 'reports', 'settings'];
 
     menuOrder.forEach(capKey => {
       const config = ALL_CAPABILITIES[capKey];

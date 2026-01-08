@@ -21,6 +21,7 @@ import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
+import DevelopmentCenterPage from './pages/DevelopmentCenterPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -163,6 +164,13 @@ function AppRoutes() {
         <Route path="development" element={
           <ProtectedRoute requiredCapability="development">
             <DevelopmentActivitiesPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Development Center - unified competency & training management */}
+        <Route path="development-center" element={
+          <ProtectedRoute requiredCapability="competencies">
+            <DevelopmentCenterPage />
           </ProtectedRoute>
         } />
 
