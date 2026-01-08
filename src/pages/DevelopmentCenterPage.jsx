@@ -1,6 +1,6 @@
 // ============================================================================
-// DEVELOPMENT CENTER PAGE - REDESIGNED
-// Single guided wizard for: Competency → Tags → Training → Assignment
+// DEVELOPMENT CENTER PAGE - UNIFIED WORKFLOW
+// Combines: Competency Creation + Development Activities (Coaching/Task) + Training
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -25,7 +25,9 @@ import {
   Trash2,
   Link,
   Check,
-  Award
+  Award,
+  Briefcase,
+  Calendar
 } from 'lucide-react';
 
 export default function DevelopmentCenterPage() {
@@ -38,6 +40,7 @@ export default function DevelopmentCenterPage() {
   const [trainingModules, setTrainingModules] = useState([]);
   const [users, setUsers] = useState([]);
   const [tags, setTags] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // UI state
@@ -49,16 +52,31 @@ export default function DevelopmentCenterPage() {
   
   // Wizard form state
   const [wizardData, setWizardData] = useState({
+    // Step 1: Competency
     name: '',
     description: '',
     tag_ids: [],
     newTagName: '',
     newTagColor: '#3B82F6',
-    trainingOption: 'none', // 'none', 'later', 'assign', 'generate', 'link'
+    
+    // Step 2: Development Method
+    developmentMethod: 'training', // 'coaching', 'task', 'training'
+    
+    // For Coaching/Task
+    activityTitle: '',
+    activityDescription: '',
+    activityObjectives: '',
+    activitySuccessCriteria: '',
+    coach_id: '',
+    template_id: '',
+    
+    // For Training
+    trainingOption: 'none', // 'none', 'generate', 'link', 'assign_developer'
     training_developer_id: '',
-    training_due_date: '',
     linkedModuleId: '',
     generateTitle: '',
+    
+    // Step 3: Assignments
     assignments: [],
   });
   
@@ -67,9 +85,9 @@ export default function DevelopmentCenterPage() {
   const [generatedSlides, setGeneratedSlides] = useState([]);
   const [generatedQuiz, setGeneratedQuiz] = useState([]);
   const [formError, setFormError] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState(null); // competency to delete
-  const [userTrainingMap, setUserTrainingMap] = useState({}); // { oduleId_oduleId: status }
-  const [validateModal, setValidateModal] = useState(null); // { assignment, competency }
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [userTrainingMap, setUserTrainingMap] = useState({});
+  const [validateModal, setValidateModal] = useState(null);
 
   // ==========================================================================
   // DATA LOADING
@@ -88,6 +106,7 @@ export default function DevelopmentCenterPage() {
         loadTrainingModules(),
         loadUsers(),
         loadTags(),
+        loadTemplates(),
         loadUserTraining()
       ]);
     } catch (error) {
@@ -115,7 +134,9 @@ export default function DevelopmentCenterPage() {
       
       let filtered = transformed;
       if (currentProfile?.role !== 'super_admin' && clientId) {
-        filtered = transformed.filter(comp => comp.client_ids?.includes(clientId));
+        filtered = transformed.filter(comp => 
+          comp.client_ids.length === 0 || comp.client_ids.includes(clientId)
+        );
       }
       
       setCompetencies(filtered);
@@ -154,7 +175,6 @@ export default function DevelopmentCenterPage() {
         return;
       }
       
-      // Get user_competencies without FK join
       const ucData = await dbFetch(
         `user_competencies?select=*&user_id=in.(${userIds.join(',')})&order=created_at.desc`
       );
@@ -164,14 +184,12 @@ export default function DevelopmentCenterPage() {
         return;
       }
       
-      // Get user details separately
       const userProfiles = await dbFetch(
         `profiles?select=id,full_name,email&id=in.(${userIds.join(',')})`
       );
       const userMap = {};
       (userProfiles || []).forEach(u => userMap[u.id] = u);
       
-      // Get competency details separately  
       const compIds = [...new Set(ucData.map(uc => uc.competency_id).filter(Boolean))];
       let compMap = {};
       if (compIds.length > 0) {
@@ -181,7 +199,6 @@ export default function DevelopmentCenterPage() {
         (compData || []).forEach(c => compMap[c.id] = c);
       }
       
-      // Combine data
       const enriched = ucData.map(uc => ({
         ...uc,
         user: userMap[uc.user_id] || null,
@@ -234,21 +251,26 @@ export default function DevelopmentCenterPage() {
     }
   };
 
+  const loadTemplates = async () => {
+    try {
+      let url = 'activity_templates?select=*&is_active=eq.true&order=name.asc';
+      if (currentProfile?.role !== 'super_admin' && clientId) {
+        url += `&or=(client_id.eq.${clientId},client_id.is.null)`;
+      }
+      const data = await dbFetch(url);
+      setTemplates(data || []);
+    } catch (error) {
+      console.error('Error loading templates:', error);
+    }
+  };
+
   const loadUserTraining = async () => {
     try {
-      // Get all user_training records to know completion status
-      let url = 'user_training?select=user_id,module_id,status,score,completed_at';
-      const data = await dbFetch(url);
-      
-      // Create a map: { oduleId: { status, score, completed_at } }
+      const data = await dbFetch('user_training?select=user_id,module_id,status,score,completed_at');
       const map = {};
       (data || []).forEach(ut => {
         const key = `${ut.user_id}_${ut.module_id}`;
-        map[key] = {
-          status: ut.status,
-          score: ut.score,
-          completed_at: ut.completed_at
-        };
+        map[key] = { status: ut.status, score: ut.score, completed_at: ut.completed_at };
       });
       setUserTrainingMap(map);
     } catch (error) {
@@ -274,7 +296,7 @@ export default function DevelopmentCenterPage() {
       hasTraining: comp.training_modules?.some(tm => tm.status === 'published')
     };
   });
-  
+
   const filteredCompetencies = enrichedCompetencies.filter(comp =>
     comp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     comp.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -288,6 +310,7 @@ export default function DevelopmentCenterPage() {
   };
 
   const trainees = users.filter(u => u.role === 'trainee');
+  const coaches = users.filter(u => ['team_lead', 'client_admin', 'super_admin', 'expert'].includes(u.role));
 
   // ==========================================================================
   // WIZARD HANDLERS
@@ -296,12 +319,9 @@ export default function DevelopmentCenterPage() {
   const openWizard = (competency = null) => {
     if (competency) {
       setEditingCompetency(competency);
-      // Determine training option based on existing data
-      let trainingOpt = 'none';
-      if (competency.hasTraining) {
-        trainingOpt = 'link';
-      } else if (competency.training_developer_id) {
-        trainingOpt = 'assign';
+      let devMethod = 'training';
+      if (competency.training_developer_id) {
+        devMethod = 'training';
       }
       
       setWizardData({
@@ -310,16 +330,22 @@ export default function DevelopmentCenterPage() {
         tag_ids: competency.tags?.map(t => t.id) || [],
         newTagName: '',
         newTagColor: '#3B82F6',
-        trainingOption: trainingOpt,
+        developmentMethod: devMethod,
+        activityTitle: '',
+        activityDescription: '',
+        activityObjectives: '',
+        activitySuccessCriteria: '',
+        coach_id: '',
+        template_id: '',
+        trainingOption: competency.hasTraining ? 'link' : 'none',
         training_developer_id: competency.training_developer_id || '',
-        training_due_date: competency.training_due_date || '',
         linkedModuleId: competency.training_modules?.[0]?.id || '',
         generateTitle: `${competency.name} Training`,
         assignments: competency.assignments?.map(a => ({
           user_id: a.user_id,
+          current_level: a.current_level || 0,
           target_level: a.target_level || 3,
           due_date: a.due_date || '',
-          methods: ['training']
         })) || []
       });
     } else {
@@ -330,9 +356,15 @@ export default function DevelopmentCenterPage() {
         tag_ids: [],
         newTagName: '',
         newTagColor: '#3B82F6',
+        developmentMethod: 'training',
+        activityTitle: '',
+        activityDescription: '',
+        activityObjectives: '',
+        activitySuccessCriteria: '',
+        coach_id: '',
+        template_id: '',
         trainingOption: 'none',
         training_developer_id: '',
-        training_due_date: '',
         linkedModuleId: '',
         generateTitle: '',
         assignments: []
@@ -354,13 +386,11 @@ export default function DevelopmentCenterPage() {
 
   const handleDeleteCompetency = async (competency) => {
     try {
-      // Delete related records first
       await dbFetch(`competency_tag_links?competency_id=eq.${competency.id}`, { method: 'DELETE' });
       await dbFetch(`competency_clients?competency_id=eq.${competency.id}`, { method: 'DELETE' });
       await dbFetch(`competency_modules?competency_id=eq.${competency.id}`, { method: 'DELETE' });
       await dbFetch(`user_competencies?competency_id=eq.${competency.id}`, { method: 'DELETE' });
       
-      // Delete the competency (or soft delete by setting is_active = false)
       await dbFetch(`competencies?id=eq.${competency.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_active: false })
@@ -383,7 +413,7 @@ export default function DevelopmentCenterPage() {
         body: JSON.stringify({
           name: wizardData.newTagName.trim(),
           color: wizardData.newTagColor,
-          client_id: clientId || null
+          client_id: clientId
         })
       });
       
@@ -401,6 +431,24 @@ export default function DevelopmentCenterPage() {
     }
   };
 
+  const handleTemplateSelect = (templateId) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + (template.default_duration_days || 30));
+      
+      setWizardData(prev => ({
+        ...prev,
+        template_id: templateId,
+        developmentMethod: template.type === 'training' ? 'training' : template.type,
+        activityTitle: template.name,
+        activityDescription: template.description || '',
+        activityObjectives: template.objectives || '',
+        activitySuccessCriteria: template.success_criteria || '',
+      }));
+    }
+  };
+
   const handleGenerateContent = async () => {
     if (!wizardData.name) {
       setFormError('Please enter a competency name first');
@@ -413,32 +461,19 @@ export default function DevelopmentCenterPage() {
     try {
       console.log('Generating content for:', wizardData.name);
       
-      // Generate slides using the backend API
       const slidesResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
         },
         cache: 'no-store',
         body: JSON.stringify({
           type: 'slides',
           title: `${wizardData.name} Training`,
           description: wizardData.description || wizardData.name,
-          competency: {
-            name: wizardData.name,
-            description: wizardData.description || wizardData.name,
-            level_3_description: 'Can perform with supervision'
-          },
+          competency: { name: wizardData.name, description: wizardData.description || wizardData.name },
           targetLevel: 3,
-          levelDescriptions: {
-            1: 'Can recognize the topic',
-            2: 'Can explain concepts',
-            3: 'Can perform with supervision',
-            4: 'Works independently',
-            5: 'Can teach others'
-          },
           language: 'English',
           _nonce: `${Date.now()}-${Math.random()}`
         })
@@ -450,25 +485,16 @@ export default function DevelopmentCenterPage() {
       }
 
       const slidesData = await slidesResponse.json();
-      console.log('Generated slides:', slidesData.slides?.length);
       
-      // Generate quiz
       const quizResponse = await fetch(`/api/generate-training?t=${Date.now()}`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        },
+        headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({
           type: 'quiz',
           title: `${wizardData.name} Training`,
           description: wizardData.description || wizardData.name,
-          competency: {
-            name: wizardData.name,
-            description: wizardData.description || wizardData.name
-          },
+          competency: { name: wizardData.name, description: wizardData.description || wizardData.name },
           targetLevel: 3,
           language: 'English',
           _nonce: `${Date.now()}-${Math.random()}`
@@ -481,14 +507,10 @@ export default function DevelopmentCenterPage() {
       }
 
       const quizData = await quizResponse.json();
-      console.log('Generated quiz:', quizData.questions?.length);
       
       setGeneratedSlides(slidesData.slides || []);
       setGeneratedQuiz(quizData.questions || []);
-      setWizardData(prev => ({
-        ...prev,
-        generateTitle: `${wizardData.name} Training`
-      }));
+      setWizardData(prev => ({ ...prev, generateTitle: `${wizardData.name} Training` }));
       
     } catch (error) {
       console.error('Error generating content:', error);
@@ -511,7 +533,6 @@ export default function DevelopmentCenterPage() {
             current_level: 0,
             target_level: 3,
             due_date: '',
-            methods: wizardData.trainingOption !== 'none' ? ['training'] : ['coaching']
           }]
         };
       }
@@ -539,8 +560,8 @@ export default function DevelopmentCenterPage() {
       let competencyId = editingCompetency?.id;
       
       // Create/Update Competency
-      // Determine training_developer_id based on option
-      const trainingDeveloperId = wizardData.trainingOption === 'assign' ? wizardData.training_developer_id : null;
+      const trainingDeveloperId = wizardData.developmentMethod === 'training' && wizardData.trainingOption === 'assign_developer' 
+        ? wizardData.training_developer_id : null;
       
       if (editingCompetency) {
         await dbFetch(`competencies?id=eq.${competencyId}`, {
@@ -586,100 +607,93 @@ export default function DevelopmentCenterPage() {
         });
       }
       
-      // Handle Training
+      // Handle Development Method
       let moduleId = null;
       
-      if (wizardData.trainingOption === 'generate' && generatedSlides.length > 0) {
-        const moduleResult = await dbFetch('training_modules?select=id', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: wizardData.generateTitle || `${wizardData.name} Training`,
-            description: wizardData.description,
-            client_id: clientId,
-            status: 'draft',
-            pass_score: 80,
-            max_attempts: 3,
-            created_by: currentProfile?.id
-          })
-        });
-        moduleId = moduleResult?.[0]?.id;
-        
-        if (moduleId) {
-          for (let i = 0; i < generatedSlides.length; i++) {
-            const slide = generatedSlides[i];
-            await dbFetch('module_slides', {
-              method: 'POST',
-              body: JSON.stringify({
-                module_id: moduleId,
-                order_index: i,
-                title: slide.title,
-                content: slide.content,
-                key_points: slide.key_points
-              })
-            });
-          }
-          
-          for (let i = 0; i < generatedQuiz.length; i++) {
-            const q = generatedQuiz[i];
-            await dbFetch('module_questions', {
-              method: 'POST',
-              body: JSON.stringify({
-                module_id: moduleId,
-                order_index: i,
-                question: q.question,
-                options: q.options,
-                correct_answer: q.correct_answer,
-                explanation: q.explanation
-              })
-            });
-          }
-          
-          await dbFetch('competency_modules', {
+      if (wizardData.developmentMethod === 'training') {
+        // Training workflow
+        if (wizardData.trainingOption === 'generate' && generatedSlides.length > 0) {
+          const moduleResult = await dbFetch('training_modules?select=id', {
             method: 'POST',
             body: JSON.stringify({
-              competency_id: competencyId,
-              module_id: moduleId,
-              target_level: 3
+              title: wizardData.generateTitle || `${wizardData.name} Training`,
+              description: wizardData.description,
+              client_id: clientId,
+              status: 'draft',
+              pass_score: 80,
+              max_attempts: 3,
+              created_by: currentProfile?.id
             })
           });
-        }
-      } else if (wizardData.trainingOption === 'link' && wizardData.linkedModuleId) {
-        moduleId = wizardData.linkedModuleId;
-        const existing = await dbFetch(
-          `competency_modules?competency_id=eq.${competencyId}&module_id=eq.${moduleId}`
-        );
-        if (!existing || existing.length === 0) {
-          await dbFetch('competency_modules', {
-            method: 'POST',
-            body: JSON.stringify({
-              competency_id: competencyId,
-              module_id: moduleId,
-              target_level: 3
-            })
-          });
+          moduleId = moduleResult?.[0]?.id;
+          
+          if (moduleId) {
+            for (let i = 0; i < generatedSlides.length; i++) {
+              const slide = generatedSlides[i];
+              await dbFetch('module_slides', {
+                method: 'POST',
+                body: JSON.stringify({
+                  module_id: moduleId,
+                  order_index: i,
+                  title: slide.title,
+                  content: slide.content,
+                  key_points: slide.key_points
+                })
+              });
+            }
+            
+            for (let i = 0; i < generatedQuiz.length; i++) {
+              const q = generatedQuiz[i];
+              await dbFetch('module_questions', {
+                method: 'POST',
+                body: JSON.stringify({
+                  module_id: moduleId,
+                  order_index: i,
+                  question: q.question,
+                  options: q.options,
+                  correct_answer: q.correct_answer,
+                  explanation: q.explanation
+                })
+              });
+            }
+            
+            await dbFetch('competency_modules', {
+              method: 'POST',
+              body: JSON.stringify({ competency_id: competencyId, module_id: moduleId, target_level: 3 })
+            });
+          }
+        } else if (wizardData.trainingOption === 'link' && wizardData.linkedModuleId) {
+          moduleId = wizardData.linkedModuleId;
+          const existing = await dbFetch(`competency_modules?competency_id=eq.${competencyId}&module_id=eq.${moduleId}`);
+          if (!existing || existing.length === 0) {
+            await dbFetch('competency_modules', {
+              method: 'POST',
+              body: JSON.stringify({ competency_id: competencyId, module_id: moduleId, target_level: 3 })
+            });
+          }
         }
       }
       
-      // Handle Assignments
+      // Create user assignments and development activities
       for (const assignment of wizardData.assignments) {
         const existing = await dbFetch(
           `user_competencies?user_id=eq.${assignment.user_id}&competency_id=eq.${competencyId}`
         );
+        
+        const currentLevel = assignment.current_level || 0;
+        const isAlreadyCompetent = currentLevel >= assignment.target_level;
         
         if (existing && existing.length > 0) {
           await dbFetch(`user_competencies?id=eq.${existing[0].id}`, {
             method: 'PATCH',
             body: JSON.stringify({
               target_level: assignment.target_level,
-              current_level: assignment.current_level || existing[0].current_level || 0,
+              current_level: currentLevel,
               due_date: assignment.due_date || null,
-              status: (assignment.current_level || 0) >= assignment.target_level ? 'achieved' : 'in_progress'
+              status: isAlreadyCompetent ? 'achieved' : 'in_progress'
             })
           });
         } else {
-          const currentLevel = assignment.current_level || 0;
-          const isAlreadyCompetent = currentLevel >= assignment.target_level;
-          
           await dbFetch('user_competencies', {
             method: 'POST',
             body: JSON.stringify({
@@ -694,9 +708,33 @@ export default function DevelopmentCenterPage() {
           });
         }
         
-        // Only assign training if current_level < target (user has gap)
-        const hasGap = (assignment.current_level || 0) < assignment.target_level;
-        if (moduleId && hasGap && assignment.methods?.includes('training')) {
+        const hasGap = currentLevel < assignment.target_level;
+        
+        // Create development activity for coaching/task
+        if (hasGap && (wizardData.developmentMethod === 'coaching' || wizardData.developmentMethod === 'task')) {
+          await dbFetch('development_activities', {
+            method: 'POST',
+            body: JSON.stringify({
+              type: wizardData.developmentMethod,
+              title: wizardData.activityTitle || `${wizardData.name} - ${wizardData.developmentMethod}`,
+              description: wizardData.activityDescription || null,
+              objectives: wizardData.activityObjectives || null,
+              success_criteria: wizardData.activitySuccessCriteria || null,
+              trainee_id: assignment.user_id,
+              assigned_by: currentProfile?.id,
+              coach_id: wizardData.developmentMethod === 'coaching' ? wizardData.coach_id : null,
+              competency_id: competencyId,
+              target_level: assignment.target_level,
+              start_date: new Date().toISOString().split('T')[0],
+              due_date: assignment.due_date || null,
+              status: 'pending',
+              client_id: clientId
+            })
+          });
+        }
+        
+        // Assign training module
+        if (hasGap && wizardData.developmentMethod === 'training' && moduleId) {
           const existingTraining = await dbFetch(
             `user_training?user_id=eq.${assignment.user_id}&module_id=eq.${moduleId}`
           );
@@ -737,12 +775,10 @@ export default function DevelopmentCenterPage() {
     return 'text-red-600 bg-red-50';
   };
 
-  const tagColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
@@ -753,7 +789,7 @@ export default function DevelopmentCenterPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Development Center</h1>
-          <p className="text-gray-600 mt-1">Create competencies, training materials, and track progress</p>
+          <p className="text-gray-600 mt-1">Create competencies, assign development activities, and track progress</p>
         </div>
         <button
           onClick={() => openWizard()}
@@ -764,374 +800,302 @@ export default function DevelopmentCenterPage() {
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Target className="w-5 h-5 text-blue-600" />
-            </div>
+            <div className="p-2 bg-blue-50 rounded-lg"><Target className="w-5 h-5 text-blue-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalCompetencies}</p>
-              <p className="text-xs text-gray-500">Competencies</p>
+              <p className="text-sm text-gray-500">Competencies</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Users className="w-5 h-5 text-purple-600" />
-            </div>
+            <div className="p-2 bg-purple-50 rounded-lg"><Users className="w-5 h-5 text-purple-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalAssignments}</p>
-              <p className="text-xs text-gray-500">Assignments</p>
+              <p className="text-sm text-gray-500">Assignments</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-            </div>
+            <div className="p-2 bg-red-50 rounded-lg"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalGaps}</p>
-              <p className="text-xs text-gray-500">Gaps to Close</p>
+              <p className="text-sm text-gray-500">Gaps to Close</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-            </div>
+            <div className="p-2 bg-green-50 rounded-lg"><CheckCircle className="w-5 h-5 text-green-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalAchieved}</p>
-              <p className="text-xs text-gray-500">Achieved</p>
+              <p className="text-sm text-gray-500">Achieved</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-white rounded-xl shadow-sm p-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search competencies..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search competencies..."
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg"
           />
         </div>
       </div>
 
       {/* Competencies List */}
-      <div className="space-y-3">
+      <div className="bg-white rounded-xl shadow-sm">
         {filteredCompetencies.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <div className="p-12 text-center">
             <Target className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500 font-medium">No competencies yet</p>
-            <p className="text-gray-400 text-sm mt-1">Create your first competency to get started</p>
-            <button
-              onClick={() => openWizard()}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              New Competency
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No competencies yet</h3>
+            <p className="text-gray-500 mb-4">Get started by creating your first competency</p>
+            <button onClick={() => openWizard()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Create Competency
             </button>
           </div>
         ) : (
-          filteredCompetencies.map(comp => (
-            <div key={comp.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              {/* Header */}
-              <div
-                className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-                onClick={() => setExpandedId(expandedId === comp.id ? null : comp.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <button className="p-1 hover:bg-gray-100 rounded">
-                    {expandedId === comp.id ? (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    )}
-                  </button>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-gray-900">{comp.name}</h3>
-                      {comp.tags?.map(tag => (
-                        <span
-                          key={tag.id}
-                          className="px-2 py-0.5 rounded text-xs font-medium text-white"
-                          style={{ backgroundColor: tag.color || '#6B7280' }}
-                        >
-                          {tag.name}
-                        </span>
-                      ))}
-                    </div>
-                    {comp.description && (
+          <div className="divide-y divide-gray-100">
+            {filteredCompetencies.map(comp => (
+              <div key={comp.id} className="p-4">
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setExpandedId(expandedId === comp.id ? null : comp.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    {expandedId === comp.id ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-gray-900">{comp.name}</h3>
+                        {comp.tags?.map(tag => (
+                          <span key={tag.id} className="px-2 py-0.5 rounded-full text-xs font-medium text-white" style={{ backgroundColor: tag.color }}>
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
                       <p className="text-sm text-gray-500 mt-0.5">{comp.description}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-center px-3">
+                        <p className="font-bold text-gray-900">{comp.totalAssigned}</p>
+                        <p className="text-xs text-gray-500">Assigned</p>
+                      </div>
+                      <div className="text-center px-3">
+                        <p className="font-bold text-green-600">{comp.achieved}</p>
+                        <p className="text-xs text-gray-500">Achieved</p>
+                      </div>
+                      <div className="text-center px-3">
+                        <p className={`font-bold ${comp.gapCount > 0 ? 'text-red-600' : 'text-gray-400'}`}>{comp.gapCount}</p>
+                        <p className="text-xs text-gray-500">Gaps</p>
+                      </div>
+                    </div>
+                    
+                    {comp.hasTraining ? (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
+                        <BookOpen className="w-3 h-3" />Training
+                      </span>
+                    ) : comp.training_developer_id ? (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
+                        <Users className="w-3 h-3" />In Development
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-medium">
+                        <BookOpen className="w-3 h-3" />No Training
+                      </span>
                     )}
+                    
+                    <div className="flex items-center gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); openWizard(comp); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(comp); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="text-center px-3">
-                      <p className="font-bold text-gray-900">{comp.totalAssigned}</p>
-                      <p className="text-xs text-gray-500">Assigned</p>
-                    </div>
-                    <div className="text-center px-3">
-                      <p className="font-bold text-green-600">{comp.achieved}</p>
-                      <p className="text-xs text-gray-500">Achieved</p>
-                    </div>
-                    <div className="text-center px-3">
-                      <p className={`font-bold ${comp.gapCount > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                        {comp.gapCount}
-                      </p>
-                      <p className="text-xs text-gray-500">Gaps</p>
-                    </div>
-                  </div>
-                  
-                  {comp.hasTraining ? (
-                    <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
-                      <BookOpen className="w-3 h-3" />
-                      Training
-                    </span>
-                  ) : comp.training_developer_id ? (
-                    <span className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium" title={`Assigned to ${comp.training_developer?.full_name || 'someone'}`}>
-                      <Users className="w-3 h-3" />
-                      In Development
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-medium">
-                      <BookOpen className="w-3 h-3" />
-                      No Training
-                    </span>
-                  )}
-                  
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openWizard(comp);
-                      }}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="Edit"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteConfirm(comp);
-                      }}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Expanded */}
-              {expandedId === comp.id && (
-                <div className="border-t border-gray-100 p-4 bg-gray-50">
-                  {comp.assignments?.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-500 uppercase mb-3">Assigned Users</p>
-                      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">User</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Current</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Target</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Gap</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due</th>
-                              {comp.hasTraining && <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Actions</th>}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {comp.assignments.map(a => {
-                              const gap = (a.target_level || 3) - (a.current_level || 0);
-                              return (
-                                <tr key={a.id}>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-medium">
-                                        {a.user?.full_name?.charAt(0) || '?'}
+                {/* Expanded View */}
+                {expandedId === comp.id && (
+                  <div className="border-t border-gray-100 p-4 bg-gray-50 mt-4 rounded-lg">
+                    {comp.assignments?.length > 0 ? (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-3">Assigned Users</p>
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">User</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Current</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Target</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Gap</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {comp.assignments.map(a => {
+                                const gap = (a.target_level || 3) - (a.current_level || 0);
+                                const publishedModule = comp.training_modules?.find(tm => tm.status === 'published');
+                                const trainingKey = publishedModule ? `${a.user_id}_${publishedModule.id}` : null;
+                                const trainingStatus = trainingKey ? userTrainingMap[trainingKey] : null;
+                                
+                                return (
+                                  <tr key={a.id}>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-medium">
+                                          {a.user?.full_name?.charAt(0) || '?'}
+                                        </div>
+                                        <span className="font-medium text-gray-900">{a.user?.full_name}</span>
                                       </div>
-                                      <span className="font-medium text-gray-900">{a.user?.full_name}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                                      {a.current_level || 0}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
-                                      {a.target_level || 3}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getGapColor(a.current_level, a.target_level)}`}>
-                                      {gap <= 0 ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                      {gap <= 0 ? 'Done' : `-${gap}`}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500 text-xs">
-                                    {a.due_date ? new Date(a.due_date).toLocaleDateString() : '—'}
-                                  </td>
-                                  {comp.hasTraining && (
-                                    <td className="px-4 py-2 text-center">
-                                      {(() => {
-                                        const publishedModule = comp.training_modules?.find(tm => tm.status === 'published');
-                                        if (!publishedModule) return <span className="text-xs text-gray-400">No module</span>;
-                                        
-                                        const trainingKey = `${a.user_id}_${publishedModule.id}`;
-                                        const trainingStatus = userTrainingMap[trainingKey];
-                                        
-                                        // Training completed/passed - show Validate button
-                                        if (trainingStatus?.status === 'passed' || trainingStatus?.status === 'completed') {
-                                          if (gap > 0) {
-                                            return (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setValidateModal({ assignment: a, competency: comp, trainingStatus });
-                                                }}
-                                                className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 font-medium"
-                                              >
-                                                ✓ Validate Level
-                                              </button>
-                                            );
-                                          } else {
-                                            return <span className="text-xs text-green-600 font-medium">✓ Validated</span>;
-                                          }
-                                        }
-                                        
-                                        // Training in progress
-                                        if (trainingStatus?.status === 'in_progress') {
-                                          return <span className="text-xs text-blue-600">In Progress...</span>;
-                                        }
-                                        
-                                        // Training assigned but not started
-                                        if (trainingStatus?.status === 'pending') {
-                                          return <span className="text-xs text-gray-500">Assigned</span>;
-                                        }
-                                        
-                                        // Not assigned yet - show assign button
-                                        if (gap > 0) {
-                                          return (
-                                            <button
-                                              onClick={async (e) => {
-                                                e.stopPropagation();
-                                                try {
-                                                  await dbFetch('user_training', {
-                                                    method: 'POST',
-                                                    body: JSON.stringify({
-                                                      user_id: a.user_id,
-                                                      module_id: publishedModule.id,
-                                                      status: 'pending',
-                                                      due_date: a.due_date || null,
-                                                      assigned_by: currentProfile?.id
-                                                    })
-                                                  });
-                                                  await loadUserTraining();
-                                                  alert(`Training assigned to ${a.user?.full_name}`);
-                                                } catch (error) {
-                                                  console.error('Error assigning training:', error);
-                                                  alert('Failed to assign training');
-                                                }
-                                              }}
-                                              className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                                            >
-                                              Assign Training
-                                            </button>
-                                          );
-                                        }
-                                        
-                                        return <span className="text-xs text-green-600">✓ Complete</span>;
-                                      })()}
                                     </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                                    <td className="px-4 py-2 text-center">
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                                        {a.current_level || 0}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
+                                        {a.target_level || 3}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getGapColor(a.current_level, a.target_level)}`}>
+                                        {gap <= 0 ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                        {gap <= 0 ? 'Done' : `-${gap}`}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 text-xs">
+                                      {a.due_date ? new Date(a.due_date).toLocaleDateString() : '—'}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      {gap <= 0 ? (
+                                        <span className="text-xs text-green-600 font-medium">✓ Complete</span>
+                                      ) : trainingStatus?.status === 'passed' || trainingStatus?.status === 'completed' ? (
+                                        <button
+                                          onClick={() => setValidateModal({ assignment: a, competency: comp, trainingStatus })}
+                                          className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 font-medium"
+                                        >
+                                          ✓ Validate Level
+                                        </button>
+                                      ) : trainingStatus?.status === 'in_progress' ? (
+                                        <span className="text-xs text-blue-600">In Progress...</span>
+                                      ) : trainingStatus?.status === 'pending' ? (
+                                        <span className="text-xs text-gray-500">Training Assigned</span>
+                                      ) : publishedModule ? (
+                                        <button
+                                          onClick={async () => {
+                                            try {
+                                              await dbFetch('user_training', {
+                                                method: 'POST',
+                                                body: JSON.stringify({
+                                                  user_id: a.user_id,
+                                                  module_id: publishedModule.id,
+                                                  status: 'pending',
+                                                  due_date: a.due_date || null,
+                                                  assigned_by: currentProfile?.id
+                                                })
+                                              });
+                                              await loadUserTraining();
+                                              alert(`Training assigned to ${a.user?.full_name}`);
+                                            } catch (error) {
+                                              alert('Failed to assign training');
+                                            }
+                                          }}
+                                          className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                                        >
+                                          Assign Training
+                                        </button>
+                                      ) : (
+                                        <span className="text-xs text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-6">
-                      <Users className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                      <p className="text-gray-500 text-sm">No users assigned yet</p>
-                      <button
-                        onClick={() => openWizard(comp)}
-                        className="mt-2 text-blue-600 hover:underline text-sm"
-                      >
-                        Edit & Assign Users →
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))
+                    ) : (
+                      <div className="text-center py-6">
+                        <Users className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+                        <p className="text-gray-500 text-sm">No users assigned yet</p>
+                        <button onClick={() => openWizard(comp)} className="mt-2 text-blue-600 hover:underline text-sm">
+                          Edit & Assign Users →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
+      {/* ======================================================================== */}
       {/* WIZARD MODAL */}
+      {/* ======================================================================== */}
       {showWizard && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">
                   {editingCompetency ? 'Edit Competency' : 'New Competency'}
                 </h2>
-                <div className="flex items-center gap-2 mt-2">
-                  {[1, 2, 3].map(step => (
-                    <div key={step} className="flex items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        wizardStep === step ? 'bg-blue-600 text-white' :
-                        wizardStep > step ? 'bg-green-500 text-white' :
-                        'bg-gray-200 text-gray-500'
-                      }`}>
-                        {wizardStep > step ? <Check className="w-4 h-4" /> : step}
-                      </div>
-                      {step < 3 && (
-                        <div className={`w-12 h-1 mx-1 rounded ${wizardStep > step ? 'bg-green-500' : 'bg-gray-200'}`} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {wizardStep === 1 && 'Define competency & tags'}
-                  {wizardStep === 2 && 'Training material'}
-                  {wizardStep === 3 && 'Assign to users'}
-                </p>
+                <button onClick={closeWizard} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button onClick={closeWizard} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
+              
+              {/* Progress */}
+              <div className="flex items-center gap-2 mt-4">
+                {[1, 2, 3].map(step => (
+                  <div key={step} className="flex items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      wizardStep > step ? 'bg-green-500 text-white' : wizardStep === step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {wizardStep > step ? <Check className="w-4 h-4" /> : step}
+                    </div>
+                    {step < 3 && <div className={`w-12 h-1 mx-1 ${wizardStep > step ? 'bg-green-500' : 'bg-gray-200'}`} />}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-gray-500 mt-2">
+                {wizardStep === 1 && 'Define competency & tags'}
+                {wizardStep === 2 && 'Development method'}
+                {wizardStep === 3 && 'Assign to users'}
+              </p>
             </div>
             
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {formError && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  {formError}
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-red-700">
+                  <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm">{formError}</span>
                 </div>
               )}
               
-              {/* STEP 1 */}
+              {/* STEP 1: Competency & Tags */}
               {wizardStep === 1 && (
                 <div className="space-y-4">
                   <div>
@@ -1140,8 +1104,8 @@ export default function DevelopmentCenterPage() {
                       type="text"
                       value={wizardData.name}
                       onChange={(e) => setWizardData({ ...wizardData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Spray Drying Operations"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                      placeholder="e.g., 5S Management"
                     />
                   </div>
                   
@@ -1150,172 +1114,285 @@ export default function DevelopmentCenterPage() {
                     <textarea
                       value={wizardData.description}
                       onChange={(e) => setWizardData({ ...wizardData, description: e.target.value })}
-                      rows={2}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                      placeholder="Brief description..."
+                      rows={3}
+                      placeholder="What does this competency cover?"
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {wizardData.tag_ids.map(tagId => {
-                        const tag = tags.find(t => t.id === tagId);
-                        return tag ? (
-                          <span key={tagId} className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm font-medium text-white" style={{ backgroundColor: tag.color || '#3B82F6' }}>
-                            {tag.name}
-                            <button onClick={() => setWizardData({ ...wizardData, tag_ids: wizardData.tag_ids.filter(id => id !== tagId) })} className="hover:bg-white/20 rounded">
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ) : null;
-                      })}
-                      {wizardData.tag_ids.length === 0 && <span className="text-gray-400 text-sm">No tags selected</span>}
-                    </div>
+                    {wizardData.tag_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {wizardData.tag_ids.map(tagId => {
+                          const tag = tags.find(t => t.id === tagId);
+                          return tag ? (
+                            <span key={tagId} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white" style={{ backgroundColor: tag.color }}>
+                              {tag.name}
+                              <button onClick={() => setWizardData({ ...wizardData, tag_ids: wizardData.tag_ids.filter(id => id !== tagId) })} className="hover:bg-white/20 rounded-full p-0.5">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                    
                     <div className="flex flex-wrap gap-2 mb-3">
                       {tags.filter(t => !wizardData.tag_ids.includes(t.id)).map(tag => (
-                        <button key={tag.id} onClick={() => setWizardData({ ...wizardData, tag_ids: [...wizardData.tag_ids, tag.id] })} className="px-2 py-1 rounded text-sm border border-gray-200 hover:bg-gray-50" style={{ color: tag.color || '#3B82F6' }}>
+                        <button
+                          key={tag.id}
+                          onClick={() => setWizardData({ ...wizardData, tag_ids: [...wizardData.tag_ids, tag.id] })}
+                          className="px-2 py-1 rounded-full text-xs font-medium border border-gray-200 hover:border-gray-400"
+                          style={{ color: tag.color }}
+                        >
                           + {tag.name}
                         </button>
                       ))}
                     </div>
-                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                      <Tag className="w-4 h-4 text-gray-400" />
-                      <input type="text" value={wizardData.newTagName} onChange={(e) => setWizardData({ ...wizardData, newTagName: e.target.value })} placeholder="New tag name..." className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded" />
+                    
+                    <div className="flex gap-2 items-center p-3 bg-gray-50 rounded-lg">
+                      <input
+                        type="text"
+                        value={wizardData.newTagName}
+                        onChange={(e) => setWizardData({ ...wizardData, newTagName: e.target.value })}
+                        placeholder="New tag name"
+                        className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded"
+                      />
                       <div className="flex gap-1">
-                        {tagColors.map(color => (
-                          <button key={color} onClick={() => setWizardData({ ...wizardData, newTagColor: color })} className={`w-6 h-6 rounded-full border-2 ${wizardData.newTagColor === color ? 'border-gray-900' : 'border-transparent'}`} style={{ backgroundColor: color }} />
+                        {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'].map(color => (
+                          <button
+                            key={color}
+                            onClick={() => setWizardData({ ...wizardData, newTagColor: color })}
+                            className={`w-6 h-6 rounded-full ${wizardData.newTagColor === color ? 'ring-2 ring-offset-2 ring-gray-400' : ''}`}
+                            style={{ backgroundColor: color }}
+                          />
                         ))}
                       </div>
-                      <button onClick={handleCreateTag} disabled={!wizardData.newTagName.trim()} className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">Add</button>
+                      <button
+                        onClick={handleCreateTag}
+                        disabled={!wizardData.newTagName.trim()}
+                        className="px-3 py-1 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
+                      >
+                        Add
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
               
-              {/* STEP 2 */}
+              {/* STEP 2: Development Method */}
               {wizardStep === 2 && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 mb-4">How will users develop this competency?</p>
                   
-                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'none' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'none'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'none', training_developer_id: '' })} className="mt-1" />
-                    <div>
-                      <p className="font-medium text-gray-900">No training module</p>
-                      <p className="text-sm text-gray-500">Develop through coaching or on-the-job tasks only</p>
+                  {/* Use Template */}
+                  {templates.length > 0 && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Use Template (Optional)</label>
+                      <select
+                        value={wizardData.template_id}
+                        onChange={(e) => handleTemplateSelect(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                      >
+                        <option value="">-- Select a template --</option>
+                        {templates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.type})</option>
+                        ))}
+                      </select>
                     </div>
-                  </label>
+                  )}
                   
-                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'later' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'later'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'later', training_developer_id: '' })} className="mt-1" />
-                    <div>
-                      <p className="font-medium text-gray-900">Develop later</p>
-                      <p className="text-sm text-gray-500">Mark as "Training Needed" - assign developer later</p>
-                    </div>
-                  </label>
+                  {/* Method Selection */}
+                  <div className="flex gap-4">
+                    {[
+                      { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Learn from others' },
+                      { value: 'task', label: 'Task', icon: Briefcase, desc: 'Learn by doing' },
+                      { value: 'training', label: 'Training', icon: BookOpen, desc: 'Formal learning' }
+                    ].map(type => {
+                      const Icon = type.icon;
+                      return (
+                        <label
+                          key={type.value}
+                          className={`flex-1 p-4 border rounded-xl cursor-pointer transition-colors ${
+                            wizardData.developmentMethod === type.value 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            value={type.value}
+                            checked={wizardData.developmentMethod === type.value}
+                            onChange={(e) => setWizardData({ ...wizardData, developmentMethod: e.target.value })}
+                            className="sr-only"
+                          />
+                          <Icon className={`w-6 h-6 mb-2 ${wizardData.developmentMethod === type.value ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <div className="font-medium">{type.label}</div>
+                          <div className="text-xs text-gray-500">{type.desc}</div>
+                        </label>
+                      );
+                    })}
+                  </div>
                   
-                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'assign' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'assign'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'assign' })} className="mt-1" />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 flex items-center gap-2">
-                        <Users className="w-4 h-4 text-purple-500" />
-                        Assign to team member
-                      </p>
-                      <p className="text-sm text-gray-500">Delegate training development to someone in your team</p>
-                    </div>
-                  </label>
-                  
-                  {wizardData.trainingOption === 'assign' && (
-                    <div className="ml-7 p-4 bg-purple-50 rounded-lg border border-purple-200 space-y-3">
+                  {/* Coaching Fields */}
+                  {wizardData.developmentMethod === 'coaching' && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Assign to *</label>
-                        <select 
-                          value={wizardData.training_developer_id} 
-                          onChange={(e) => setWizardData({ ...wizardData, training_developer_id: e.target.value })}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Coach/Mentor *</label>
+                        <select
+                          value={wizardData.coach_id}
+                          onChange={(e) => setWizardData({ ...wizardData, coach_id: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                         >
-                          <option value="">Select team member...</option>
-                          {users.filter(u => u.id !== currentProfile?.id).map(user => (
+                          <option value="">-- Select coach --</option>
+                          {coaches.map(user => (
                             <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Due date</label>
-                        <input 
-                          type="date" 
-                          value={wizardData.training_due_date} 
-                          onChange={(e) => setWizardData({ ...wizardData, training_due_date: e.target.value })}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Activity Title *</label>
+                        <input
+                          type="text"
+                          value={wizardData.activityTitle}
+                          onChange={(e) => setWizardData({ ...wizardData, activityTitle: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                          placeholder="e.g., Safety Observation Coaching"
                         />
                       </div>
-                      <p className="text-xs text-purple-700">This will appear in their "Development Tasks" on the dashboard</p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea value={wizardData.activityDescription} onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What is this activity about?" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Objectives</label>
+                        <textarea value={wizardData.activityObjectives} onChange={(e) => setWizardData({ ...wizardData, activityObjectives: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What should the trainee achieve?" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Success Criteria</label>
+                        <textarea value={wizardData.activitySuccessCriteria} onChange={(e) => setWizardData({ ...wizardData, activitySuccessCriteria: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="How will success be measured?" />
+                      </div>
                     </div>
                   )}
                   
-                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'generate' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'generate'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'generate', training_developer_id: '' })} className="mt-1" />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-amber-500" />
-                        Generate with AI
-                      </p>
-                      <p className="text-sm text-gray-500">Create slides and quiz automatically now</p>
+                  {/* Task Fields */}
+                  {wizardData.developmentMethod === 'task' && (
+                    <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Task Title *</label>
+                        <input
+                          type="text"
+                          value={wizardData.activityTitle}
+                          onChange={(e) => setWizardData({ ...wizardData, activityTitle: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                          placeholder="e.g., Complete SOP Review"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea value={wizardData.activityDescription} onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What is this task about?" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Objectives</label>
+                        <textarea value={wizardData.activityObjectives} onChange={(e) => setWizardData({ ...wizardData, activityObjectives: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What should the trainee achieve?" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Success Criteria</label>
+                        <textarea value={wizardData.activitySuccessCriteria} onChange={(e) => setWizardData({ ...wizardData, activitySuccessCriteria: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="How will success be measured?" />
+                      </div>
                     </div>
-                  </label>
+                  )}
                   
-                  {wizardData.trainingOption === 'generate' && (
-                    <div className="ml-7 p-4 bg-amber-50 rounded-lg border border-amber-200">
-                      {generatedSlides.length === 0 ? (
-                        <div className="text-center">
-                          <button onClick={handleGenerateContent} disabled={generating || !wizardData.name} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 inline-flex items-center gap-2">
-                            {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Sparkles className="w-4 h-4" />Generate Content</>}
-                          </button>
-                          <p className="text-xs text-amber-700 mt-2">Will create 5-7 slides and 5 quiz questions</p>
-                        </div>
-                      ) : (
+                  {/* Training Fields */}
+                  {wizardData.developmentMethod === 'training' && (
+                    <div className="mt-4 space-y-3">
+                      <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'none' ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <input type="radio" checked={wizardData.trainingOption === 'none'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'none' })} className="mt-1" />
                         <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Content Generated!</p>
-                            <button onClick={handleGenerateContent} className="text-sm text-amber-700 hover:underline">Regenerate</button>
-                          </div>
-                          <p className="text-sm text-gray-600">{generatedSlides.length} slides, {generatedQuiz.length} quiz questions</p>
+                          <p className="font-medium text-gray-900">No training module yet</p>
+                          <p className="text-sm text-gray-500">Will assign training later</p>
+                        </div>
+                      </label>
+                      
+                      <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'assign_developer' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <input type="radio" checked={wizardData.trainingOption === 'assign_developer'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'assign_developer' })} className="mt-1" />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" />Assign to developer</p>
+                          <p className="text-sm text-gray-500">Delegate training creation to a team member</p>
+                        </div>
+                      </label>
+                      
+                      {wizardData.trainingOption === 'assign_developer' && (
+                        <div className="ml-7 p-3 bg-purple-50 rounded-lg">
+                          <select value={wizardData.training_developer_id} onChange={(e) => setWizardData({ ...wizardData, training_developer_id: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                            <option value="">Select developer...</option>
+                            {users.filter(u => u.id !== currentProfile?.id).map(user => (
+                              <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
+                            ))}
+                          </select>
                         </div>
                       )}
-                    </div>
-                  )}
-                  
-                  <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'link' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" checked={wizardData.trainingOption === 'link'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'link', training_developer_id: '' })} className="mt-1" />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 flex items-center gap-2"><Link className="w-4 h-4 text-blue-500" />Link existing training</p>
-                      <p className="text-sm text-gray-500">Connect to an existing training module</p>
-                    </div>
-                  </label>
-                  
-                  {wizardData.trainingOption === 'link' && (
-                    <div className="ml-7">
-                      <select value={wizardData.linkedModuleId} onChange={(e) => setWizardData({ ...wizardData, linkedModuleId: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
-                        <option value="">Select a training module...</option>
-                        {trainingModules.map(tm => (
-                          <option key={tm.id} value={tm.id}>{tm.title} {tm.status === 'published' ? '✓' : '(draft)'}</option>
-                        ))}
-                      </select>
+                      
+                      <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'generate' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <input type="radio" checked={wizardData.trainingOption === 'generate'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'generate' })} className="mt-1" />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" />Generate with AI</p>
+                          <p className="text-sm text-gray-500">Create slides and quiz automatically</p>
+                        </div>
+                      </label>
+                      
+                      {wizardData.trainingOption === 'generate' && (
+                        <div className="ml-7 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                          {generatedSlides.length === 0 ? (
+                            <div className="text-center">
+                              <button onClick={handleGenerateContent} disabled={generating || !wizardData.name} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 inline-flex items-center gap-2">
+                                {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Sparkles className="w-4 h-4" />Generate Content</>}
+                              </button>
+                              <p className="text-xs text-amber-700 mt-2">Will create 5-7 slides and quiz questions</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Content Generated!</p>
+                              <p className="text-sm text-gray-600">{generatedSlides.length} slides, {generatedQuiz.length} quiz questions</p>
+                              <button onClick={handleGenerateContent} className="text-sm text-amber-700 hover:underline mt-1">Regenerate</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'link' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <input type="radio" checked={wizardData.trainingOption === 'link'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'link' })} className="mt-1" />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 flex items-center gap-2"><Link className="w-4 h-4 text-blue-500" />Link existing training</p>
+                          <p className="text-sm text-gray-500">Connect to an existing module</p>
+                        </div>
+                      </label>
+                      
+                      {wizardData.trainingOption === 'link' && (
+                        <div className="ml-7">
+                          <select value={wizardData.linkedModuleId} onChange={(e) => setWizardData({ ...wizardData, linkedModuleId: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                            <option value="">Select training module...</option>
+                            {trainingModules.map(tm => (
+                              <option key={tm.id} value={tm.id}>{tm.title} {tm.status === 'published' ? '✓' : '(draft)'}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
               
-              {/* STEP 3 */}
+              {/* STEP 3: Assign Users */}
               {wizardStep === 3 && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-4">Assign this competency to team members with target levels</p>
+                  <p className="text-sm text-gray-600 mb-4">Assign this competency to team members</p>
                   
                   {trainees.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
                       <p>No trainees found</p>
-                      <p className="text-sm">You can skip this step and assign later</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1334,18 +1411,13 @@ export default function DevelopmentCenterPage() {
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <div>
                                     <label className="text-xs text-gray-500">Current</label>
-                                    <select 
-                                      value={assignment.current_level || 0} 
-                                      onChange={(e) => updateAssignment(user.id, 'current_level', parseInt(e.target.value))} 
-                                      className="block w-20 px-2 py-1 text-sm border border-gray-200 rounded"
-                                    >
-                                      <option value={0}>0</option>
-                                      {[1, 2, 3, 4].map(l => <option key={l} value={l}>{l}</option>)}
+                                    <select value={assignment.current_level || 0} onChange={(e) => updateAssignment(user.id, 'current_level', parseInt(e.target.value))} className="block w-16 px-2 py-1 text-sm border border-gray-200 rounded">
+                                      {[0, 1, 2, 3, 4].map(l => <option key={l} value={l}>{l}</option>)}
                                     </select>
                                   </div>
                                   <div>
                                     <label className="text-xs text-gray-500">Target</label>
-                                    <select value={assignment.target_level} onChange={(e) => updateAssignment(user.id, 'target_level', parseInt(e.target.value))} className="block w-20 px-2 py-1 text-sm border border-gray-200 rounded">
+                                    <select value={assignment.target_level} onChange={(e) => updateAssignment(user.id, 'target_level', parseInt(e.target.value))} className="block w-16 px-2 py-1 text-sm border border-gray-200 rounded">
                                       {[1, 2, 3, 4, 5].map(l => <option key={l} value={l}>{l}</option>)}
                                     </select>
                                   </div>
@@ -1357,9 +1429,7 @@ export default function DevelopmentCenterPage() {
                               )}
                             </div>
                             {isSelected && (assignment.current_level || 0) > 0 && (
-                              <p className="text-xs text-green-600 mt-2 ml-7">
-                                ✓ Will be validated at Level {assignment.current_level} (prior experience)
-                              </p>
+                              <p className="text-xs text-green-600 mt-2 ml-7">✓ Will be validated at Level {assignment.current_level} (prior experience)</p>
                             )}
                           </div>
                         );
@@ -1367,11 +1437,10 @@ export default function DevelopmentCenterPage() {
                     </div>
                   )}
                   
-                  {/* Level 5 Note */}
                   <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-xs text-amber-700 flex items-center gap-2">
                       <Award className="w-4 h-4" />
-                      <span><strong>Level 5 (Expert)</strong> cannot be granted directly. It requires nomination and approval through the Expert Network.</span>
+                      <span><strong>Level 5 (Expert)</strong> requires nomination through the Expert Network.</span>
                     </p>
                   </div>
                 </div>
@@ -1398,11 +1467,24 @@ export default function DevelopmentCenterPage() {
                       setFormError('Please enter a competency name');
                       return;
                     }
+                    if (wizardStep === 2) {
+                      if (wizardData.developmentMethod === 'coaching' && !wizardData.coach_id) {
+                        setFormError('Please select a coach');
+                        return;
+                      }
+                      if (wizardData.developmentMethod === 'coaching' && !wizardData.activityTitle) {
+                        setFormError('Please enter an activity title');
+                        return;
+                      }
+                      if (wizardData.developmentMethod === 'task' && !wizardData.activityTitle) {
+                        setFormError('Please enter a task title');
+                        return;
+                      }
+                    }
                     setFormError('');
                     setWizardStep(wizardStep + 1);
                   }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                    Next
-                    <ChevronRight className="w-4 h-4" />
+                    Next <ChevronRight className="w-4 h-4" />
                   </button>
                 ) : (
                   <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
@@ -1420,30 +1502,14 @@ export default function DevelopmentCenterPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-red-100 rounded-full">
-                <Trash2 className="w-6 h-6 text-red-600" />
-              </div>
+              <div className="p-2 bg-red-100 rounded-full"><Trash2 className="w-6 h-6 text-red-600" /></div>
               <h3 className="text-lg font-semibold text-gray-900">Delete Competency</h3>
             </div>
-            <p className="text-gray-600 mb-2">
-              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              This will also remove all user assignments and training links. This action cannot be undone.
-            </p>
+            <p className="text-gray-600 mb-2">Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?</p>
+            <p className="text-sm text-gray-500 mb-6">This will also remove all user assignments. This action cannot be undone.</p>
             <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteCompetency(deleteConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete
-              </button>
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => handleDeleteCompetency(deleteConfirm)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
@@ -1454,68 +1520,33 @@ export default function DevelopmentCenterPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-amber-100 rounded-full">
-                <Award className="w-6 h-6 text-amber-600" />
-              </div>
+              <div className="p-2 bg-amber-100 rounded-full"><Award className="w-6 h-6 text-amber-600" /></div>
               <h3 className="text-lg font-semibold text-gray-900">Validate Competency Level</h3>
             </div>
             
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-800 font-medium">
-                  ✓ {validateModal.assignment.user?.full_name} passed the training
-                </p>
-                {validateModal.trainingStatus?.score && (
-                  <p className="text-sm text-green-700">Score: {validateModal.trainingStatus.score}%</p>
-                )}
+                <p className="text-sm text-green-800 font-medium">✓ {validateModal.assignment.user?.full_name} passed the training</p>
+                {validateModal.trainingStatus?.score && <p className="text-sm text-green-700">Score: {validateModal.trainingStatus.score}%</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Set achieved level for "{validateModal.competency.name}"
-                </label>
-                <select
-                  id="validateLevel"
-                  defaultValue={Math.min(validateModal.assignment.target_level || 3, 4)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-2">Set achieved level for "{validateModal.competency.name}"</label>
+                <select id="validateLevel" defaultValue={Math.min(validateModal.assignment.target_level || 3, 4)} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
                   {[1, 2, 3, 4].map(level => (
-                    <option key={level} value={level}>
-                      Level {level} {level === validateModal.assignment.target_level ? '(Target)' : ''}
-                    </option>
+                    <option key={level} value={level}>Level {level} {level === validateModal.assignment.target_level ? '(Target)' : ''}</option>
                   ))}
                 </select>
-                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                  <Award className="w-3 h-3" />
-                  Level 5 (Expert) requires nomination to the Expert Network
-                </p>
+                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Award className="w-3 h-3" />Level 5 (Expert) requires nomination to Expert Network</p>
               </div>
-              
-              <p className="text-xs text-gray-500">
-                Current level: {validateModal.assignment.current_level || 0} → 
-                Target: {validateModal.assignment.target_level || 3}
-              </p>
             </div>
             
             <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setValidateModal(null)}
-                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+              <button onClick={() => setValidateModal(null)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
               <button
                 onClick={async () => {
                   try {
-                    const levelSelect = document.getElementById('validateLevel');
-                    const newLevel = parseInt(levelSelect.value);
-                    
-                    if (newLevel >= 5) {
-                      alert('Level 5 requires nomination to the Expert Network. Please use the Expert Network page to nominate.');
-                      return;
-                    }
-                    
-                    // Update user_competencies
+                    const newLevel = parseInt(document.getElementById('validateLevel').value);
                     await dbFetch(`user_competencies?id=eq.${validateModal.assignment.id}`, {
                       method: 'PATCH',
                       body: JSON.stringify({
@@ -1524,12 +1555,10 @@ export default function DevelopmentCenterPage() {
                         last_assessed: new Date().toISOString()
                       })
                     });
-                    
                     setValidateModal(null);
                     await loadData();
                     alert(`${validateModal.assignment.user?.full_name}'s level updated to ${newLevel}`);
                   } catch (error) {
-                    console.error('Error validating level:', error);
                     alert('Failed to validate level');
                   }
                 }}

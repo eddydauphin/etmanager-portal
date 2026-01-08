@@ -1857,53 +1857,107 @@ function TeamLeadDashboard() {
             setRecentActivity([]);
           }
           
-          // Load pending validations - training completed but competency not updated
+          // ================================================================
+          // UNIFIED PENDING VALIDATIONS - All types sorted by due date
+          // ================================================================
+          const allPendingValidations = [];
+          
+          // 1. Training completed but competency not updated
           const completedTrainingIds = recentTraining?.filter(t => t.status === 'passed' || t.status === 'completed') || [];
-          if (completedTrainingIds.length > 0) {
-            const pendingList = [];
+          for (const training of completedTrainingIds) {
+            const competencyModule = await dbFetch(
+              `competency_modules?select=competency_id,competencies(id,name)&module_id=eq.${training.module_id}`
+            );
             
-            for (const training of completedTrainingIds) {
-              // Find the competency linked to this training module
-              const competencyModule = await dbFetch(
-                `competency_modules?select=competency_id,competencies(id,name)&module_id=eq.${training.module_id}`
+            if (competencyModule && competencyModule.length > 0) {
+              const compId = competencyModule[0].competency_id;
+              const userComp = await dbFetch(
+                `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${compId}`
               );
               
-              if (competencyModule && competencyModule.length > 0) {
-                const compId = competencyModule[0].competency_id;
+              if (userComp && userComp.length > 0) {
+                const uc = userComp[0];
+                const hasGap = (uc.current_level || 0) < (uc.target_level || 3);
                 
-                // Check if user has this competency and if current_level < target_level
-                const userComp = await dbFetch(
-                  `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${compId}`
-                );
-                
-                if (userComp && userComp.length > 0) {
-                  const uc = userComp[0];
-                  const hasGap = (uc.current_level || 0) < (uc.target_level || 3);
+                if (hasGap) {
+                  const userInfo = await dbFetch(`profiles?select=full_name&id=eq.${training.user_id}`);
                   
-                  if (hasGap) {
-                    // Get user info
-                    const userInfo = await dbFetch(`profiles?select=full_name&id=eq.${training.user_id}`);
-                    
-                    pendingList.push({
-                      id: uc.id,
-                      user_id: training.user_id,
-                      user_name: userInfo?.[0]?.full_name || 'Unknown',
-                      competency_id: compId,
-                      competency_name: competencyModule[0].competencies?.name || 'Unknown',
-                      current_level: uc.current_level || 0,
-                      target_level: uc.target_level || 3,
-                      training_score: training.score,
-                      completed_at: training.completed_at
-                    });
-                  }
+                  allPendingValidations.push({
+                    id: `training_${uc.id}`,
+                    type: 'training',
+                    user_id: training.user_id,
+                    user_name: userInfo?.[0]?.full_name || 'Unknown',
+                    competency_id: compId,
+                    competency_name: competencyModule[0].competencies?.name || 'Unknown',
+                    title: competencyModule[0].competencies?.name || 'Training',
+                    current_level: uc.current_level || 0,
+                    target_level: uc.target_level || 3,
+                    score: training.score,
+                    completed_at: training.completed_at,
+                    due_date: uc.due_date || training.due_date,
+                    user_competency_id: uc.id,
+                    link: '/development-center'
+                  });
                 }
               }
             }
-            
-            setPendingValidations(pendingList);
-          } else {
-            setPendingValidations([]);
           }
+          
+          // 2. Coaching/Task activities completed - where I'm the coach OR I'm team lead
+          const coachingActivities = await dbFetch(
+            `development_activities?select=*,trainee:trainee_id(id,full_name),competencies(id,name)&or=(coach_id.eq.${profile.id},assigned_by.eq.${profile.id})&status=eq.completed`
+          );
+          
+          if (coachingActivities && coachingActivities.length > 0) {
+            for (const activity of coachingActivities) {
+              // Check if competency level still has gap
+              if (activity.competency_id && activity.trainee_id) {
+                const userComp = await dbFetch(
+                  `user_competencies?select=*&user_id=eq.${activity.trainee_id}&competency_id=eq.${activity.competency_id}`
+                );
+                
+                const uc = userComp?.[0];
+                const hasGap = !uc || (uc.current_level || 0) < (activity.target_level || uc?.target_level || 3);
+                
+                if (hasGap) {
+                  allPendingValidations.push({
+                    id: `activity_${activity.id}`,
+                    type: activity.type, // 'coaching' or 'task'
+                    user_id: activity.trainee_id,
+                    user_name: activity.trainee?.full_name || 'Unknown',
+                    competency_id: activity.competency_id,
+                    competency_name: activity.competencies?.name || activity.title,
+                    title: activity.title,
+                    current_level: uc?.current_level || 0,
+                    target_level: activity.target_level || uc?.target_level || 3,
+                    score: null,
+                    completed_at: activity.completed_at,
+                    due_date: activity.due_date,
+                    activity_id: activity.id,
+                    user_competency_id: uc?.id,
+                    link: '/development'
+                  });
+                }
+              }
+            }
+          }
+          
+          // Sort by due date (earliest first), then by completed_at
+          allPendingValidations.sort((a, b) => {
+            // Items with due dates come first
+            if (a.due_date && !b.due_date) return -1;
+            if (!a.due_date && b.due_date) return 1;
+            if (a.due_date && b.due_date) {
+              return new Date(a.due_date) - new Date(b.due_date);
+            }
+            // Then by completed_at
+            if (a.completed_at && b.completed_at) {
+              return new Date(a.completed_at) - new Date(b.completed_at);
+            }
+            return 0;
+          });
+          
+          setPendingValidations(allPendingValidations);
         } else {
           // No team members, but still set empty recent activity
           setRecentActivity([]);
@@ -2005,7 +2059,7 @@ function TeamLeadDashboard() {
         </div>
       </div>
 
-      {/* Pending Validations - Training completed but competency not validated */}
+      {/* Unified Pending Validations - All types sorted by due date */}
       {pendingValidations.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -2016,36 +2070,63 @@ function TeamLeadDashboard() {
             </span>
           </div>
           <p className="text-sm text-amber-700 mb-4">
-            These team members completed training and need their competency level validated.
+            These team members have completed their development activities and need their competency level validated.
           </p>
           <div className="space-y-3">
-            {pendingValidations.map(item => (
-              <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-amber-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-medium">
-                    {item.user_name?.charAt(0) || '?'}
+            {pendingValidations.map(item => {
+              const isOverdue = item.due_date && new Date(item.due_date) < new Date();
+              const typeIcon = item.type === 'training' ? '📖' : item.type === 'coaching' ? '👥' : '📋';
+              const typeLabel = item.type === 'training' ? 'Training' : item.type === 'coaching' ? 'Coaching' : 'Task';
+              
+              return (
+                <div key={item.id} className={`flex items-center justify-between p-4 bg-white rounded-lg border ${isOverdue ? 'border-red-200' : 'border-amber-100'}`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
+                      item.type === 'training' ? 'bg-green-100 text-green-700' : 
+                      item.type === 'coaching' ? 'bg-purple-100 text-purple-700' : 
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {item.user_name?.charAt(0) || '?'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{item.user_name}</p>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          item.type === 'training' ? 'bg-green-100 text-green-700' : 
+                          item.type === 'coaching' ? 'bg-purple-100 text-purple-700' : 
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {typeIcon} {typeLabel}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">{item.competency_name}</p>
+                      <p className="text-xs text-gray-500">
+                        Level {item.current_level} → {item.target_level}
+                        {item.score !== null && item.score !== undefined && <> • Score: {item.score}%</>}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{item.user_name}</p>
-                    <p className="text-sm text-gray-600">{item.competency_name}</p>
-                    <p className="text-xs text-gray-500">
-                      Level {item.current_level} → {item.target_level} • Score: {item.training_score || '—'}%
-                    </p>
+                  <div className="flex flex-col items-end gap-1">
+                    {item.due_date && (
+                      <span className={`text-xs font-medium ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+                        {isOverdue ? '⚠️ Overdue: ' : 'Due: '}{new Date(item.due_date).toLocaleDateString()}
+                      </span>
+                    )}
+                    {item.completed_at && (
+                      <span className="text-xs text-gray-400">
+                        Completed {new Date(item.completed_at).toLocaleDateString()}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => window.location.href = item.link}
+                      className="mt-1 px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
+                    >
+                      Validate
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">
-                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
-                  </span>
-                  <button
-                    onClick={() => window.location.href = '/development-center'}
-                    className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
-                  >
-                    Validate
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
