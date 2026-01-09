@@ -1366,10 +1366,206 @@ export default function DevelopmentCenterPage() {
                               <p className="text-xs text-amber-700 mt-2">Will create 5-7 slides and quiz questions</p>
                             </div>
                           ) : (
-                            <div>
-                              <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Content Generated!</p>
-                              <p className="text-sm text-gray-600">{generatedSlides.length} slides, {generatedQuiz.length} quiz questions</p>
-                              <button onClick={handleGenerateContent} className="text-sm text-amber-700 hover:underline mt-1">Regenerate</button>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Content Generated!</p>
+                                <button onClick={handleGenerateContent} disabled={generating} className="text-sm text-amber-700 hover:underline flex items-center gap-1">
+                                  {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                                  Regenerate
+                                </button>
+                              </div>
+                              
+                              {/* Slides Preview */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium text-gray-900 text-sm">Slides ({generatedSlides.length})</h4>
+                                  <button
+                                    onClick={() => setGeneratedSlides([...generatedSlides, {
+                                      title: 'New Slide',
+                                      key_points: ['Point 1', 'Point 2', 'Point 3'],
+                                      audio_script: 'Audio script for this slide.'
+                                    }])}
+                                    className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                  >
+                                    + Add Slide
+                                  </button>
+                                </div>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                                  {generatedSlides.map((slide, index) => (
+                                    <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2 flex-1">
+                                          <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                            {index + 1}
+                                          </span>
+                                          <input
+                                            type="text"
+                                            value={slide.title}
+                                            onChange={(e) => {
+                                              const updated = [...generatedSlides];
+                                              updated[index] = { ...updated[index], title: e.target.value };
+                                              setGeneratedSlides(updated);
+                                            }}
+                                            className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500"
+                                          />
+                                        </div>
+                                        <button
+                                          onClick={() => setGeneratedSlides(generatedSlides.filter((_, i) => i !== index))}
+                                          className="p-1 text-red-500 hover:bg-red-50 rounded ml-2"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                      
+                                      <div className="mb-2">
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Key Points</label>
+                                        {slide.key_points?.map((point, i) => (
+                                          <div key={i} className="flex items-center gap-2 mb-1">
+                                            <span className="text-gray-400 text-xs">•</span>
+                                            <input
+                                              type="text"
+                                              value={point}
+                                              onChange={(e) => {
+                                                const updated = [...generatedSlides];
+                                                const newPoints = [...(updated[index].key_points || [])];
+                                                newPoints[i] = e.target.value;
+                                                updated[index] = { ...updated[index], key_points: newPoints };
+                                                setGeneratedSlides(updated);
+                                              }}
+                                              className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs text-gray-700 focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <button
+                                              onClick={() => {
+                                                const updated = [...generatedSlides];
+                                                const newPoints = updated[index].key_points.filter((_, pi) => pi !== i);
+                                                updated[index] = { ...updated[index], key_points: newPoints };
+                                                setGeneratedSlides(updated);
+                                              }}
+                                              className="p-0.5 text-gray-400 hover:text-red-500"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                        <button
+                                          onClick={() => {
+                                            const updated = [...generatedSlides];
+                                            const newPoints = [...(updated[index].key_points || []), 'New point'];
+                                            updated[index] = { ...updated[index], key_points: newPoints };
+                                            setGeneratedSlides(updated);
+                                          }}
+                                          className="text-xs text-blue-600 hover:underline"
+                                        >
+                                          + Add point
+                                        </button>
+                                      </div>
+                                      
+                                      <div className="bg-gray-50 rounded p-2">
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Audio Script</label>
+                                        <textarea
+                                          value={slide.audio_script}
+                                          onChange={(e) => {
+                                            const updated = [...generatedSlides];
+                                            updated[index] = { ...updated[index], audio_script: e.target.value };
+                                            setGeneratedSlides(updated);
+                                          }}
+                                          rows={2}
+                                          className="w-full px-2 py-1 border border-gray-200 rounded text-xs text-gray-700 focus:ring-2 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              {/* Quiz Preview */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium text-gray-900 text-sm">Quiz Questions ({generatedQuiz.length})</h4>
+                                  <button
+                                    onClick={() => setGeneratedQuiz([...generatedQuiz, {
+                                      question_text: 'New question?',
+                                      options: ['A) Option 1', 'B) Option 2', 'C) Option 3', 'D) Option 4'],
+                                      correct_answer: 'A',
+                                      points: 1
+                                    }])}
+                                    className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                  >
+                                    + Add Question
+                                  </button>
+                                </div>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                                  {generatedQuiz.map((q, index) => (
+                                    <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-start gap-2 flex-1">
+                                          <span className="w-5 h-5 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-1">
+                                            {index + 1}
+                                          </span>
+                                          <textarea
+                                            value={q.question_text}
+                                            onChange={(e) => {
+                                              const updated = [...generatedQuiz];
+                                              updated[index] = { ...updated[index], question_text: e.target.value };
+                                              setGeneratedQuiz(updated);
+                                            }}
+                                            rows={2}
+                                            className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
+                                          />
+                                        </div>
+                                        <button
+                                          onClick={() => setGeneratedQuiz(generatedQuiz.filter((_, i) => i !== index))}
+                                          className="p-1 text-red-500 hover:bg-red-50 rounded ml-2"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                      
+                                      <div className="space-y-1 ml-7">
+                                        {q.options?.map((option, i) => {
+                                          const letter = option.charAt(0);
+                                          const isCorrect = q.correct_answer === letter;
+                                          return (
+                                            <div key={i} className="flex items-center gap-2">
+                                              <button
+                                                onClick={() => {
+                                                  const updated = [...generatedQuiz];
+                                                  updated[index] = { ...updated[index], correct_answer: letter };
+                                                  setGeneratedQuiz(updated);
+                                                }}
+                                                className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors ${
+                                                  isCorrect 
+                                                    ? 'bg-green-500 text-white' 
+                                                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                }`}
+                                                title={isCorrect ? 'Correct answer' : 'Click to set as correct'}
+                                              >
+                                                {letter}
+                                              </button>
+                                              <input
+                                                type="text"
+                                                value={option.substring(3)}
+                                                onChange={(e) => {
+                                                  const updated = [...generatedQuiz];
+                                                  const newOptions = [...updated[index].options];
+                                                  newOptions[i] = `${letter}) ${e.target.value}`;
+                                                  updated[index] = { ...updated[index], options: newOptions };
+                                                  setGeneratedQuiz(updated);
+                                                }}
+                                                className={`flex-1 px-2 py-1 border rounded text-xs focus:ring-2 focus:ring-blue-500 ${
+                                                  isCorrect 
+                                                    ? 'border-green-300 bg-green-50' 
+                                                    : 'border-gray-200'
+                                                }`}
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
