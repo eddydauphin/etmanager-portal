@@ -310,7 +310,8 @@ export default function DevelopmentCenterPage() {
   };
 
   const trainees = users.filter(u => u.role === 'trainee');
-  const coaches = users.filter(u => ['team_lead', 'client_admin', 'super_admin', 'expert'].includes(u.role));
+  // Coaches can be anyone - trainees can also coach others (peer coaching)
+  const coaches = users;
 
   // ==========================================================================
   // WIZARD HANDLERS
