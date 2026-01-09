@@ -1764,6 +1764,7 @@ function TeamLeadDashboard() {
   const [teamMembersList, setTeamMembersList] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [pendingValidations, setPendingValidations] = useState([]);
+  const [pendingTrainingApprovals, setPendingTrainingApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
 
@@ -1958,10 +1959,34 @@ function TeamLeadDashboard() {
           });
           
           setPendingValidations(allPendingValidations);
+          
+          // ================================================================
+          // PENDING TRAINING APPROVALS - Draft modules needing review
+          // ================================================================
+          const draftModules = await dbFetch(
+            `training_modules?select=*,created_by_profile:created_by(id,full_name),competency_modules(competency_id,competencies(name)),module_slides(id),module_questions(id)&status=eq.draft&client_id=eq.${clientId}&order=created_at.desc`
+          );
+          
+          if (draftModules && draftModules.length > 0) {
+            setPendingTrainingApprovals(draftModules.map(m => ({
+              id: m.id,
+              title: m.title,
+              description: m.description,
+              created_by: m.created_by,
+              created_by_name: m.created_by_profile?.full_name || 'Unknown',
+              created_at: m.created_at,
+              competency_name: m.competency_modules?.[0]?.competencies?.name || null,
+              slides_count: m.module_slides?.length || 0,
+              questions_count: m.module_questions?.length || 0
+            })));
+          } else {
+            setPendingTrainingApprovals([]);
+          }
         } else {
           // No team members, but still set empty recent activity
           setRecentActivity([]);
           setPendingValidations([]);
+          setPendingTrainingApprovals([]);
         }
       }
     } catch (error) {
@@ -2058,6 +2083,53 @@ function TeamLeadDashboard() {
           )}
         </div>
       </div>
+
+      {/* Pending Training Approvals - Draft modules needing review */}
+      {pendingTrainingApprovals.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <BookOpen className="w-5 h-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-blue-800">Training Materials Pending Approval</h3>
+            <span className="px-2 py-0.5 bg-blue-200 text-blue-800 rounded-full text-xs font-medium">
+              {pendingTrainingApprovals.length}
+            </span>
+          </div>
+          <p className="text-sm text-blue-700 mb-4">
+            New training materials have been created and are waiting for your review and approval before they can be assigned to trainees.
+          </p>
+          <div className="space-y-3">
+            {pendingTrainingApprovals.map(module => (
+              <div key={module.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-blue-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-medium">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{module.title}</p>
+                    {module.competency_name && (
+                      <p className="text-sm text-gray-600">Competency: {module.competency_name}</p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      {module.slides_count} slides • {module.questions_count} quiz questions • Created by {module.created_by_name}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-xs text-gray-400">
+                    {module.created_at ? new Date(module.created_at).toLocaleDateString() : ''}
+                  </span>
+                  <button
+                    onClick={() => window.location.href = '/training'}
+                    className="mt-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                  >
+                    Review & Approve
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Unified Pending Validations - All types sorted by due date */}
       {pendingValidations.length > 0 && (
