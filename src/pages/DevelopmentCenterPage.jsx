@@ -631,38 +631,49 @@ export default function DevelopmentCenterPage() {
           moduleId = moduleResult?.[0]?.id;
           
           if (moduleId) {
-            for (let i = 0; i < generatedSlides.length; i++) {
-              const slide = generatedSlides[i];
+            // Save slides - match TrainingModulesPage format
+            if (generatedSlides.length > 0) {
+              const slidesPayload = generatedSlides.map((slide, index) => ({
+                module_id: moduleId,
+                slide_number: index + 1,
+                title: slide.title,
+                content: { key_points: slide.key_points || [] },
+                audio_script: slide.audio_script || slide.content || ''
+              }));
+              
               await dbFetch('module_slides', {
                 method: 'POST',
-                body: JSON.stringify({
-                  module_id: moduleId,
-                  order_index: i,
-                  title: slide.title,
-                  content: slide.content,
-                  key_points: slide.key_points
-                })
+                body: JSON.stringify(slidesPayload)
               });
             }
             
-            for (let i = 0; i < generatedQuiz.length; i++) {
-              const q = generatedQuiz[i];
+            // Save quiz questions - match TrainingModulesPage format
+            if (generatedQuiz.length > 0) {
+              const questionsPayload = generatedQuiz.map((q, index) => ({
+                module_id: moduleId,
+                question_text: q.question_text || q.question,
+                question_type: 'multiple_choice',
+                options: q.options,
+                correct_answer: q.correct_answer,
+                points: q.points || 1,
+                sort_order: index
+              }));
+              
               await dbFetch('module_questions', {
                 method: 'POST',
-                body: JSON.stringify({
-                  module_id: moduleId,
-                  order_index: i,
-                  question: q.question,
-                  options: q.options,
-                  correct_answer: q.correct_answer,
-                  explanation: q.explanation
-                })
+                body: JSON.stringify(questionsPayload)
               });
             }
             
+            // Link to competency
             await dbFetch('competency_modules', {
               method: 'POST',
-              body: JSON.stringify({ competency_id: competencyId, module_id: moduleId, target_level: 3 })
+              body: JSON.stringify({ 
+                competency_id: competencyId, 
+                module_id: moduleId, 
+                target_level: 3,
+                is_mandatory: true
+              })
             });
           }
         } else if (wizardData.trainingOption === 'link' && wizardData.linkedModuleId) {
