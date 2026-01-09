@@ -278,14 +278,22 @@ function QuickAction({ title, description, href, icon: Icon }) {
 }
 
 // Quick Action Button (onClick instead of navigation)
-function QuickActionButton({ title, description, onClick, icon: Icon }) {
+function QuickActionButton({ title, description, onClick, icon: Icon, color = 'blue' }) {
+  const colorClasses = {
+    blue: 'bg-blue-50 text-blue-600',
+    purple: 'bg-purple-50 text-purple-600',
+    green: 'bg-green-50 text-green-600',
+    amber: 'bg-amber-50 text-amber-600',
+    red: 'bg-red-50 text-red-600'
+  };
+  
   return (
     <button
       onClick={onClick}
       className="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow text-left w-full"
     >
-      <div className="p-3 bg-blue-50 rounded-lg">
-        <Icon className="w-5 h-5 text-blue-600" />
+      <div className={`p-3 rounded-lg ${colorClasses[color] || colorClasses.blue}`}>
+        <Icon className="w-5 h-5" />
       </div>
       <div className="flex-1">
         <h3 className="font-medium text-gray-900">{title}</h3>
@@ -1330,6 +1338,225 @@ function CreateDevelopmentModal({ isOpen, onClose, profile, onSuccess }) {
   );
 }
 
+// Request Coaching Modal - Anyone can request coaching from anyone
+function RequestCoachingModal({ isOpen, onClose, profile, onSuccess }) {
+  const [coaches, setCoaches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    coach_id: '',
+    topic: '',
+    preferred_date: ''
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        coach_id: '',
+        topic: '',
+        preferred_date: ''
+      });
+      setError('');
+    }
+  }, [isOpen]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Load all potential coaches from same organization (everyone can coach)
+      let coachesUrl = 'profiles?select=id,full_name,email,role&is_active=eq.true&order=full_name.asc';
+      if (profile?.client_id) {
+        coachesUrl += `&client_id=eq.${profile.client_id}`;
+      }
+      const coachesData = await dbFetch(coachesUrl);
+      // Exclude self from coach list
+      setCoaches((coachesData || []).filter(c => c.id !== profile?.id));
+    } catch (err) {
+      console.error('Error loading coaches:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setError('');
+    
+    if (!formData.coach_id) {
+      setError('Please select who you want coaching from');
+      return;
+    }
+    if (!formData.topic) {
+      setError('Please describe what you need coaching on');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await dbFetch('development_activities', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'coaching',
+          title: formData.title || `Coaching Request: ${formData.topic.substring(0, 50)}`,
+          description: formData.description || formData.topic,
+          objectives: formData.topic,
+          trainee_id: profile.id, // Requester is the trainee
+          assigned_by: profile.id, // Self-requested
+          coach_id: formData.coach_id,
+          start_date: new Date().toISOString().split('T')[0],
+          due_date: formData.preferred_date || null,
+          status: 'pending',
+          client_id: profile.client_id || null,
+          // No competency_id - this is general coaching, not competency-linked
+          competency_id: null,
+          target_level: null
+        })
+      });
+
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error('Error requesting coaching:', err);
+      setError('Failed to submit coaching request. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Users className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Request Coaching</h2>
+              <p className="text-sm text-gray-500">Get support from a colleague or mentor</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+            </div>
+          ) : (
+            <>
+              {/* Coach Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Who would you like coaching from? *
+                </label>
+                <select
+                  value={formData.coach_id}
+                  onChange={(e) => setFormData({ ...formData, coach_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Select a coach or mentor...</option>
+                  {coaches.map(coach => (
+                    <option key={coach.id} value={coach.id}>
+                      {coach.full_name} ({coach.role?.replace('_', ' ')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Topic */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  What do you need coaching on? *
+                </label>
+                <textarea
+                  value={formData.topic}
+                  onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                  placeholder="Describe the topic, skill, or challenge you'd like help with..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Optional Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Session Title (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g., Career guidance, Technical mentoring..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Preferred Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Preferred Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={formData.preferred_date}
+                  onChange={(e) => setFormData({ ...formData, preferred_date: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Info Box */}
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <p className="text-sm text-purple-700">
+                  💡 This request will be sent to your selected coach. They will be notified and can accept or schedule the session.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || loading}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Send Request
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Progress Ring Component
 function ProgressRing({ percentage, size = 120, strokeWidth = 10, color = '#3B82F6' }) {
   const radius = (size - strokeWidth) / 2;
@@ -2125,6 +2352,7 @@ function TeamLeadDashboard() {
   const [pendingTrainingApprovals, setPendingTrainingApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
+  const [showRequestCoaching, setShowRequestCoaching] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
@@ -2584,7 +2812,7 @@ function TeamLeadDashboard() {
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <QuickAction
             title="View My Team"
             description="See team members and progress"
@@ -2609,8 +2837,23 @@ function TeamLeadDashboard() {
             href="/reports"
             icon={BarChart3}
           />
+          <QuickActionButton
+            title="Request Coaching"
+            description="Get support from a mentor"
+            onClick={() => setShowRequestCoaching(true)}
+            icon={MessageSquare}
+            color="purple"
+          />
         </div>
       </div>
+
+      {/* Request Coaching Modal */}
+      <RequestCoachingModal
+        isOpen={showRequestCoaching}
+        onClose={() => setShowRequestCoaching(false)}
+        profile={profile}
+        onSuccess={() => loadData()}
+      />
     </div>
   );
 
@@ -3060,6 +3303,7 @@ function SuperAdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
+  const [showRequestCoaching, setShowRequestCoaching] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -3180,8 +3424,18 @@ function SuperAdminDashboard() {
             href="/reports"
             icon={BarChart3}
           />
+          <QuickActionButton
+            title="Request Coaching"
+            description="Get support from a mentor"
+            onClick={() => setShowRequestCoaching(true)}
+            icon={MessageSquare}
+            color="purple"
+          />
         </div>
       </div>
+
+      {/* My Own Development Activities */}
+      <MyDevelopmentActivitiesSection profile={profile} />
 
       {/* Create Development Modal */}
       <CreateDevelopmentModal
@@ -3189,6 +3443,14 @@ function SuperAdminDashboard() {
         onClose={() => setShowDevModal(false)}
         profile={profile}
         onSuccess={() => {}}
+      />
+
+      {/* Request Coaching Modal */}
+      <RequestCoachingModal
+        isOpen={showRequestCoaching}
+        onClose={() => setShowRequestCoaching(false)}
+        profile={profile}
+        onSuccess={() => loadData()}
       />
 
       {/* Client List */}
@@ -3595,6 +3857,7 @@ function ClientAdminDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
+  const [showRequestCoaching, setShowRequestCoaching] = useState(false);
 
   useEffect(() => {
     if (clientId) {
@@ -3770,7 +4033,7 @@ function ClientAdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <button onClick={handleAddUser} className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm">
           <UserPlus className="w-5 h-5" /><div className="text-left"><div className="font-medium text-sm">Add User</div><div className="text-xs text-blue-200">New trainee</div></div>
         </button>
@@ -3785,6 +4048,9 @@ function ClientAdminDashboard() {
         </button>
         <button onClick={() => navigate('/reports')} className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
           <BarChart3 className="w-5 h-5 text-cyan-600" /><div className="text-left"><div className="font-medium text-sm text-gray-900">Export Report</div><div className="text-xs text-gray-500">Download data</div></div>
+        </button>
+        <button onClick={() => setShowRequestCoaching(true)} className="flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 transition-all">
+          <Users className="w-5 h-5 text-purple-600" /><div className="text-left"><div className="font-medium text-sm text-gray-900">Request Coaching</div><div className="text-xs text-gray-500">Get support</div></div>
         </button>
       </div>
 
@@ -4168,6 +4434,14 @@ function ClientAdminDashboard() {
         profile={profile}
         onSuccess={() => loadData()}
       />
+
+      {/* Request Coaching Modal */}
+      <RequestCoachingModal
+        isOpen={showRequestCoaching}
+        onClose={() => setShowRequestCoaching(false)}
+        profile={profile}
+        onSuccess={() => loadData()}
+      />
     </div>
   );
 }
@@ -4184,6 +4458,7 @@ function TraineeDashboard() {
     coachingActive: 0
   });
   const [loading, setLoading] = useState(true);
+  const [showRequestCoaching, setShowRequestCoaching] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
@@ -4307,7 +4582,7 @@ function TraineeDashboard() {
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <QuickAction
             title="View My Matrix"
             description="See all competency levels"
@@ -4326,8 +4601,26 @@ function TraineeDashboard() {
             href="/my-training"
             icon={GraduationCap}
           />
+          <button
+            onClick={() => setShowRequestCoaching(true)}
+            className="flex items-start gap-3 p-4 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 hover:border-purple-300 transition-all text-left"
+          >
+            <Users className="w-5 h-5 text-purple-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-gray-900">Request Coaching</p>
+              <p className="text-sm text-gray-500">Get support from a mentor</p>
+            </div>
+          </button>
         </div>
       </div>
+
+      {/* Request Coaching Modal */}
+      <RequestCoachingModal
+        isOpen={showRequestCoaching}
+        onClose={() => setShowRequestCoaching(false)}
+        profile={profile}
+        onSuccess={() => loadData()}
+      />
     </div>
   );
 }
@@ -4367,6 +4660,11 @@ function DashboardPage() {
 
   // Site Admin gets the same dashboard as Client Admin
   if (profile?.role === 'site_admin') {
+    return <ClientAdminDashboard />;
+  }
+
+  // Category Admin gets the same dashboard as Client Admin
+  if (profile?.role === 'category_admin') {
     return <ClientAdminDashboard />;
   }
 
