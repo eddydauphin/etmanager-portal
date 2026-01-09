@@ -560,7 +560,10 @@ export default function DevelopmentCenterPage() {
       let competencyId = editingCompetency?.id;
       
       // Create/Update Competency
-      const trainingDeveloperId = wizardData.developmentMethod === 'training' && wizardData.trainingOption === 'assign_developer' 
+      // Ensure empty strings become null for UUID fields
+      const trainingDeveloperId = (wizardData.developmentMethod === 'training' && 
+        wizardData.trainingOption === 'assign_developer' && 
+        wizardData.training_developer_id) 
         ? wizardData.training_developer_id : null;
       
       if (editingCompetency) {
@@ -568,7 +571,7 @@ export default function DevelopmentCenterPage() {
           method: 'PATCH',
           body: JSON.stringify({
             name: wizardData.name,
-            description: wizardData.description,
+            description: wizardData.description || null,
             training_developer_id: trainingDeveloperId
           })
         });
@@ -578,7 +581,7 @@ export default function DevelopmentCenterPage() {
           method: 'POST',
           body: JSON.stringify({
             name: wizardData.name,
-            description: wizardData.description,
+            description: wizardData.description || null,
             is_active: true,
             training_developer_id: trainingDeveloperId,
             level_1_description: 'Awareness - Can recognize the topic',
@@ -721,14 +724,14 @@ export default function DevelopmentCenterPage() {
               objectives: wizardData.activityObjectives || null,
               success_criteria: wizardData.activitySuccessCriteria || null,
               trainee_id: assignment.user_id,
-              assigned_by: currentProfile?.id,
-              coach_id: wizardData.developmentMethod === 'coaching' ? wizardData.coach_id : null,
-              competency_id: competencyId,
+              assigned_by: currentProfile?.id || null,
+              coach_id: (wizardData.developmentMethod === 'coaching' && wizardData.coach_id) ? wizardData.coach_id : null,
+              competency_id: competencyId || null,
               target_level: assignment.target_level,
               start_date: new Date().toISOString().split('T')[0],
               due_date: assignment.due_date || null,
               status: 'pending',
-              client_id: clientId
+              client_id: clientId || null
             })
           });
         }
