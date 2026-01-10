@@ -29,7 +29,7 @@ const ALL_CAPABILITIES = {
   clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
   users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
   expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
-  development_center: { icon: Rocket, label: 'Development Center', path: '/development-center', description: 'Unified competency & training management' },
+  development_center: { icon: Rocket, label: 'Development Center', path: '/development-center', description: 'Create competencies and assign development' },
   competencies: { icon: Target, label: 'Competencies', path: '/competencies', description: 'Manage competency framework' },
   profiles: { icon: FileText, label: 'Profiles', path: '/profiles', description: 'Manage competency profiles' },
   development: { icon: ClipboardList, label: 'Development', path: '/development', description: 'Manage development activities' },
@@ -141,7 +141,12 @@ function Layout() {
     // Define menu order
     const menuOrder = role === 'trainee' 
       ? ['dashboard', 'my_progress', 'my_plan', 'my_training', 'settings']
-      : ['dashboard', 'clients', 'users', 'expert_network', 'development_center', 'competencies', 'profiles', 'development', 'training', 'reports', 'settings'];
+      : ['dashboard', 'users', 'expert_network', 'development_center', 'competencies', 'profiles', 'development', 'training', 'reports', 'settings'];
+
+    // Super admin also gets clients
+    if (role === 'super_admin') {
+      menuOrder.splice(1, 0, 'clients'); // Insert after dashboard
+    }
 
     menuOrder.forEach(capKey => {
       const config = ALL_CAPABILITIES[capKey];

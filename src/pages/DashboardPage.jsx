@@ -2846,14 +2846,6 @@ function TeamLeadDashboard() {
           />
         </div>
       </div>
-
-      {/* Request Coaching Modal */}
-      <RequestCoachingModal
-        isOpen={showRequestCoaching}
-        onClose={() => setShowRequestCoaching(false)}
-        profile={profile}
-        onSuccess={() => loadData()}
-      />
     </div>
   );
 
@@ -3280,12 +3272,34 @@ function TeamLeadDashboard() {
         {currentLayout === 'custom' && <CustomLayout />}
       </div>
 
+      {/* Request Coaching Quick Action - Always visible */}
+      <div className="mt-6">
+        <button
+          onClick={() => setShowRequestCoaching(true)}
+          className="flex items-center gap-3 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 transition-all text-left"
+        >
+          <Users className="w-5 h-5 text-purple-600" />
+          <div>
+            <p className="font-medium text-gray-900">Request Coaching</p>
+            <p className="text-sm text-gray-500">Get support from a colleague or mentor</p>
+          </div>
+        </button>
+      </div>
+
       {/* Create Development Modal */}
       <CreateDevelopmentModal
         isOpen={showDevModal}
         onClose={() => setShowDevModal(false)}
         profile={profile}
         onSuccess={() => {}}
+      />
+
+      {/* Request Coaching Modal */}
+      <RequestCoachingModal
+        isOpen={showRequestCoaching}
+        onClose={() => setShowRequestCoaching(false)}
+        profile={profile}
+        onSuccess={() => loadData()}
       />
     </div>
   );
@@ -4420,6 +4434,20 @@ function ClientAdminDashboard() {
         {currentLayout === 'command' && <CommandLayout />}
         {currentLayout === 'focus' && <FocusLayout />}
         {currentLayout === 'custom' && <CustomLayout />}
+      </div>
+
+      {/* Request Coaching Quick Action - Always visible */}
+      <div className="mt-6">
+        <button
+          onClick={() => setShowRequestCoaching(true)}
+          className="flex items-center gap-3 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 transition-all text-left"
+        >
+          <Users className="w-5 h-5 text-purple-600" />
+          <div>
+            <p className="font-medium text-gray-900">Request Coaching</p>
+            <p className="text-sm text-gray-500">Get support from a colleague or mentor</p>
+          </div>
+        </button>
       </div>
 
       {/* My Own Development Activities (Admins can have activities too) */}
