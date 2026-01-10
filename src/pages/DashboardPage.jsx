@@ -2812,7 +2812,7 @@ function TeamLeadDashboard() {
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <QuickAction
             title="View My Team"
             description="See team members and progress"
@@ -2836,13 +2836,6 @@ function TeamLeadDashboard() {
             description="Team analytics"
             href="/reports"
             icon={BarChart3}
-          />
-          <QuickActionButton
-            title="Request Coaching"
-            description="Get support from a mentor"
-            onClick={() => setShowRequestCoaching(true)}
-            icon={MessageSquare}
-            color="purple"
           />
         </div>
       </div>
