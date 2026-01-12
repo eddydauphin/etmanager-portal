@@ -141,7 +141,7 @@ function Layout() {
     // Define menu order
     const menuOrder = role === 'trainee' 
       ? ['dashboard', 'my_progress', 'my_plan', 'my_training', 'settings']
-      : ['dashboard', 'users', 'expert_network', 'development_center', 'competencies', 'profiles', 'development', 'training', 'reports', 'settings'];
+      : ['dashboard', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {
