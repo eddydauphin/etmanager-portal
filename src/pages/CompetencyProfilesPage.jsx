@@ -854,8 +854,6 @@ export default function CompetencyProfilesPage() {
                     </select>
                     <p className="text-xs text-gray-400 mt-1">Person responsible for following up and validating completion</p>
                   </div>
-                    <p className="text-xs text-gray-400 mt-1">Person who creates training materials</p>
-                  </div>
                 </div>
 
                 {/* Competency Selection */}
