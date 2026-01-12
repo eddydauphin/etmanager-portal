@@ -18,7 +18,10 @@ import {
   Building2,
   UserPlus,
   Calendar,
-  Loader2
+  Loader2,
+  BookOpen,
+  GraduationCap,
+  CheckCircle
 } from 'lucide-react';
 
 export default function CompetencyProfilesPage() {
@@ -27,9 +30,10 @@ export default function CompetencyProfilesPage() {
   // State
   const [profiles, setProfiles] = useState([]);
   const [competencies, setCompetencies] = useState([]);
+  const [trainingModules, setTrainingModules] = useState([]); // NEW: Training modules
   const [clients, setClients] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [users, setUsers] = useState([]); // For owner, developer, and assignment
+  const [users, setUsers] = useState([]); // For owner and assignment
   const [trainees, setTrainees] = useState([]); // For profile assignment
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,9 +52,9 @@ export default function CompetencyProfilesPage() {
     name: '',
     description: '',
     client_id: '',
-    owner_id: '',                    // NEW: Profile owner (expert)
-    training_developer_id: '',       // NEW: Training developer
-    competencies: [] // Array of { competency_id, default_target_level }
+    owner_id: '',                    // Profile owner (follows up & validates)
+    competencies: [], // Array of { competency_id, default_target_level }
+    training_modules: [] // Array of module IDs
   });
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -85,7 +89,7 @@ export default function CompetencyProfilesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadProfiles(), loadCompetencies(), loadClients(), loadCategories(), loadUsers(), loadTrainees()]);
+      await Promise.all([loadProfiles(), loadCompetencies(), loadTrainingModules(), loadClients(), loadCategories(), loadUsers(), loadTrainees()]);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -95,7 +99,7 @@ export default function CompetencyProfilesPage() {
 
   const loadProfiles = async () => {
     try {
-      const data = await dbFetch('competency_profiles?select=*,clients(name),owner:owner_id(id,full_name),training_developer:training_developer_id(id,full_name),profile_competencies(competency_id,default_target_level,competencies(name,competency_categories(name,color)))&order=name.asc');
+      const data = await dbFetch('competency_profiles?select=*,clients(name),owner:owner_id(id,full_name),profile_competencies(competency_id,default_target_level,competencies(name,competency_categories(name,color))),profile_training_modules(module_id,training_modules(id,title))&order=name.asc');
       setProfiles(data || []);
     } catch (error) {
       console.error('Error loading profiles:', error);
@@ -108,6 +112,20 @@ export default function CompetencyProfilesPage() {
       setCompetencies(data || []);
     } catch (error) {
       console.error('Error loading competencies:', error);
+    }
+  };
+
+  const loadTrainingModules = async () => {
+    try {
+      let url = 'training_modules?select=id,title,description,status,client_id&status=eq.published&order=title.asc';
+      // Filter by client for non-super_admin
+      if (currentProfile?.role !== 'super_admin' && currentProfile?.client_id) {
+        url += `&client_id=eq.${currentProfile.client_id}`;
+      }
+      const data = await dbFetch(url);
+      setTrainingModules(data || []);
+    } catch (error) {
+      console.error('Error loading training modules:', error);
     }
   };
 
@@ -178,11 +196,11 @@ export default function CompetencyProfilesPage() {
         description: profile.description || '',
         client_id: profile.client_id || '',
         owner_id: profile.owner_id || '',
-        training_developer_id: profile.training_developer_id || '',
         competencies: profile.profile_competencies?.map(pc => ({
           competency_id: pc.competency_id,
           default_target_level: pc.default_target_level || 3
-        })) || []
+        })) || [],
+        training_modules: profile.profile_training_modules?.map(pt => pt.module_id) || []
       });
     } else {
       setEditingProfile(null);
@@ -191,8 +209,8 @@ export default function CompetencyProfilesPage() {
         description: '',
         client_id: currentProfile?.role === 'client_admin' ? currentProfile.client_id : '',
         owner_id: '',
-        training_developer_id: '',
-        competencies: []
+        competencies: [],
+        training_modules: []
       });
     }
     setSelectedCategory('all');
@@ -295,11 +313,34 @@ export default function CompetencyProfilesPage() {
             });
           }
         }
+
+        // Assign training modules from the profile
+        for (const pt of profileToAssign.profile_training_modules || []) {
+          const moduleId = pt.module_id;
+          
+          // Check if training already assigned
+          const existingTraining = await dbFetch(
+            `user_training?user_id=eq.${userId}&module_id=eq.${moduleId}`
+          );
+
+          if (!existingTraining || existingTraining.length === 0) {
+            await dbFetch('user_training', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: userId,
+                module_id: moduleId,
+                assigned_by: currentProfile.id,
+                due_date: targetDate,
+                status: 'pending'
+              })
+            });
+          }
+        }
       }
 
       setShowAssignModal(false);
       setProfileToAssign(null);
-      // Show success message or reload data
+      await loadData(); // Reload to show updated assignments
     } catch (error) {
       console.error('Error assigning profile:', error);
       setAssignError(error.message || 'Failed to assign profile');
@@ -320,8 +361,8 @@ export default function CompetencyProfilesPage() {
       if (!formData.client_id) {
         throw new Error('Client is required');
       }
-      if (formData.competencies.length === 0) {
-        throw new Error('At least one competency is required');
+      if (formData.competencies.length === 0 && formData.training_modules.length === 0) {
+        throw new Error('At least one competency or training module is required');
       }
 
       const payload = {
@@ -329,7 +370,6 @@ export default function CompetencyProfilesPage() {
         description: formData.description || null,
         client_id: formData.client_id,
         owner_id: formData.owner_id || null,
-        training_developer_id: formData.training_developer_id || null,
         is_active: true,
         created_by: currentProfile?.id
       };
@@ -347,6 +387,15 @@ export default function CompetencyProfilesPage() {
         await dbFetch(`profile_competencies?profile_id=eq.${editingProfile.id}`, {
           method: 'DELETE'
         });
+        
+        // Delete existing training module associations
+        try {
+          await dbFetch(`profile_training_modules?profile_id=eq.${editingProfile.id}`, {
+            method: 'DELETE'
+          });
+        } catch (e) {
+          // Table might not exist yet
+        }
       } else {
         const result = await dbFetch('competency_profiles?select=id', {
           method: 'POST',
@@ -366,6 +415,22 @@ export default function CompetencyProfilesPage() {
           method: 'POST',
           body: JSON.stringify(competencyAssociations)
         });
+      }
+
+      // Insert training module associations
+      if (profileId && formData.training_modules.length > 0) {
+        try {
+          const moduleAssociations = formData.training_modules.map(moduleId => ({
+            profile_id: profileId,
+            module_id: moduleId
+          }));
+          await dbFetch('profile_training_modules', {
+            method: 'POST',
+            body: JSON.stringify(moduleAssociations)
+          });
+        } catch (e) {
+          console.log('profile_training_modules table may not exist:', e);
+        }
       }
 
       await loadProfiles();
@@ -401,6 +466,21 @@ export default function CompetencyProfilesPage() {
         c.competency_id === competencyId ? { ...c, default_target_level: level } : c
       )
     });
+  };
+
+  // Handle training module selection
+  const toggleTrainingModule = (moduleId) => {
+    if (formData.training_modules.includes(moduleId)) {
+      setFormData({
+        ...formData,
+        training_modules: formData.training_modules.filter(id => id !== moduleId)
+      });
+    } else {
+      setFormData({
+        ...formData,
+        training_modules: [...formData.training_modules, moduleId]
+      });
+    }
   };
 
   // Handle delete
@@ -652,14 +732,17 @@ export default function CompetencyProfilesPage() {
                 </div>
               </div>
               
-              {/* Owner info */}
-              {(profile.owner || profile.training_developer) && (
+              {/* Owner info and module count */}
+              {(profile.owner || profile.profile_training_modules?.length > 0) && (
                 <div className="flex gap-4 text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
                   {profile.owner && (
                     <span>Owner: <span className="text-gray-700">{profile.owner.full_name}</span></span>
                   )}
-                  {profile.training_developer && (
-                    <span>Developer: <span className="text-gray-700">{profile.training_developer.full_name}</span></span>
+                  {profile.profile_training_modules?.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <BookOpen className="w-3 h-3" />
+                      <span className="text-gray-700">{profile.profile_training_modules.length} training module{profile.profile_training_modules.length !== 1 ? 's' : ''}</span>
+                    </span>
                   )}
                 </div>
               )}
@@ -752,10 +835,10 @@ export default function CompetencyProfilesPage() {
                     />
                   </div>
 
-                  {/* Owner and Training Developer */}
-                  <div>
+                  {/* Owner */}
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Owner (Expert/Coach)
+                      Profile Owner
                     </label>
                     <select
                       value={formData.owner_id}
@@ -765,29 +848,12 @@ export default function CompetencyProfilesPage() {
                       <option value="">Select Owner</option>
                       {users.map(user => (
                         <option key={user.id} value={user.id}>
-                          {user.full_name} ({user.role})
+                          {user.full_name} ({user.role?.replace('_', ' ')})
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-400 mt-1">Expert who coaches and approves learners</p>
+                    <p className="text-xs text-gray-400 mt-1">Person responsible for following up and validating completion</p>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Training Developer
-                    </label>
-                    <select
-                      value={formData.training_developer_id}
-                      onChange={(e) => setFormData({ ...formData, training_developer_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select Developer</option>
-                      {users.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.full_name} ({user.role})
-                        </option>
-                      ))}
-                    </select>
                     <p className="text-xs text-gray-400 mt-1">Person who creates training materials</p>
                   </div>
                 </div>
@@ -893,6 +959,83 @@ export default function CompetencyProfilesPage() {
                             <button
                               type="button"
                               onClick={() => toggleCompetency(fc.competency_id)}
+                              className="ml-1 hover:text-red-600"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Training Modules Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-green-600" />
+                      Training Modules <span className="text-gray-400">({formData.training_modules.length} selected)</span>
+                    </label>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                    {trainingModules.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        No training modules available
+                      </div>
+                    ) : (
+                      trainingModules.map(module => {
+                        const isSelected = formData.training_modules.includes(module.id);
+                        
+                        return (
+                          <div
+                            key={module.id}
+                            className={`flex items-center justify-between p-3 hover:bg-gray-50 ${isSelected ? 'bg-green-50' : ''}`}
+                          >
+                            <label className="flex items-center gap-3 cursor-pointer flex-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleTrainingModule(module.id)}
+                                className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <div>
+                                <span className="text-sm text-gray-900">{module.title}</span>
+                                {module.description && (
+                                  <p className="text-xs text-gray-400 truncate max-w-md">{module.description}</p>
+                                )}
+                              </div>
+                            </label>
+                            {isSelected && (
+                              <CheckCircle className="w-5 h-5 text-green-500" />
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Selected Training Modules Summary */}
+                {formData.training_modules.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Selected Training Modules
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.training_modules.map(moduleId => {
+                        const module = trainingModules.find(m => m.id === moduleId);
+                        return (
+                          <span
+                            key={moduleId}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            {module?.title || 'Unknown'}
+                            <button
+                              type="button"
+                              onClick={() => toggleTrainingModule(moduleId)}
                               className="ml-1 hover:text-red-600"
                             >
                               <X className="w-3.5 h-3.5" />
