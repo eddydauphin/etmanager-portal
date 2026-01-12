@@ -169,7 +169,7 @@ function AppRoutes() {
 
         {/* Development Center - unified competency & training management */}
         <Route path="development-center" element={
-          <ProtectedRoute requiredCapability="competencies">
+          <ProtectedRoute requiredCapability="development_center">
             <DevelopmentCenterPage />
           </ProtectedRoute>
         } />
