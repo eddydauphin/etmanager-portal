@@ -140,14 +140,27 @@ function Layout() {
     const role = profile?.role;
     const items = [];
 
-    // Define menu order
+    // Chat is always available to everyone - add first after dashboard
+    items.push({
+      to: '/dashboard',
+      icon: LayoutDashboard,
+      label: 'Dashboard'
+    });
+    
+    items.push({
+      to: '/chat',
+      icon: MessageSquare,
+      label: 'Chat'
+    });
+
+    // Define menu order (excluding dashboard and chat which are already added)
     const menuOrder = role === 'trainee' 
-      ? ['dashboard', 'chat', 'my_progress', 'my_plan', 'my_training', 'settings']
-      : ['dashboard', 'chat', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
+      ? ['my_progress', 'my_plan', 'my_training', 'settings']
+      : ['users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {
-      menuOrder.splice(2, 0, 'clients'); // Insert after chat
+      menuOrder.unshift('clients'); // Insert at beginning
     }
 
     menuOrder.forEach(capKey => {

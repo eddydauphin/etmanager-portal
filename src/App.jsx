@@ -119,11 +119,9 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
-        {/* Chat - everyone with capability */}
+        {/* Chat - available to everyone */}
         <Route path="chat" element={
-          <ProtectedRoute requiredCapability="chat">
-            <ChatPage />
-          </ProtectedRoute>
+          <ChatPage />
         } />
         
         {/* Settings - everyone with capability */}
