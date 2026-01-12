@@ -17,7 +17,8 @@ import {
   BookOpen,
   Network,
   ClipboardList,
-  Rocket
+  Rocket,
+  MessageSquare
 } from 'lucide-react';
 
 // ============================================================================
@@ -26,6 +27,7 @@ import {
 
 const ALL_CAPABILITIES = {
   dashboard: { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', description: 'View dashboard and KPIs' },
+  chat: { icon: MessageSquare, label: 'Chat', path: '/chat', description: 'AI Assistant and team messaging' },
   clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
   users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
   expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
@@ -63,42 +65,42 @@ export function getDefaultCapabilities(role) {
   switch (role) {
     case 'super_admin':
       return {
-        dashboard: true, clients: true, users: true, expert_network: true,
+        dashboard: true, chat: true, clients: true, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'client_admin':
       return {
-        dashboard: true, clients: false, users: true, expert_network: true,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'category_admin':
       return {
-        dashboard: true, clients: false, users: true, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'site_admin':
       return {
-        dashboard: true, clients: false, users: true, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'team_lead':
       return {
-        dashboard: true, clients: false, users: true, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true
       };
     case 'trainee':
       return {
-        dashboard: true, clients: false, users: false, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: false, expert_network: false,
         competencies: false, profiles: false, development: false, training: true,
         reports: false, settings: true, my_progress: true, my_plan: true, my_training: true
       };
     default:
-      return { dashboard: true, settings: true };
+      return { dashboard: true, chat: true, settings: true };
   }
 }
 
@@ -140,12 +142,12 @@ function Layout() {
 
     // Define menu order
     const menuOrder = role === 'trainee' 
-      ? ['dashboard', 'my_progress', 'my_plan', 'my_training', 'settings']
-      : ['dashboard', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
+      ? ['dashboard', 'chat', 'my_progress', 'my_plan', 'my_training', 'settings']
+      : ['dashboard', 'chat', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {
-      menuOrder.splice(1, 0, 'clients'); // Insert after dashboard
+      menuOrder.splice(2, 0, 'clients'); // Insert after chat
     }
 
     menuOrder.forEach(capKey => {

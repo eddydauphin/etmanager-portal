@@ -22,6 +22,7 @@ import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
 import DevelopmentCenterPage from './pages/DevelopmentCenterPage';
+import ChatPage from './pages/ChatPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -115,6 +116,13 @@ function AppRoutes() {
         <Route path="dashboard" element={
           <ProtectedRoute requiredCapability="dashboard">
             <DashboardPage />
+          </ProtectedRoute>
+        } />
+        
+        {/* Chat - everyone with capability */}
+        <Route path="chat" element={
+          <ProtectedRoute requiredCapability="chat">
+            <ChatPage />
           </ProtectedRoute>
         } />
         
