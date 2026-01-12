@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
+import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard,
   Users,
@@ -129,6 +130,67 @@ function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  // Fetch unread chat count
+  useEffect(() => {
+    if (profile?.id) {
+      fetchUnreadCount();
+      
+      // Subscribe to new messages for real-time badge updates
+      const subscription = supabase
+        .channel('layout-chat-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages'
+          },
+          () => {
+            fetchUnreadCount();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    }
+  }, [profile?.id]);
+
+  const fetchUnreadCount = async () => {
+    try {
+      // Get user's channel participations with last_read_at
+      const { data: participations, error: partError } = await supabase
+        .from('chat_participants')
+        .select('channel_id, last_read_at')
+        .eq('user_id', profile.id);
+
+      if (partError) throw partError;
+
+      let totalUnread = 0;
+
+      for (const part of participations || []) {
+        let query = supabase
+          .from('chat_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('channel_id', part.channel_id)
+          .neq('sender_id', profile.id);
+
+        if (part.last_read_at) {
+          query = query.gt('created_at', part.last_read_at);
+        }
+
+        const { count } = await query;
+        totalUnread += count || 0;
+      }
+
+      setUnreadChatCount(totalUnread);
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -221,7 +283,15 @@ function Layout() {
               }
             >
               <item.icon className="w-5 h-5" />
-              {sidebarOpen && <span>{item.label}</span>}
+              {sidebarOpen && (
+                <span className="flex-1">{item.label}</span>
+              )}
+              {/* Unread badge for Chat */}
+              {item.to === '/chat' && unreadChatCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
