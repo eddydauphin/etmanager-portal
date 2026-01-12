@@ -99,7 +99,7 @@ export default function CompetencyProfilesPage() {
 
   const loadProfiles = async () => {
     try {
-      const data = await dbFetch('competency_profiles?select=*,clients(name),owner:owner_id(id,full_name),profile_competencies(competency_id,default_target_level,competencies(name,competency_categories(name,color))),profile_training_modules(module_id,training_modules(id,title))&order=name.asc');
+      const data = await dbFetch('competency_profiles?select=*,clients(name),owner:owner_id(id,full_name),profile_competencies(competency_id,default_target_level,competencies(name)),profile_training_modules(module_id,training_modules(id,title))&order=name.asc');
       setProfiles(data || []);
     } catch (error) {
       console.error('Error loading profiles:', error);
@@ -108,7 +108,7 @@ export default function CompetencyProfilesPage() {
 
   const loadCompetencies = async () => {
     try {
-      const data = await dbFetch('competencies?select=*,competency_categories(name,color)&is_active=eq.true&order=name.asc');
+      const data = await dbFetch('competencies?select=*&is_active=eq.true&order=name.asc');
       setCompetencies(data || []);
     } catch (error) {
       console.error('Error loading competencies:', error);
@@ -139,12 +139,8 @@ export default function CompetencyProfilesPage() {
   };
 
   const loadCategories = async () => {
-    try {
-      const data = await dbFetch('competency_categories?select=*&order=name.asc');
-      setCategories(data || []);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
+    // Categories table doesn't exist - skip loading
+    setCategories([]);
   };
 
   const loadUsers = async () => {
@@ -718,7 +714,7 @@ export default function CompetencyProfilesPage() {
                     >
                       <span
                         className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: pc.competencies?.competency_categories?.color || '#3B82F6' }}
+                        style={{ backgroundColor: '#3B82F6' }}
                       />
                       {pc.competencies?.name?.substring(0, 15)}{pc.competencies?.name?.length > 15 ? '...' : ''}
                       <span className="text-gray-400">L{pc.default_target_level}</span>
@@ -859,28 +855,19 @@ export default function CompetencyProfilesPage() {
                 {/* Competency Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Select Competencies * <span className="text-gray-400">({formData.competencies.length} selected)</span>
+                    <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-blue-600" />
+                      Select Competencies <span className="text-gray-400">({formData.competencies.length} selected)</span>
                     </label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="all">All Categories</option>
-                      {categories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
                   </div>
 
                   <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
-                    {filteredCompetencies.length === 0 ? (
+                    {competencies.length === 0 ? (
                       <div className="p-4 text-center text-gray-500 text-sm">
-                        No competencies found in this category
+                        No competencies available
                       </div>
                     ) : (
-                      filteredCompetencies.map(comp => {
+                      competencies.map(comp => {
                         const isSelected = formData.competencies.some(c => c.competency_id === comp.id);
                         const selectedComp = formData.competencies.find(c => c.competency_id === comp.id);
                         
@@ -899,10 +886,9 @@ export default function CompetencyProfilesPage() {
                               <div className="flex items-center gap-2">
                                 <span
                                   className="w-2.5 h-2.5 rounded-full"
-                                  style={{ backgroundColor: comp.competency_categories?.color || '#3B82F6' }}
+                                  style={{ backgroundColor: '#3B82F6' }}
                                 />
                                 <span className="text-sm text-gray-900">{comp.name}</span>
-                                <span className="text-xs text-gray-400">({comp.competency_categories?.name || 'Uncategorized'})</span>
                               </div>
                             </label>
                             
@@ -950,7 +936,7 @@ export default function CompetencyProfilesPage() {
                           >
                             <span
                               className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: comp?.competency_categories?.color || '#3B82F6' }}
+                              style={{ backgroundColor: '#3B82F6' }}
                             />
                             {comp?.name || 'Unknown'}
                             <span className="text-blue-600 font-medium">L{fc.default_target_level}</span>
