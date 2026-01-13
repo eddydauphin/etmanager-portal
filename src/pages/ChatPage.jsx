@@ -67,7 +67,11 @@ export default function ChatPage() {
   }, [activeChannel]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
-  const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); };
+  const scrollToBottom = () => { 
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+    }, 100);
+  };
 
   const loadChannels = async () => {
     try {
