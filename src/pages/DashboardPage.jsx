@@ -306,9 +306,10 @@ function QuickActionButton({ title, description, onClick, icon: Icon, color = 'b
 
 // Training Materials KPI Section
 // Pending Trainings Section - Shows detailed pending training list for admins/team leads
-function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pending Trainings" }) {
+function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pending Trainings", collapsible = false }) {
   const [pendingTrainings, setPendingTrainings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(!collapsible); // Collapsed by default if collapsible
 
   useEffect(() => {
     loadPendingTrainings();
@@ -367,10 +368,10 @@ function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pen
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-48"></div>
-          <div className="h-32 bg-gray-100 rounded"></div>
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="animate-pulse flex items-center gap-2">
+          <div className="h-5 w-5 bg-gray-200 rounded"></div>
+          <div className="h-5 bg-gray-200 rounded w-48"></div>
         </div>
       </div>
     );
@@ -380,64 +381,95 @@ function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pen
     return null;
   }
 
+  const overdueCount = pendingTrainings.filter(t => t.is_overdue).length;
+
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* Clickable Header */}
+      <button
+        onClick={() => collapsible && setIsExpanded(!isExpanded)}
+        className={`w-full flex items-center justify-between p-4 ${collapsible ? 'hover:bg-gray-50 cursor-pointer' : ''}`}
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-amber-100 rounded-lg">
+            <GraduationCap className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-semibold text-gray-900">{title}</h3>
+            <p className="text-sm text-gray-500">
+              {pendingTrainings.length} pending
+              {overdueCount > 0 && <span className="text-red-600 font-medium"> • {overdueCount} overdue</span>}
+            </p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-          <GraduationCap className="w-5 h-5 text-amber-600" />
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+          <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">
             {pendingTrainings.length}
           </span>
+          {collapsible && (
+            isExpanded ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )
+          )}
         </div>
-        <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
-          View all <ChevronRight className="w-4 h-4" />
-        </Link>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              <th className="pb-3">Trainee</th>
-              <th className="pb-3">Training Module</th>
-              <th className="pb-3">Status</th>
-              <th className="pb-3">Due Date</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {pendingTrainings.map(item => (
-              <tr key={item.id} className={item.is_overdue ? 'bg-red-50' : ''}>
-                <td className="py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-medium">
-                      {item.trainee_name?.charAt(0) || '?'}
-                    </div>
-                    <span className="font-medium text-gray-900">{item.trainee_name}</span>
-                  </div>
-                </td>
-                <td className="py-3 text-gray-700">{item.module_title}</td>
-                <td className="py-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    item.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {item.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                  </span>
-                </td>
-                <td className="py-3">
-                  {item.due_date ? (
-                    <span className={`text-sm ${item.is_overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                      {item.is_overdue && '⚠️ '}
-                      {new Date(item.due_date).toLocaleDateString()}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400 text-sm">No due date</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      </button>
+      
+      {/* Expandable Content */}
+      {isExpanded && (
+        <div className="border-t border-gray-100">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3">Trainee</th>
+                  <th className="px-4 py-3">Training Module</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pendingTrainings.map(item => (
+                  <tr key={item.id} className={item.is_overdue ? 'bg-red-50' : 'hover:bg-gray-50'}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-medium">
+                          {item.trainee_name?.charAt(0) || '?'}
+                        </div>
+                        <span className="font-medium text-gray-900">{item.trainee_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{item.module_title}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        item.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {item.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.due_date ? (
+                        <span className={`text-sm ${item.is_overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                          {item.is_overdue && '⚠️ '}
+                          {new Date(item.due_date).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-sm">No due date</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-3 bg-gray-50 border-t border-gray-100">
+            <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1">
+              View all trainings <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2891,43 +2923,8 @@ function TeamLeadDashboard() {
         />
       </div>
 
-      {/* Pending Team Trainings - Detailed List */}
-      <PendingTrainingsSection teamIds={teamMembersList.map(m => m.id)} title="Pending Team Trainings" />
-
-      {/* Team Progress Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Team Competency Progress</h3>
-          <ProgressRing percentage={competencyProgress} color="#10B981" />
-          <p className="text-sm text-gray-600 mt-4">
-            {stats.competenciesAchieved} of {stats.competenciesAssigned} competencies achieved
-          </p>
-        </div>
-
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Recent Training Completions</h3>
-          {recentActivity.length === 0 ? (
-            <p className="text-gray-400 text-sm">No recent completions</p>
-          ) : (
-            <div className="space-y-3">
-              {recentActivity.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">{item.trainee_name}</p>
-                      <p className="text-sm text-gray-500">{item.module_title}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Pending Team Trainings - Collapsible */}
+      <PendingTrainingsSection teamIds={teamMembersList.map(m => m.id)} title="Pending Team Trainings" collapsible={true} />
 
       {/* Pending Training Approvals - Draft modules needing review */}
       {pendingTrainingApprovals.length > 0 && (
@@ -3588,7 +3585,7 @@ function SuperAdminDashboard() {
       <MyCoacheesSection profile={profile} />
 
       {/* Pending Trainings - All pending across clients */}
-      <PendingTrainingsSection title="Pending Trainings (All Clients)" />
+      <PendingTrainingsSection title="Pending Trainings (All Clients)" collapsible={true} />
 
       {/* Pending Validations - Activities I need to validate as coach */}
       <PendingValidationsSection profile={profile} />
@@ -4184,7 +4181,7 @@ function ClientAdminDashboard() {
       </div>
 
       {/* Pending Trainings - Detailed list */}
-      <PendingTrainingsSection clientId={clientId} title="Pending Team Trainings" />
+      <PendingTrainingsSection clientId={clientId} title="Pending Team Trainings" collapsible={true} />
 
       {/* Pending Validations - Activities I need to validate as coach */}
       <PendingValidationsSection profile={profile} clientId={clientId} />
