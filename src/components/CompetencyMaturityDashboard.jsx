@@ -29,7 +29,7 @@ import {
 // HORIZONTAL BAR CHART COMPONENT
 // ============================================================================
 
-function CompetencyBarChart({ data, onCompetencyClick, selectedId }) {
+function CompetencyBarChart({ data, onCompetencyClick, selectedId, scope = 'team' }) {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
@@ -37,6 +37,8 @@ function CompetencyBarChart({ data, onCompetencyClick, selectedId }) {
       </div>
     );
   }
+
+  const isIndividual = scope === 'individual';
 
   return (
     <div className="space-y-3">
@@ -51,12 +53,14 @@ function CompetencyBarChart({ data, onCompetencyClick, selectedId }) {
         return (
           <div 
             key={comp.id}
-            className={`rounded-lg border transition-all cursor-pointer ${
-              isSelected 
+            className={`rounded-lg border transition-all ${
+              isIndividual ? '' : 'cursor-pointer'
+            } ${
+              isSelected && !isIndividual
                 ? 'border-purple-300 bg-purple-50 shadow-md' 
                 : 'border-gray-100 bg-gray-50 hover:bg-gray-100 hover:border-gray-200'
             }`}
-            onClick={() => onCompetencyClick(comp.id)}
+            onClick={() => !isIndividual && onCompetencyClick(comp.id)}
           >
             <div className="p-3">
               <div className="flex items-center justify-between mb-2">
@@ -82,10 +86,12 @@ function CompetencyBarChart({ data, onCompetencyClick, selectedId }) {
                       {comp.userCount} users
                     </span>
                   )}
-                  {isSelected ? (
-                    <ChevronUp className="w-4 h-4 text-purple-500" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  {!isIndividual && (
+                    isSelected ? (
+                      <ChevronUp className="w-4 h-4 text-purple-500" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )
                   )}
                 </div>
               </div>
@@ -431,6 +437,13 @@ export default function CompetencyMaturityDashboard({
           userCompetencies = await dbFetch(
             `user_competencies?select=*,competency:competency_id(id,name,description)&user_id=eq.${userId}`
           );
+          // Add user info for consistency
+          const userProfile = await dbFetch(`profiles?select=id,full_name&id=eq.${userId}`);
+          const userName = userProfile?.[0]?.full_name || 'Unknown';
+          userCompetencies = userCompetencies?.map(uc => ({
+            ...uc,
+            user: { id: uc.user_id, full_name: userName }
+          })) || [];
         }
       } else if (scope === 'team') {
         let teamUserIds = [];
@@ -788,6 +801,7 @@ export default function CompetencyMaturityDashboard({
               data={filteredData} 
               onCompetencyClick={handleCompetencyClick}
               selectedId={selectedCompetencyId}
+              scope={scope}
             />
             
             {/* Drill-down Panel */}
@@ -803,15 +817,23 @@ export default function CompetencyMaturityDashboard({
         )}
       </div>
 
-      {/* Footer - View All Link */}
+      {/* Footer - Summary */}
       <div className="p-3 border-t border-gray-100 bg-gray-50">
-        <button
-          onClick={() => navigate('/competencies')}
-          className="w-full text-center text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1"
-        >
-          View all competencies
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-4 text-gray-500">
+            <span>Showing {filteredData.length} of {competencyData.length} competencies</span>
+            {scope !== 'individual' && (
+              <span>• Click a bar to see trainee details</span>
+            )}
+          </div>
+          <button
+            onClick={() => navigate('/competencies')}
+            className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+          >
+            Manage competencies
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
