@@ -136,7 +136,7 @@ export default function MyProgressPage() {
     setLoading(true);
     try {
       const data = await dbFetch(
-        `user_competencies?user_id=eq.${profile.id}&select=*,competencies(id,name,description,competency_categories(name,color))&order=created_at.desc`
+        `user_competencies?user_id=eq.${profile.id}&select=*,competency:competency_id(id,name,description)&order=created_at.desc`
       );
       setCompetencies(data || []);
     } catch (error) {
@@ -177,7 +177,7 @@ export default function MyProgressPage() {
 
   // Spider chart data
   const chartData = competencies.map(c => ({
-    name: c.competencies?.name || 'Unknown',
+    name: c.competency?.name || 'Unknown',
     current: c.current_level || 1,
     target: c.target_level || 3
   }));
@@ -283,18 +283,7 @@ export default function MyProgressPage() {
                   <div key={comp.id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h3 className="font-medium text-gray-900">{comp.competencies?.name}</h3>
-                        {comp.competencies?.competency_categories?.name && (
-                          <span 
-                            className="inline-block px-2 py-0.5 rounded-full text-xs mt-1"
-                            style={{ 
-                              backgroundColor: `${comp.competencies.competency_categories.color}20`,
-                              color: comp.competencies.competency_categories.color 
-                            }}
-                          >
-                            {comp.competencies.competency_categories.name}
-                          </span>
-                        )}
+                        <h3 className="font-medium text-gray-900">{comp.competency?.name}</h3>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(comp.status)}`}>
                         {comp.status === 'achieved' ? 'Achieved' : 

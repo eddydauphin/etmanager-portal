@@ -2899,6 +2899,7 @@ function TeamLeadDashboard() {
           subtitle="Including you"
           icon={Users}
           color="blue"
+          onClick={() => navigate('/profiles')}
         />
         <StatCard 
           title="Competencies" 
@@ -2906,6 +2907,7 @@ function TeamLeadDashboard() {
           subtitle={`${competencyProgress}% achieved`}
           icon={Target}
           color="green"
+          onClick={() => navigate('/competencies')}
         />
         <StatCard 
           title="Training" 
@@ -2913,6 +2915,7 @@ function TeamLeadDashboard() {
           subtitle={`Pending (${stats.trainingCompleted} completed)`}
           icon={GraduationCap}
           color="amber"
+          onClick={() => navigate('/training')}
         />
         <StatCard 
           title="Coaching" 
@@ -2920,6 +2923,7 @@ function TeamLeadDashboard() {
           subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : 'Active sessions'}
           icon={Users}
           color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
+          onClick={() => navigate('/development')}
         />
       </div>
 
@@ -2984,16 +2988,7 @@ function TeamLeadDashboard() {
         initialScope="team"
       />
 
-      {/* My Own Development Activities (Team Leads can have activities too) */}
-      <MyDevelopmentActivitiesSection profile={profile} />
-
-      {/* All Team Coaching Activities */}
-      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
-
-      {/* Training Materials KPI */}
-      <TrainingMaterialsSection clientId={clientId} />
-
-      {/* My Training Development Tasks */}
+      {/* My Training Development Tasks - Only show if user has pending tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
@@ -3557,6 +3552,7 @@ function SuperAdminDashboard() {
           subtitle="Organizations"
           icon={Building2}
           color="blue"
+          onClick={() => navigate('/settings')}
         />
         <StatCard 
           title="Total Trainees" 
@@ -3564,6 +3560,7 @@ function SuperAdminDashboard() {
           subtitle="Across all clients"
           icon={Users}
           color="green"
+          onClick={() => navigate('/profiles')}
         />
         <StatCard 
           title="Active Coaching" 
@@ -3571,6 +3568,7 @@ function SuperAdminDashboard() {
           subtitle="Sessions in progress"
           icon={Target}
           color="purple"
+          onClick={() => navigate('/development')}
         />
         <StatCard 
           title="Training Pending" 
@@ -3578,11 +3576,9 @@ function SuperAdminDashboard() {
           subtitle="Awaiting completion"
           icon={GraduationCap}
           color="amber"
+          onClick={() => navigate('/training')}
         />
       </div>
-
-      {/* My Coachees Section - Show if user is a coach */}
-      <MyCoacheesSection profile={profile} />
 
       {/* Pending Trainings - All pending across clients */}
       <PendingTrainingsSection title="Pending Trainings (All Clients)" collapsible={true} />
@@ -3590,10 +3586,7 @@ function SuperAdminDashboard() {
       {/* Pending Validations - Activities I need to validate as coach */}
       <PendingValidationsSection profile={profile} />
 
-      {/* Training Materials KPI */}
-      <TrainingMaterialsSection />
-
-      {/* My Training Development Tasks */}
+      {/* My Training Development Tasks - Only show if user has pending tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
@@ -3633,9 +3626,6 @@ function SuperAdminDashboard() {
           />
         </div>
       </div>
-
-      {/* My Own Development Activities */}
-      <MyDevelopmentActivitiesSection profile={profile} />
 
       {/* Create Development Modal */}
       <CreateDevelopmentModal
@@ -4197,13 +4187,7 @@ function ClientAdminDashboard() {
       {/* Organization Hierarchy */}
       <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
 
-      {/* My Coachees Section */}
-      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
-
-      {/* Training Materials KPI */}
-      <TrainingMaterialsSection clientId={clientId} />
-
-      {/* My Training Development Tasks */}
+      {/* My Training Development Tasks - Only show if user has pending tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
@@ -4741,7 +4725,10 @@ function TraineeDashboard() {
 
       {/* Progress Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
+        <div 
+          className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => navigate('/my-progress')}
+        >
           <h3 className="text-sm font-medium text-gray-500 mb-4">Overall Progress</h3>
           <ProgressRing percentage={overallProgress} />
           <p className="text-sm text-gray-600 mt-4">
@@ -4772,7 +4759,7 @@ function TraineeDashboard() {
             subtitle="Sessions in progress"
             icon={Users}
             color="purple"
-            onClick={() => navigate('/my-plan')}
+            onClick={() => navigate('/development')}
           />
           <StatCard 
             title="Skills Achieved" 
@@ -4804,15 +4791,15 @@ function TraineeDashboard() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <QuickAction
-            title="View My Matrix"
+            title="View My Progress"
             description="See all competency levels"
             href="/my-progress"
             icon={Target}
           />
           <QuickAction
-            title="My Development Plan"
-            description="View your IDP & coaching"
-            href="/my-plan"
+            title="My Coaching"
+            description="View coaching activities"
+            href="/development"
             icon={ClipboardList}
           />
           <QuickAction
