@@ -84,7 +84,7 @@ export default function ChatPage() {
       
       // Ensure user has their OWN AI channel (not shared)
       const hasOwnAI = list.find(c => c.type === 'ai_assistant' && c.created_by === user.id);
-      if (!hasOwnAI && profile.role !== 'super_admin') {
+      if (!hasOwnAI) {
         await createAIChannel();
         return loadChannels();
       }
