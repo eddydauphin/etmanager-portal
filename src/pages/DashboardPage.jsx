@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { supabase } from '../lib/supabase';
 import {
   Users,
   Target,
@@ -306,10 +307,9 @@ function QuickActionButton({ title, description, onClick, icon: Icon, color = 'b
 
 // Training Materials KPI Section
 // Pending Trainings Section - Shows detailed pending training list for admins/team leads
-function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pending Trainings", collapsible = false }) {
+function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pending Trainings" }) {
   const [pendingTrainings, setPendingTrainings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isExpanded, setIsExpanded] = useState(!collapsible); // Collapsed by default if collapsible
 
   useEffect(() => {
     loadPendingTrainings();
@@ -368,10 +368,10 @@ function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pen
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="animate-pulse flex items-center gap-2">
-          <div className="h-5 w-5 bg-gray-200 rounded"></div>
-          <div className="h-5 bg-gray-200 rounded w-48"></div>
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-gray-200 rounded w-48"></div>
+          <div className="h-32 bg-gray-100 rounded"></div>
         </div>
       </div>
     );
@@ -381,106 +381,81 @@ function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pen
     return null;
   }
 
-  const overdueCount = pendingTrainings.filter(t => t.is_overdue).length;
-
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-      {/* Clickable Header */}
-      <button
-        onClick={() => collapsible && setIsExpanded(!isExpanded)}
-        className={`w-full flex items-center justify-between p-4 ${collapsible ? 'hover:bg-gray-50 cursor-pointer' : ''}`}
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-amber-100 rounded-lg">
-            <GraduationCap className="w-5 h-5 text-amber-600" />
-          </div>
-          <div className="text-left">
-            <h3 className="font-semibold text-gray-900">{title}</h3>
-            <p className="text-sm text-gray-500">
-              {pendingTrainings.length} pending
-              {overdueCount > 0 && <span className="text-red-600 font-medium"> • {overdueCount} overdue</span>}
-            </p>
-          </div>
-        </div>
+    <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-medium">
+          <GraduationCap className="w-5 h-5 text-amber-600" />
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
             {pendingTrainings.length}
           </span>
-          {collapsible && (
-            isExpanded ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )
-          )}
         </div>
-      </button>
-      
-      {/* Expandable Content */}
-      {isExpanded && (
-        <div className="border-t border-gray-100">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Trainee</th>
-                  <th className="px-4 py-3">Training Module</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Due Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {pendingTrainings.map(item => (
-                  <tr key={item.id} className={item.is_overdue ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-medium">
-                          {item.trainee_name?.charAt(0) || '?'}
-                        </div>
-                        <span className="font-medium text-gray-900">{item.trainee_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{item.module_title}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        item.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {item.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.due_date ? (
-                        <span className={`text-sm ${item.is_overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                          {item.is_overdue && '⚠️ '}
-                          {new Date(item.due_date).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-sm">No due date</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-3 bg-gray-50 border-t border-gray-100">
-            <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1">
-              View all trainings <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-      )}
+        <Link to="/training" className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+          View all <ChevronRight className="w-4 h-4" />
+        </Link>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="pb-3">Trainee</th>
+              <th className="pb-3">Training Module</th>
+              <th className="pb-3">Status</th>
+              <th className="pb-3">Due Date</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {pendingTrainings.map(item => (
+              <tr key={item.id} className={item.is_overdue ? 'bg-red-50' : ''}>
+                <td className="py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-medium">
+                      {item.trainee_name?.charAt(0) || '?'}
+                    </div>
+                    <span className="font-medium text-gray-900">{item.trainee_name}</span>
+                  </div>
+                </td>
+                <td className="py-3 text-gray-700">{item.module_title}</td>
+                <td className="py-3">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    item.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {item.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                  </span>
+                </td>
+                <td className="py-3">
+                  {item.due_date ? (
+                    <span className={`text-sm ${item.is_overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                      {item.is_overdue && '⚠️ '}
+                      {new Date(item.due_date).toLocaleDateString()}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 text-sm">No due date</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 // Pending Validations Section - Shows completed activities awaiting coach validation
 // Works for ANY user who is assigned as coach, not just team leads
+// Now includes validation modal with level selection
 function PendingValidationsSection({ profile, clientId = null, teamIds = null }) {
   const [pendingValidations, setPendingValidations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [validatingId, setValidatingId] = useState(null);
   const navigate = useNavigate();
+  
+  // Validation modal state
+  const [showValidateModal, setShowValidateModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [validateForm, setValidateForm] = useState({ achieved_level: null, notes: '' });
+  const [validating, setValidating] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
@@ -511,7 +486,6 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
               allPendingValidations.push({
                 id: `activity_${activity.id}`,
                 type: activity.type,
-                source: 'development_activity',
                 user_id: activity.trainee_id,
                 user_name: activity.trainee?.full_name || 'Unknown',
                 competency_id: activity.competency_id,
@@ -531,99 +505,61 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
         }
       }
       
-      // 2. Training where I'm the validator and status is 'passed' or 'completed' but not validated
-      const pendingTrainingValidations = await dbFetch(
-        `user_training?select=*,user:user_id(id,full_name),module:module_id(id,title)&validator_id=eq.${profile.id}&status=in.(passed,completed)&validated_at=is.null`
-      );
-      
-      if (pendingTrainingValidations && pendingTrainingValidations.length > 0) {
-        for (const training of pendingTrainingValidations) {
-          // Get linked competency
-          const competencyModule = await dbFetch(
-            `competency_modules?select=competency_id,target_level,competencies(id,name)&module_id=eq.${training.module_id}`
-          );
-          
-          let competencyInfo = null;
-          let userComp = null;
-          
-          if (competencyModule && competencyModule.length > 0) {
-            competencyInfo = competencyModule[0];
-            userComp = await dbFetch(
-              `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${competencyInfo.competency_id}`
-            );
-            userComp = userComp?.[0];
-          }
-          
-          allPendingValidations.push({
-            id: `training_${training.id}`,
-            type: 'training',
-            source: 'user_training',
-            user_id: training.user_id,
-            user_name: training.user?.full_name || 'Unknown',
-            competency_id: competencyInfo?.competency_id || null,
-            competency_name: competencyInfo?.competencies?.name || training.module?.title || 'Training',
-            title: training.module?.title || 'Training Module',
-            current_level: userComp?.current_level || 0,
-            target_level: competencyInfo?.target_level || userComp?.target_level || 3,
-            score: training.score,
-            completed_at: training.completed_at,
-            due_date: training.due_date,
-            training_id: training.id,
-            user_competency_id: userComp?.id,
-            link: '/training'
-          });
-        }
-      }
-      
-      // 3. Fallback: Training completed by team members (for managers without explicit validator assignment)
+      // 2. Training completed by my team members (if I'm a team lead or have direct reports)
       let myTeamIds = teamIds || [];
       if (myTeamIds.length === 0 && profile?.id) {
+        // Check if I have any direct reports
         const directReports = await dbFetch(`profiles?select=id&reports_to_id=eq.${profile.id}&is_active=eq.true`);
         myTeamIds = directReports?.map(u => u.id) || [];
       }
       
       if (myTeamIds.length > 0) {
         const idList = myTeamIds.join(',');
-        // Get training without validator or where I'm not already the validator
-        const teamTraining = await dbFetch(
-          `user_training?select=*,user:user_id(id,full_name),module:module_id(id,title)&user_id=in.(${idList})&status=in.(passed,completed)&validated_at=is.null&or=(validator_id.is.null,validator_id.neq.${profile.id})&order=completed_at.desc&limit=20`
+        const recentTraining = await dbFetch(
+          `user_training?select=id,status,completed_at,user_id,module_id,score&user_id=in.(${idList})&status=in.(passed,completed)&order=completed_at.desc&limit=20`
         );
         
-        if (teamTraining && teamTraining.length > 0) {
-          for (const training of teamTraining) {
-            // Skip if already added from validator query
-            if (allPendingValidations.find(v => v.id === `training_${training.id}`)) continue;
-            
+        if (recentTraining && recentTraining.length > 0) {
+          for (const training of recentTraining) {
             const competencyModule = await dbFetch(
-              `competency_modules?select=competency_id,target_level,competencies(id,name)&module_id=eq.${training.module_id}`
+              `competency_modules?select=competency_id,competencies(id,name)&module_id=eq.${training.module_id}`
             );
             
             if (competencyModule && competencyModule.length > 0) {
-              const competencyInfo = competencyModule[0];
+              const compId = competencyModule[0].competency_id;
               const userComp = await dbFetch(
-                `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${competencyInfo.competency_id}`
+                `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${compId}`
               );
-              const uc = userComp?.[0];
               
-              if (uc && (uc.current_level || 0) < (uc.target_level || 3)) {
-                allPendingValidations.push({
-                  id: `training_${training.id}`,
-                  type: 'training',
-                  source: 'user_training',
-                  user_id: training.user_id,
-                  user_name: training.user?.full_name || 'Unknown',
-                  competency_id: competencyInfo.competency_id,
-                  competency_name: competencyInfo.competencies?.name || 'Unknown',
-                  title: training.module?.title || 'Training Module',
-                  current_level: uc.current_level || 0,
-                  target_level: uc.target_level || 3,
-                  score: training.score,
-                  completed_at: training.completed_at,
-                  due_date: uc.due_date || training.due_date,
-                  training_id: training.id,
-                  user_competency_id: uc.id,
-                  link: '/training'
-                });
+              if (userComp && userComp.length > 0) {
+                const uc = userComp[0];
+                const hasGap = (uc.current_level || 0) < (uc.target_level || 3);
+                
+                if (hasGap) {
+                  const userInfo = await dbFetch(`profiles?select=full_name&id=eq.${training.user_id}`);
+                  
+                  // Avoid duplicates
+                  const existingId = `training_${uc.id}`;
+                  if (!allPendingValidations.find(v => v.id === existingId)) {
+                    allPendingValidations.push({
+                      id: existingId,
+                      type: 'training',
+                      user_id: training.user_id,
+                      user_name: userInfo?.[0]?.full_name || 'Unknown',
+                      competency_id: compId,
+                      competency_name: competencyModule[0].competencies?.name || 'Unknown',
+                      title: competencyModule[0].competencies?.name || 'Training',
+                      current_level: uc.current_level || 0,
+                      target_level: uc.target_level || 3,
+                      score: training.score,
+                      completed_at: training.completed_at,
+                      due_date: uc.due_date || training.due_date,
+                      user_competency_id: uc.id,
+                      training_id: training.id,
+                      link: '/development-center'
+                    });
+                  }
+                }
               }
             }
           }
@@ -651,6 +587,110 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
     }
   };
 
+  // Open validation modal
+  const openValidateModal = (item) => {
+    setSelectedItem(item);
+    setValidateForm({ 
+      achieved_level: item.target_level, // Default to target level
+      notes: '' 
+    });
+    setShowValidateModal(true);
+  };
+
+  // Handle validation submission
+  const handleValidate = async () => {
+    if (!selectedItem || !validateForm.achieved_level) return;
+    
+    setValidating(true);
+    try {
+      // 1. Update user_competencies with the validated level
+      if (selectedItem.user_competency_id) {
+        const { error: ucError } = await supabase
+          .from('user_competencies')
+          .update({
+            current_level: validateForm.achieved_level,
+            status: validateForm.achieved_level >= selectedItem.target_level ? 'achieved' : 'in_progress',
+            validated_at: new Date().toISOString(),
+            validated_by: profile.id,
+            validation_notes: validateForm.notes || null
+          })
+          .eq('id', selectedItem.user_competency_id);
+        
+        if (ucError) throw ucError;
+      } else {
+        // Create user_competency record if it doesn't exist
+        const { error: insertError } = await supabase
+          .from('user_competencies')
+          .insert({
+            user_id: selectedItem.user_id,
+            competency_id: selectedItem.competency_id,
+            current_level: validateForm.achieved_level,
+            target_level: selectedItem.target_level,
+            status: validateForm.achieved_level >= selectedItem.target_level ? 'achieved' : 'in_progress',
+            validated_at: new Date().toISOString(),
+            validated_by: profile.id,
+            validation_notes: validateForm.notes || null
+          });
+        
+        if (insertError) throw insertError;
+      }
+      
+      // 2. If it's a development activity, mark it as validated
+      if (selectedItem.activity_id) {
+        const { error: actError } = await supabase
+          .from('development_activities')
+          .update({
+            status: 'validated',
+            validated_at: new Date().toISOString(),
+            validated_by: profile.id,
+            achieved_level: validateForm.achieved_level
+          })
+          .eq('id', selectedItem.activity_id);
+        
+        if (actError) console.error('Error updating activity:', actError);
+      }
+      
+      // 3. If it's training, update the user_training record
+      if (selectedItem.training_id) {
+        const { error: trainError } = await supabase
+          .from('user_training')
+          .update({
+            validated_at: new Date().toISOString(),
+            validated_by: profile.id,
+            validated_level: validateForm.achieved_level
+          })
+          .eq('id', selectedItem.training_id);
+        
+        if (trainError) console.error('Error updating training:', trainError);
+      }
+      
+      // 4. Create a notification for the trainee
+      await supabase.from('notifications').insert({
+        user_id: selectedItem.user_id,
+        type: 'validation_completed',
+        title: 'Competency Validated',
+        message: `Your ${selectedItem.competency_name} competency has been validated at Level ${validateForm.achieved_level} by ${profile.full_name}`,
+        link: '/my-progress',
+        metadata: {
+          competency_id: selectedItem.competency_id,
+          achieved_level: validateForm.achieved_level,
+          validated_by: profile.id
+        }
+      });
+      
+      // Close modal and refresh list
+      setShowValidateModal(false);
+      setSelectedItem(null);
+      loadPendingValidations();
+      
+    } catch (error) {
+      console.error('Error validating:', error);
+      alert('Error saving validation. Please try again.');
+    } finally {
+      setValidating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-6">
@@ -667,6 +707,7 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
   }
 
   return (
+    <>
     <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-6">
       <div className="flex items-center gap-2 mb-4">
         <Award className="w-5 h-5 text-amber-600" />
@@ -724,7 +765,7 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
                   </span>
                 )}
                 <button
-                  onClick={() => navigate(item.link)}
+                  onClick={() => openValidateModal(item)}
                   className="mt-1 px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
                 >
                   Validate
@@ -734,7 +775,136 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
           );
         })}
       </div>
+
+      {/* Validation Modal */}
+      {showValidateModal && selectedItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-600" />
+                <h3 className="text-lg font-semibold">Validate Competency</h3>
+              </div>
+              <button
+                onClick={() => setShowValidateModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-4">
+              {/* Trainee Info */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold text-lg">
+                  {selectedItem.user_name?.charAt(0) || '?'}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{selectedItem.user_name}</p>
+                  <p className="text-sm text-gray-600">{selectedItem.competency_name}</p>
+                </div>
+              </div>
+
+              {/* Current Status */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-gray-50 rounded-lg text-center">
+                  <p className="text-xs text-gray-500 mb-1">Current Level</p>
+                  <p className="text-2xl font-bold text-gray-700">{selectedItem.current_level}</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <p className="text-xs text-blue-600 mb-1">Target Level</p>
+                  <p className="text-2xl font-bold text-blue-700">{selectedItem.target_level}</p>
+                </div>
+              </div>
+
+              {/* Score if available */}
+              {selectedItem.score !== null && selectedItem.score !== undefined && (
+                <div className="p-3 bg-green-50 rounded-lg text-center">
+                  <p className="text-xs text-green-600 mb-1">Test Score</p>
+                  <p className="text-2xl font-bold text-green-700">{selectedItem.score}%</p>
+                </div>
+              )}
+
+              {/* Level Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Target className="w-4 h-4 inline mr-1" />
+                  Grant Maturity Level
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setValidateForm({ ...validateForm, achieved_level: level })}
+                      className={`flex-1 py-3 rounded-lg border-2 font-bold transition-all ${
+                        validateForm.achieved_level === level
+                          ? level >= selectedItem.target_level
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-amber-500 bg-amber-50 text-amber-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      L{level}
+                    </button>
+                  ))}
+                </div>
+                {validateForm.achieved_level && validateForm.achieved_level < selectedItem.target_level && (
+                  <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Below target level - trainee will need additional development
+                  </p>
+                )}
+                {validateForm.achieved_level && validateForm.achieved_level >= selectedItem.target_level && (
+                  <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Meets or exceeds target level
+                  </p>
+                )}
+              </div>
+
+              {/* Validation Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Validation Notes (Optional)
+                </label>
+                <textarea
+                  value={validateForm.notes}
+                  onChange={(e) => setValidateForm({ ...validateForm, notes: e.target.value })}
+                  rows={3}
+                  placeholder="Add notes about this validation..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <button
+                onClick={() => setShowValidateModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleValidate}
+                disabled={validating || !validateForm.achieved_level}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+              >
+                {validating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                Confirm Validation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </>
   );
 }
 
@@ -2117,14 +2287,14 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
       setSelectedActivity(activity);
       setSelectedCompetency(null);
       setValidateForm({
-        achieved_level: Math.min(activity.target_level || 3, 4),
+        achieved_level: activity.target_level || 3,
         notes: ''
       });
     } else if (competency) {
       setSelectedActivity(null);
       setSelectedCompetency(competency);
       setValidateForm({
-        achieved_level: Math.min(competency.target_level || competency.current_level + 1 || 3, 4),
+        achieved_level: competency.target_level || competency.current_level + 1 || 3,
         notes: ''
       });
     }
@@ -2701,11 +2871,7 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                   Achieved Level
                 </label>
                 <div className="flex gap-2">
-                  {/* Super Admin and Client Admin can validate up to L5, others up to L4 */}
-                  {(profile?.role === 'super_admin' || profile?.role === 'client_admin' 
-                    ? [1, 2, 3, 4, 5] 
-                    : [1, 2, 3, 4]
-                  ).map(level => (
+                  {[1, 2, 3, 4, 5].map(level => (
                     <button
                       key={level}
                       onClick={() => setValidateForm({ ...validateForm, achieved_level: level })}
@@ -2722,12 +2888,6 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                 <p className="text-xs text-gray-500 mt-1">
                   Target: Level {selectedActivity?.target_level || selectedCompetency?.target_level || '?'}
                 </p>
-                {profile?.role !== 'super_admin' && profile?.role !== 'client_admin' && (
-                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                    <Award className="w-3 h-3" />
-                    Level 5 (Expert) requires nomination through the Expert Network
-                  </p>
-                )}
               </div>
 
               {/* Validation Notes */}
@@ -2950,7 +3110,6 @@ function TeamLeadDashboard() {
           subtitle="Including you"
           icon={Users}
           color="blue"
-          onClick={() => navigate('/profiles')}
         />
         <StatCard 
           title="Competencies" 
@@ -2958,7 +3117,6 @@ function TeamLeadDashboard() {
           subtitle={`${competencyProgress}% achieved`}
           icon={Target}
           color="green"
-          onClick={() => navigate('/competencies')}
         />
         <StatCard 
           title="Training" 
@@ -2966,7 +3124,6 @@ function TeamLeadDashboard() {
           subtitle={`Pending (${stats.trainingCompleted} completed)`}
           icon={GraduationCap}
           color="amber"
-          onClick={() => navigate('/training')}
         />
         <StatCard 
           title="Coaching" 
@@ -2974,12 +3131,46 @@ function TeamLeadDashboard() {
           subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : 'Active sessions'}
           icon={Users}
           color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
-          onClick={() => navigate('/development')}
         />
       </div>
 
-      {/* Pending Team Trainings - Collapsible */}
-      <PendingTrainingsSection teamIds={teamMembersList.map(m => m.id)} title="Pending Team Trainings" collapsible={true} />
+      {/* Pending Team Trainings - Detailed List */}
+      <PendingTrainingsSection teamIds={teamMembersList.map(m => m.id)} title="Pending Team Trainings" />
+
+      {/* Team Progress Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Team Competency Progress</h3>
+          <ProgressRing percentage={competencyProgress} color="#10B981" />
+          <p className="text-sm text-gray-600 mt-4">
+            {stats.competenciesAchieved} of {stats.competenciesAssigned} competencies achieved
+          </p>
+        </div>
+
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-4">Recent Training Completions</h3>
+          {recentActivity.length === 0 ? (
+            <p className="text-gray-400 text-sm">No recent completions</p>
+          ) : (
+            <div className="space-y-3">
+              {recentActivity.map(item => (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <div>
+                      <p className="font-medium text-gray-900">{item.trainee_name}</p>
+                      <p className="text-sm text-gray-500">{item.module_title}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Pending Training Approvals - Draft modules needing review */}
       {pendingTrainingApprovals.length > 0 && (
@@ -3039,7 +3230,16 @@ function TeamLeadDashboard() {
         initialScope="team"
       />
 
-      {/* My Training Development Tasks - Only show if user has pending tasks */}
+      {/* My Own Development Activities (Team Leads can have activities too) */}
+      <MyDevelopmentActivitiesSection profile={profile} />
+
+      {/* All Team Coaching Activities */}
+      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+
+      {/* Training Materials KPI */}
+      <TrainingMaterialsSection clientId={clientId} />
+
+      {/* My Training Development Tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
@@ -3603,7 +3803,6 @@ function SuperAdminDashboard() {
           subtitle="Organizations"
           icon={Building2}
           color="blue"
-          onClick={() => navigate('/settings')}
         />
         <StatCard 
           title="Total Trainees" 
@@ -3611,7 +3810,6 @@ function SuperAdminDashboard() {
           subtitle="Across all clients"
           icon={Users}
           color="green"
-          onClick={() => navigate('/profiles')}
         />
         <StatCard 
           title="Active Coaching" 
@@ -3619,7 +3817,6 @@ function SuperAdminDashboard() {
           subtitle="Sessions in progress"
           icon={Target}
           color="purple"
-          onClick={() => navigate('/development')}
         />
         <StatCard 
           title="Training Pending" 
@@ -3627,17 +3824,22 @@ function SuperAdminDashboard() {
           subtitle="Awaiting completion"
           icon={GraduationCap}
           color="amber"
-          onClick={() => navigate('/training')}
         />
       </div>
 
+      {/* My Coachees Section - Show if user is a coach */}
+      <MyCoacheesSection profile={profile} />
+
       {/* Pending Trainings - All pending across clients */}
-      <PendingTrainingsSection title="Pending Trainings (All Clients)" collapsible={true} />
+      <PendingTrainingsSection title="Pending Trainings (All Clients)" />
 
       {/* Pending Validations - Activities I need to validate as coach */}
       <PendingValidationsSection profile={profile} />
 
-      {/* My Training Development Tasks - Only show if user has pending tasks */}
+      {/* Training Materials KPI */}
+      <TrainingMaterialsSection />
+
+      {/* My Training Development Tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
@@ -3677,6 +3879,9 @@ function SuperAdminDashboard() {
           />
         </div>
       </div>
+
+      {/* My Own Development Activities */}
+      <MyDevelopmentActivitiesSection profile={profile} />
 
       {/* Create Development Modal */}
       <CreateDevelopmentModal
@@ -4222,7 +4427,7 @@ function ClientAdminDashboard() {
       </div>
 
       {/* Pending Trainings - Detailed list */}
-      <PendingTrainingsSection clientId={clientId} title="Pending Team Trainings" collapsible={true} />
+      <PendingTrainingsSection clientId={clientId} title="Pending Team Trainings" />
 
       {/* Pending Validations - Activities I need to validate as coach */}
       <PendingValidationsSection profile={profile} clientId={clientId} />
@@ -4238,7 +4443,13 @@ function ClientAdminDashboard() {
       {/* Organization Hierarchy */}
       <OrganizationHierarchy users={users} profile={profile} clientName={clientName} hierarchySettings={hierarchySettings} />
 
-      {/* My Training Development Tasks - Only show if user has pending tasks */}
+      {/* My Coachees Section */}
+      <MyCoacheesSection profile={profile} showAll={true} clientId={clientId} />
+
+      {/* Training Materials KPI */}
+      <TrainingMaterialsSection clientId={clientId} />
+
+      {/* My Training Development Tasks */}
       <MyTrainingDevelopmentSection profile={profile} />
 
       {/* Quick Actions */}
@@ -4776,10 +4987,7 @@ function TraineeDashboard() {
 
       {/* Progress Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div 
-          className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate('/my-progress')}
-        >
+        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
           <h3 className="text-sm font-medium text-gray-500 mb-4">Overall Progress</h3>
           <ProgressRing percentage={overallProgress} />
           <p className="text-sm text-gray-600 mt-4">
@@ -4810,7 +5018,7 @@ function TraineeDashboard() {
             subtitle="Sessions in progress"
             icon={Users}
             color="purple"
-            onClick={() => navigate('/development')}
+            onClick={() => navigate('/my-plan')}
           />
           <StatCard 
             title="Skills Achieved" 
@@ -4842,15 +5050,15 @@ function TraineeDashboard() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <QuickAction
-            title="View My Progress"
+            title="View My Matrix"
             description="See all competency levels"
             href="/my-progress"
             icon={Target}
           />
           <QuickAction
-            title="My Coaching"
-            description="View coaching activities"
-            href="/development"
+            title="My Development Plan"
+            description="View your IDP & coaching"
+            href="/my-plan"
             icon={ClipboardList}
           />
           <QuickAction
