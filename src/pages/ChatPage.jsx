@@ -12,10 +12,12 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [aiThinking, setAiThinking] = useState(false);
+  const [aiContext, setAiContext] = useState(null); // Track ongoing AI conversation state
   const [showNewChannelModal, setShowNewChannelModal] = useState(false);
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [pendingAction, setPendingAction] = useState(null); // Track multi-turn conversation state
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -134,51 +136,133 @@ export default function ChatPage() {
       
       // Extract date
       let targetDate = new Date();
-      let dateStr = 'soon';
-      if (lower.includes('tomorrow')) { targetDate.setDate(targetDate.getDate() + 1); dateStr = 'tomorrow'; }
-      else if (lower.includes('next week')) { targetDate.setDate(targetDate.getDate() + 7); dateStr = 'next week'; }
-      else if (lower.includes('today')) { dateStr = 'today'; }
+      let dateStr = '';
+      const dateMatch = msg.match(/(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s*(?:at\s*)?(\d{1,2})?(?::(\d{2}))?\s*(am|pm)?/i);
+      if (dateMatch) {
+        const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+        targetDate = new Date(new Date().getFullYear(), months[dateMatch[2].toLowerCase().slice(0,3)], parseInt(dateMatch[1]));
+        if (dateMatch[3]) {
+          let hour = parseInt(dateMatch[3]);
+          if (dateMatch[5]?.toLowerCase() === 'pm' && hour < 12) hour += 12;
+          targetDate.setHours(hour, parseInt(dateMatch[4]) || 0);
+        }
+        dateStr = targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        if (dateMatch[3]) dateStr += ` at ${dateMatch[3]}${dateMatch[4] ? ':' + dateMatch[4] : ''}${dateMatch[5] || ''}`;
+      } else if (lower.includes('tomorrow')) { targetDate.setDate(targetDate.getDate() + 1); dateStr = 'Tomorrow'; }
+      else if (lower.includes('today')) { dateStr = 'Today'; }
       
-      // Extract topic (after "about", "on", "for", or abbreviations)
+      // Extract topic
       let topic = '';
-      const topicMatch = msg.match(/(?:about|on|for|regarding)\s+(?:the\s+)?([A-Za-z0-9\s]+?)(?:\.|,|$)/i);
+      const topicMatch = msg.match(/(?:topic[:\s]+|about[:\s]+|on[:\s]+)\s*([^,]+?)(?:,|when|$)/i);
       if (topicMatch) topic = topicMatch[1].trim();
-      const abbrev = msg.match(/\b(SHO|CIP|GMP|HACCP|SOP|QA|QC|UHT|HTST)\b/i);
-      if (abbrev && !topic) topic = abbrev[1].toUpperCase();
       
       let response = '';
       
-      // ===== COACHING REQUEST =====
+      // ===== CHECK PENDING ACTION FIRST (Multi-turn conversation) =====
+      if (pendingAction?.type === 'coaching_request') {
+        // Get all coaches
+        const { data: allCoaches } = await supabase.from('profiles').select('id, full_name, role').eq('client_id', profile.client_id).in('role', ['team_lead','category_admin','site_admin','client_admin']).eq('is_active', true);
+        
+        // Cancel check
+        if (lower.includes('cancel') || lower.includes('nevermind') || lower === 'no') {
+          setPendingAction(null);
+          response = `No problem, ${firstName}! Let me know if you need anything else. 😊`;
+          await supabase.from('chat_messages').insert({ channel_id: activeChannel.id, sender_id: user.id, sender_type: 'ai', content: response, content_type: 'text' });
+          setAiThinking(false);
+          return;
+        }
+        
+        // Parse the message for coach, topic, when - be flexible!
+        let foundCoach = pendingAction.coach;
+        let foundTopic = pendingAction.topic || topic;
+        let foundWhen = pendingAction.when || dateStr;
+        
+        // Check if message contains a coach name
+        for (const c of allCoaches || []) {
+          const nameParts = c.full_name.toLowerCase().split(' ');
+          for (const part of nameParts) {
+            if (part.length > 2 && lower.includes(part)) {
+              foundCoach = c;
+              break;
+            }
+          }
+          if (foundCoach) break;
+        }
+        
+        // Check for topic in message - multiple patterns
+        const topicPatterns = [
+          /topic[:\s]+([^,]+?)(?:,|when|$)/i,
+          /about[:\s]+([^,]+?)(?:,|when|$)/i,
+          /on[:\s]+([^,]+?)(?:,|when|$)/i,
+        ];
+        for (const pattern of topicPatterns) {
+          const match = msg.match(pattern);
+          if (match) { foundTopic = match[1].trim(); break; }
+        }
+        
+        // If still no topic but we have coach and message isn't just a name, use message as topic
+        if (!foundTopic && foundCoach && !lower.match(/^(yes|ok|sure|\w+\s*,?\s*$)/i) && msg.length > 10) {
+          foundTopic = msg.replace(/,.*when.*/i, '').replace(foundCoach?.full_name || '', '').trim();
+        }
+        
+        // Check for when
+        if (dateStr && dateStr !== '') foundWhen = dateStr;
+        const whenMatch = msg.match(/when[:\s]+(.+?)(?:$)/i);
+        if (whenMatch) foundWhen = whenMatch[1].trim();
+        
+        // Update pending action
+        setPendingAction({ ...pendingAction, coach: foundCoach, topic: foundTopic, when: foundWhen });
+        
+        // If we have coach AND topic, create the session!
+        if (foundCoach && foundTopic) {
+          response = await createCoachingSession(foundCoach, foundTopic, targetDate, foundWhen || 'This week');
+          setPendingAction(null);
+          await supabase.from('chat_messages').insert({ channel_id: activeChannel.id, sender_id: user.id, sender_type: 'ai', content: response, content_type: 'text' });
+          setAiThinking(false);
+          return;
+        }
+        
+        // Still need info - ask for what's missing
+        response = `Got it! `;
+        if (foundCoach) response += `✓ Coach: ${foundCoach.full_name}\n`;
+        if (foundTopic) response += `✓ Topic: ${foundTopic}\n`;
+        if (foundWhen) response += `✓ When: ${foundWhen}\n`;
+        response += `\n`;
+        
+        if (!foundCoach) {
+          response += `**Who should be your coach?**\n${allCoaches?.map(c => `• ${c.full_name}`).join('\n')}\n\n`;
+        }
+        if (!foundTopic) {
+          response += `**What topic do you want coaching on?**\n(e.g., "Shift handover", "CIP procedures", "Equipment operation")\n\n`;
+        }
+        
+        response += `💡 Or say "cancel" to stop.`;
+        await supabase.from('chat_messages').insert({ channel_id: activeChannel.id, sender_id: user.id, sender_type: 'ai', content: response, content_type: 'text' });
+        setAiThinking(false);
+        return;
+      }
+      
+      // ===== COACHING REQUEST (Start new flow) =====
       if (lower.match(/(need|want|like to|help|request|set up|schedule|organize|book).*(coaching|session|coach)/i)) {
         const coach = mentionedUsers.find(u => ['team_lead','category_admin','site_admin','client_admin','super_admin'].includes(u.role));
         const { data: comps } = await supabase.from('competencies').select('id, name').eq('client_id', profile.client_id).eq('is_active', true);
-        const competency = topic ? comps?.find(c => c.name.toLowerCase().includes(topic.toLowerCase()) || c.name.toUpperCase().includes(topic.toUpperCase())) : null;
+        const competency = topic ? comps?.find(c => c.name.toLowerCase().includes(topic.toLowerCase())) : null;
         
-        if (coach) {
-          // CREATE THE SESSION!
-          const title = topic ? `Coaching: ${topic}` : 'Coaching Session';
-          const { error } = await supabase.from('development_activities').insert({
-            type: 'coaching', title, description: `Requested via AI: "${msg}"`,
-            trainee_id: user.id, coach_id: coach.id, assigned_by: user.id,
-            competency_id: competency?.id, status: 'pending', client_id: profile.client_id,
-            start_date: targetDate.toISOString().split('T')[0], due_date: targetDate.toISOString().split('T')[0]
-          });
-          
-          if (!error) {
-            await notify(coach.id, `🎯 **Coaching Request**\n\nFrom: ${profile.full_name}\nTopic: ${topic || 'General'}\nWhen: ${dateStr}\n\nCheck Development Activities!`);
-            response = `✅ **Done! I've set up your coaching session.**\n\n👨‍🏫 **Coach:** ${coach.full_name}\n📚 **Topic:** ${topic || 'Coaching session'}\n📅 **When:** ${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}\n\n${coach.full_name.split(' ')[0]} has been notified and will see this in their pending activities.\n\nAnything else you need?`;
-          } else {
-            response = `❌ Error creating session. Please try again.`;
-          }
+        if (coach && topic) {
+          // Have everything - create immediately!
+          response = await createCoachingSession(coach, topic, targetDate, dateStr || 'This week');
+        } else if (coach) {
+          // Have coach, need topic
+          setPendingAction({ type: 'coaching_request', coach });
+          response = `Great! ${coach.full_name} will be your coach. 🎯\n\nWhat topic would you like coaching on?`;
         } else {
-          // Ask for missing coach info
+          // Need coach (and maybe topic)
           const { data: coaches } = await supabase.from('profiles').select('full_name, role').eq('client_id', profile.client_id).in('role', ['team_lead','category_admin','site_admin','client_admin']).eq('is_active', true);
+          setPendingAction({ type: 'coaching_request', topic });
           response = `I'll set that up for you, ${firstName}! 🎯\n\n`;
-          response += `📚 **Topic:** ${topic || '_What topic?_'}\n`;
-          response += `📅 **When:** ${dateStr !== 'soon' ? dateStr : '_When?_'}\n`;
-          response += `👨‍🏫 **Coach:** _Who should coach you?_\n\n`;
-          response += `**Available coaches:**\n${coaches?.map(c => `• **${c.full_name}**`).join('\n') || 'None found'}\n\n`;
-          response += `Just tell me the coach name and I'll create it!`;
+          if (topic) response += `📚 **Topic:** ${topic}\n\n`;
+          response += `**Who should be your coach?**\n\n${coaches?.map(c => `• **${c.full_name}**`).join('\n') || 'No coaches found'}\n\n`;
+          response += `Just tell me the name, or provide everything:\n"Aurelien, topic: shift handover, when: 13 Jan at 9am"`;
         }
       }
       
@@ -271,15 +355,10 @@ export default function ChatPage() {
         response = `Hello ${firstName}! 👋 How can I help you today?`;
       }
       else if (lower.includes('help')) {
-        response = `🤖 **I can help with:**\n\n• "Set up coaching with [name] about [topic] tomorrow"\n• "Send [name] a message: [text]"\n• "Show my pending trainings"\n• "What's my progress?"\n• "Who are the experts?"`;
+        response = `🤖 **I can help with:**\n\n• "Request coaching with [name] on [topic]"\n• "Send [name] a message: [text]"\n• "Show my pending trainings"\n• "What's my progress?"\n• "Who are the experts?"`;
       }
       else {
-        // Smart fallback - try to understand
-        if (mentionedUsers.length > 0) {
-          response = `I see you mentioned ${mentionedUsers[0].full_name}. Would you like to:\n• Send them a message?\n• Request coaching with them?\n\nJust let me know!`;
-        } else {
-          response = `I'm here to help, ${firstName}! 😊\n\nTry:\n• "Set up coaching with [name] tomorrow"\n• "Send [name]: [message]"\n• "Show my trainings"`;
-        }
+        response = `I'm here to help, ${firstName}! 😊\n\nTry:\n• "Request coaching with Aurelien on shift handover"\n• "Send Jean: Meeting at 2pm"\n• "Show my trainings"`;
       }
 
       await supabase.from('chat_messages').insert({ channel_id: activeChannel.id, sender_id: user.id, sender_type: 'ai', content: response, content_type: 'text' });
@@ -287,6 +366,35 @@ export default function ChatPage() {
       console.error('AI error:', e);
       await supabase.from('chat_messages').insert({ channel_id: activeChannel.id, sender_id: user.id, sender_type: 'ai', content: '❌ Error. Please try again.', content_type: 'text' });
     } finally { setAiThinking(false); }
+  };
+
+  // Helper: Create coaching session
+  const createCoachingSession = async (coach, topic, targetDate, dateStr) => {
+    const { data: comps } = await supabase.from('competencies').select('id, name').eq('client_id', profile.client_id).eq('is_active', true);
+    const competency = comps?.find(c => c.name.toLowerCase().includes(topic.toLowerCase()));
+    
+    const { error } = await supabase.from('development_activities').insert({
+      type: 'coaching', 
+      title: `Coaching: ${topic}`,
+      description: `Requested via AI Assistant`,
+      trainee_id: user.id, 
+      coach_id: coach.id, 
+      assigned_by: user.id,
+      competency_id: competency?.id, 
+      status: 'pending', 
+      client_id: profile.client_id,
+      start_date: targetDate.toISOString().split('T')[0], 
+      due_date: targetDate.toISOString().split('T')[0]
+    });
+    
+    if (error) {
+      console.error('Coaching create error:', error);
+      return `❌ Error creating session. Please try again.`;
+    }
+    
+    await notify(coach.id, `🎯 **Coaching Request**\n\nFrom: ${profile.full_name}\nTopic: ${topic}\nWhen: ${dateStr}\n\nCheck Development Activities!`);
+    
+    return `✅ **Done! Coaching session booked.**\n\n👨‍🏫 **Coach:** ${coach.full_name}\n📚 **Topic:** ${topic}\n📅 **When:** ${dateStr}\n\n${coach.full_name.split(' ')[0]} has been notified!\n\nAnything else you need?`;
   };
 
   const getOrCreateDM = async (targetId) => {
