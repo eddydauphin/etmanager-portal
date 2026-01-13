@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
+import NotificationBell from './NotificationBell';
 import {
   LayoutDashboard,
   Users,
@@ -235,12 +236,17 @@ function Layout() {
             </h1>
           </div>
 
-          {/* User menu */}
-          <div className="relative">
-            <button
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-2"
-            >
+          {/* Notification Bell & User menu */}
+          <div className="flex items-center gap-2">
+            {/* Notification Bell */}
+            <NotificationBell userId={profile?.id} />
+            
+            {/* User menu */}
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-2"
+              >
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
                 {profile?.full_name?.charAt(0) || 'U'}
               </div>
@@ -280,6 +286,7 @@ function Layout() {
                 </div>
               </>
             )}
+          </div>
           </div>
         </header>
 

@@ -479,6 +479,7 @@ function PendingTrainingsSection({ clientId = null, teamIds = null, title = "Pen
 function PendingValidationsSection({ profile, clientId = null, teamIds = null }) {
   const [pendingValidations, setPendingValidations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [validatingId, setValidatingId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -510,6 +511,7 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
               allPendingValidations.push({
                 id: `activity_${activity.id}`,
                 type: activity.type,
+                source: 'development_activity',
                 user_id: activity.trainee_id,
                 user_name: activity.trainee?.full_name || 'Unknown',
                 competency_id: activity.competency_id,
@@ -529,60 +531,99 @@ function PendingValidationsSection({ profile, clientId = null, teamIds = null })
         }
       }
       
-      // 2. Training completed by my team members (if I'm a team lead or have direct reports)
+      // 2. Training where I'm the validator and status is 'passed' or 'completed' but not validated
+      const pendingTrainingValidations = await dbFetch(
+        `user_training?select=*,user:user_id(id,full_name),module:module_id(id,title)&validator_id=eq.${profile.id}&status=in.(passed,completed)&validated_at=is.null`
+      );
+      
+      if (pendingTrainingValidations && pendingTrainingValidations.length > 0) {
+        for (const training of pendingTrainingValidations) {
+          // Get linked competency
+          const competencyModule = await dbFetch(
+            `competency_modules?select=competency_id,target_level,competencies(id,name)&module_id=eq.${training.module_id}`
+          );
+          
+          let competencyInfo = null;
+          let userComp = null;
+          
+          if (competencyModule && competencyModule.length > 0) {
+            competencyInfo = competencyModule[0];
+            userComp = await dbFetch(
+              `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${competencyInfo.competency_id}`
+            );
+            userComp = userComp?.[0];
+          }
+          
+          allPendingValidations.push({
+            id: `training_${training.id}`,
+            type: 'training',
+            source: 'user_training',
+            user_id: training.user_id,
+            user_name: training.user?.full_name || 'Unknown',
+            competency_id: competencyInfo?.competency_id || null,
+            competency_name: competencyInfo?.competencies?.name || training.module?.title || 'Training',
+            title: training.module?.title || 'Training Module',
+            current_level: userComp?.current_level || 0,
+            target_level: competencyInfo?.target_level || userComp?.target_level || 3,
+            score: training.score,
+            completed_at: training.completed_at,
+            due_date: training.due_date,
+            training_id: training.id,
+            user_competency_id: userComp?.id,
+            link: '/training'
+          });
+        }
+      }
+      
+      // 3. Fallback: Training completed by team members (for managers without explicit validator assignment)
       let myTeamIds = teamIds || [];
       if (myTeamIds.length === 0 && profile?.id) {
-        // Check if I have any direct reports
         const directReports = await dbFetch(`profiles?select=id&reports_to_id=eq.${profile.id}&is_active=eq.true`);
         myTeamIds = directReports?.map(u => u.id) || [];
       }
       
       if (myTeamIds.length > 0) {
         const idList = myTeamIds.join(',');
-        const recentTraining = await dbFetch(
-          `user_training?select=id,status,completed_at,user_id,module_id,score&user_id=in.(${idList})&status=in.(passed,completed)&order=completed_at.desc&limit=20`
+        // Get training without validator or where I'm not already the validator
+        const teamTraining = await dbFetch(
+          `user_training?select=*,user:user_id(id,full_name),module:module_id(id,title)&user_id=in.(${idList})&status=in.(passed,completed)&validated_at=is.null&or=(validator_id.is.null,validator_id.neq.${profile.id})&order=completed_at.desc&limit=20`
         );
         
-        if (recentTraining && recentTraining.length > 0) {
-          for (const training of recentTraining) {
+        if (teamTraining && teamTraining.length > 0) {
+          for (const training of teamTraining) {
+            // Skip if already added from validator query
+            if (allPendingValidations.find(v => v.id === `training_${training.id}`)) continue;
+            
             const competencyModule = await dbFetch(
-              `competency_modules?select=competency_id,competencies(id,name)&module_id=eq.${training.module_id}`
+              `competency_modules?select=competency_id,target_level,competencies(id,name)&module_id=eq.${training.module_id}`
             );
             
             if (competencyModule && competencyModule.length > 0) {
-              const compId = competencyModule[0].competency_id;
+              const competencyInfo = competencyModule[0];
               const userComp = await dbFetch(
-                `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${compId}`
+                `user_competencies?select=*&user_id=eq.${training.user_id}&competency_id=eq.${competencyInfo.competency_id}`
               );
+              const uc = userComp?.[0];
               
-              if (userComp && userComp.length > 0) {
-                const uc = userComp[0];
-                const hasGap = (uc.current_level || 0) < (uc.target_level || 3);
-                
-                if (hasGap) {
-                  const userInfo = await dbFetch(`profiles?select=full_name&id=eq.${training.user_id}`);
-                  
-                  // Avoid duplicates
-                  const existingId = `training_${uc.id}`;
-                  if (!allPendingValidations.find(v => v.id === existingId)) {
-                    allPendingValidations.push({
-                      id: existingId,
-                      type: 'training',
-                      user_id: training.user_id,
-                      user_name: userInfo?.[0]?.full_name || 'Unknown',
-                      competency_id: compId,
-                      competency_name: competencyModule[0].competencies?.name || 'Unknown',
-                      title: competencyModule[0].competencies?.name || 'Training',
-                      current_level: uc.current_level || 0,
-                      target_level: uc.target_level || 3,
-                      score: training.score,
-                      completed_at: training.completed_at,
-                      due_date: uc.due_date || training.due_date,
-                      user_competency_id: uc.id,
-                      link: '/development-center'
-                    });
-                  }
-                }
+              if (uc && (uc.current_level || 0) < (uc.target_level || 3)) {
+                allPendingValidations.push({
+                  id: `training_${training.id}`,
+                  type: 'training',
+                  source: 'user_training',
+                  user_id: training.user_id,
+                  user_name: training.user?.full_name || 'Unknown',
+                  competency_id: competencyInfo.competency_id,
+                  competency_name: competencyInfo.competencies?.name || 'Unknown',
+                  title: training.module?.title || 'Training Module',
+                  current_level: uc.current_level || 0,
+                  target_level: uc.target_level || 3,
+                  score: training.score,
+                  completed_at: training.completed_at,
+                  due_date: uc.due_date || training.due_date,
+                  training_id: training.id,
+                  user_competency_id: uc.id,
+                  link: '/training'
+                });
               }
             }
           }
@@ -2076,14 +2117,14 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
       setSelectedActivity(activity);
       setSelectedCompetency(null);
       setValidateForm({
-        achieved_level: activity.target_level || 3,
+        achieved_level: Math.min(activity.target_level || 3, 4),
         notes: ''
       });
     } else if (competency) {
       setSelectedActivity(null);
       setSelectedCompetency(competency);
       setValidateForm({
-        achieved_level: competency.target_level || competency.current_level + 1 || 3,
+        achieved_level: Math.min(competency.target_level || competency.current_level + 1 || 3, 4),
         notes: ''
       });
     }
@@ -2660,7 +2701,11 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                   Achieved Level
                 </label>
                 <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map(level => (
+                  {/* Super Admin and Client Admin can validate up to L5, others up to L4 */}
+                  {(profile?.role === 'super_admin' || profile?.role === 'client_admin' 
+                    ? [1, 2, 3, 4, 5] 
+                    : [1, 2, 3, 4]
+                  ).map(level => (
                     <button
                       key={level}
                       onClick={() => setValidateForm({ ...validateForm, achieved_level: level })}
@@ -2677,6 +2722,12 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                 <p className="text-xs text-gray-500 mt-1">
                   Target: Level {selectedActivity?.target_level || selectedCompetency?.target_level || '?'}
                 </p>
+                {profile?.role !== 'super_admin' && profile?.role !== 'client_admin' && (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <Award className="w-3 h-3" />
+                    Level 5 (Expert) requires nomination through the Expert Network
+                  </p>
+                )}
               </div>
 
               {/* Validation Notes */}

@@ -754,6 +754,14 @@ export default function DevelopmentCenterPage() {
             `user_training?user_id=eq.${assignment.user_id}&module_id=eq.${moduleId}`
           );
           if (!existingTraining || existingTraining.length === 0) {
+            // Determine validator: use selected coach, or training_developer, or assigner
+            let validatorId = wizardData.coach_id || null;
+            if (!validatorId) {
+              // Try to get training_developer from the module
+              const moduleInfo = await dbFetch(`training_modules?select=training_developer_id&id=eq.${moduleId}`);
+              validatorId = moduleInfo?.[0]?.training_developer_id || currentProfile?.id;
+            }
+            
             await dbFetch('user_training', {
               method: 'POST',
               body: JSON.stringify({
@@ -761,7 +769,8 @@ export default function DevelopmentCenterPage() {
                 module_id: moduleId,
                 status: 'pending',
                 due_date: assignment.due_date || null,
-                assigned_by: currentProfile?.id
+                assigned_by: currentProfile?.id,
+                validator_id: validatorId
               })
             });
           }
@@ -1743,12 +1752,17 @@ export default function DevelopmentCenterPage() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Set achieved level for "{validateModal.competency.name}"</label>
-                <select id="validateLevel" defaultValue={Math.min(validateModal.assignment.target_level || 3, 4)} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
-                  {[1, 2, 3, 4].map(level => (
+                <select id="validateLevel" defaultValue={Math.min(validateModal.assignment.target_level || 3, currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin' ? 5 : 4)} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                  {(currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin' 
+                    ? [1, 2, 3, 4, 5] 
+                    : [1, 2, 3, 4]
+                  ).map(level => (
                     <option key={level} value={level}>Level {level} {level === validateModal.assignment.target_level ? '(Target)' : ''}</option>
                   ))}
                 </select>
-                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Award className="w-3 h-3" />Level 5 (Expert) requires nomination to Expert Network</p>
+                {currentProfile?.role !== 'super_admin' && currentProfile?.role !== 'client_admin' && (
+                  <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Award className="w-3 h-3" />Level 5 (Expert) requires nomination to Expert Network</p>
+                )}
               </div>
             </div>
             
