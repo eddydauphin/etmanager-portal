@@ -18,7 +18,8 @@ import {
   BookOpen,
   Network,
   ClipboardList,
-  Rocket
+  Rocket,
+  MessageSquare
 } from 'lucide-react';
 
 // ============================================================================
@@ -27,6 +28,7 @@ import {
 
 const ALL_CAPABILITIES = {
   dashboard: { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', description: 'View dashboard and KPIs' },
+  chat: { icon: MessageSquare, label: 'Chat', path: '/chat', description: 'AI Assistant and messaging' },
   clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
   users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
   expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
@@ -49,6 +51,9 @@ export function hasCapability(profile, capability) {
   // Super admin always has all capabilities
   if (profile.role === 'super_admin') return true;
   
+  // Chat is available to everyone
+  if (capability === 'chat') return true;
+  
   // Check capabilities object
   if (profile.capabilities && typeof profile.capabilities === 'object') {
     return profile.capabilities[capability] === true;
@@ -63,42 +68,42 @@ export function getDefaultCapabilities(role) {
   switch (role) {
     case 'super_admin':
       return {
-        dashboard: true, clients: true, users: true, expert_network: true,
+        dashboard: true, chat: true, clients: true, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'client_admin':
       return {
-        dashboard: true, clients: false, users: true, expert_network: true,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'category_admin':
       return {
-        dashboard: true, clients: false, users: true, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'site_admin':
       return {
-        dashboard: true, clients: false, users: true, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'team_lead':
       return {
-        dashboard: true, clients: false, users: true, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true
       };
     case 'trainee':
       return {
-        dashboard: true, clients: false, users: false, expert_network: false,
+        dashboard: true, chat: true, clients: false, users: false, expert_network: false,
         competencies: false, profiles: false, development: false, training: true,
         reports: false, settings: true, my_progress: true, my_training: true
       };
     default:
-      return { dashboard: true, settings: true };
+      return { dashboard: true, chat: true, settings: true };
   }
 }
 
@@ -138,14 +143,14 @@ function Layout() {
     const role = profile?.role;
     const items = [];
 
-    // Define menu order
+    // Define menu order - Chat added after dashboard for all roles
     const menuOrder = role === 'trainee' 
-      ? ['dashboard', 'my_progress', 'my_training', 'settings']
-      : ['dashboard', 'users', 'expert_network', 'development', 'profiles', 'training', 'reports', 'settings'];
+      ? ['dashboard', 'chat', 'my_progress', 'my_training', 'settings']
+      : ['dashboard', 'chat', 'users', 'expert_network', 'development', 'profiles', 'training', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {
-      menuOrder.splice(1, 0, 'clients'); // Insert after dashboard
+      menuOrder.splice(2, 0, 'clients'); // Insert after chat
     }
 
     menuOrder.forEach(capKey => {
@@ -247,46 +252,46 @@ function Layout() {
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-2"
               >
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
-                {profile?.full_name?.charAt(0) || 'U'}
-              </div>
-              <div className="text-left hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{profile?.full_name}</p>
-                <p className="text-xs text-gray-500 capitalize">{profile?.role?.replace('_', ' ')}</p>
-              </div>
-            </button>
-
-            {/* Dropdown menu */}
-            {userMenuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setUserMenuOpen(false)}
-                />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">{profile?.full_name}</p>
-                    <p className="text-xs text-gray-500">{profile?.email}</p>
-                  </div>
-                  <NavLink
-                    to="/settings"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Settings
-                  </NavLink>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </button>
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                  {profile?.full_name?.charAt(0) || 'U'}
                 </div>
-              </>
-            )}
-          </div>
+                <div className="text-left hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">{profile?.full_name}</p>
+                  <p className="text-xs text-gray-500 capitalize">{profile?.role?.replace('_', ' ')}</p>
+                </div>
+              </button>
+
+              {/* Dropdown menu */}
+              {userMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">{profile?.full_name}</p>
+                      <p className="text-xs text-gray-500">{profile?.email}</p>
+                    </div>
+                    <NavLink
+                      to="/settings"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </NavLink>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
