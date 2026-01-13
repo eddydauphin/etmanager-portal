@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
-import NotificationBell from './NotificationBell';
+import NotificationBell from '../NotificationBell';
 import {
   LayoutDashboard,
   Users,
