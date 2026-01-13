@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
-import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard,
   Users,
@@ -18,8 +17,7 @@ import {
   BookOpen,
   Network,
   ClipboardList,
-  Rocket,
-  MessageSquare
+  Rocket
 } from 'lucide-react';
 
 // ============================================================================
@@ -28,20 +26,18 @@ import {
 
 const ALL_CAPABILITIES = {
   dashboard: { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', description: 'View dashboard and KPIs' },
-  chat: { icon: MessageSquare, label: 'Chat', path: '/chat', description: 'AI Assistant and team messaging' },
   clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
   users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
   expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
   development_center: { icon: Rocket, label: 'Development Center', path: '/development-center', description: 'Create competencies and assign development' },
   competencies: { icon: Target, label: 'Competencies', path: '/competencies', description: 'Manage competency framework' },
   profiles: { icon: FileText, label: 'Profiles', path: '/profiles', description: 'Manage competency profiles' },
-  development: { icon: ClipboardList, label: 'Development', path: '/development', description: 'Manage development activities' },
+  development: { icon: ClipboardList, label: 'Development Center', path: '/development', description: 'Manage development activities' },
   training: { icon: GraduationCap, label: 'Training', path: '/training', description: 'Manage training modules' },
   reports: { icon: BarChart3, label: 'Reports', path: '/reports', description: 'View analytics and reports' },
   settings: { icon: Settings, label: 'Settings', path: '/settings', description: 'Account settings' },
   // Trainee-specific
   my_progress: { icon: TrendingUp, label: 'My Progress', path: '/my-progress', description: 'View your progress', traineeOnly: true },
-  my_plan: { icon: FileText, label: 'My Plan', path: '/my-plan', description: 'View your development plan', traineeOnly: true },
   my_training: { icon: BookOpen, label: 'My Training', path: '/my-training', description: 'Access your training', traineeOnly: true },
 };
 
@@ -66,42 +62,42 @@ export function getDefaultCapabilities(role) {
   switch (role) {
     case 'super_admin':
       return {
-        dashboard: true, chat: true, clients: true, users: true, expert_network: true,
+        dashboard: true, clients: true, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'client_admin':
       return {
-        dashboard: true, chat: true, clients: false, users: true, expert_network: true,
+        dashboard: true, clients: false, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: true
       };
     case 'category_admin':
       return {
-        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
+        dashboard: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'site_admin':
       return {
-        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
+        dashboard: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true, hierarchy_settings: false
       };
     case 'team_lead':
       return {
-        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
+        dashboard: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
         reports: true, settings: true
       };
     case 'trainee':
       return {
-        dashboard: true, chat: true, clients: false, users: false, expert_network: false,
+        dashboard: true, clients: false, users: false, expert_network: false,
         competencies: false, profiles: false, development: false, training: true,
-        reports: false, settings: true, my_progress: true, my_plan: true, my_training: true
+        reports: false, settings: true, my_progress: true, my_training: true
       };
     default:
-      return { dashboard: true, chat: true, settings: true };
+      return { dashboard: true, settings: true };
   }
 }
 
@@ -130,67 +126,6 @@ function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
-
-  // Fetch unread chat count
-  useEffect(() => {
-    if (profile?.id) {
-      fetchUnreadCount();
-      
-      // Subscribe to new messages for real-time badge updates
-      const subscription = supabase
-        .channel('layout-chat-updates')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'chat_messages'
-          },
-          () => {
-            fetchUnreadCount();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(subscription);
-      };
-    }
-  }, [profile?.id]);
-
-  const fetchUnreadCount = async () => {
-    try {
-      // Get user's channel participations with last_read_at
-      const { data: participations, error: partError } = await supabase
-        .from('chat_participants')
-        .select('channel_id, last_read_at')
-        .eq('user_id', profile.id);
-
-      if (partError) throw partError;
-
-      let totalUnread = 0;
-
-      for (const part of participations || []) {
-        let query = supabase
-          .from('chat_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('channel_id', part.channel_id)
-          .neq('sender_id', profile.id);
-
-        if (part.last_read_at) {
-          query = query.gt('created_at', part.last_read_at);
-        }
-
-        const { count } = await query;
-        totalUnread += count || 0;
-      }
-
-      setUnreadChatCount(totalUnread);
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
-    }
-  };
 
   const handleLogout = async () => {
     await signOut();
@@ -202,27 +137,14 @@ function Layout() {
     const role = profile?.role;
     const items = [];
 
-    // Chat is always available to everyone - add first after dashboard
-    items.push({
-      to: '/dashboard',
-      icon: LayoutDashboard,
-      label: 'Dashboard'
-    });
-    
-    items.push({
-      to: '/chat',
-      icon: MessageSquare,
-      label: 'Chat'
-    });
-
-    // Define menu order (excluding dashboard and chat which are already added)
+    // Define menu order
     const menuOrder = role === 'trainee' 
-      ? ['my_progress', 'my_plan', 'my_training', 'settings']
-      : ['users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
+      ? ['dashboard', 'my_progress', 'my_training', 'settings']
+      : ['dashboard', 'users', 'expert_network', 'development', 'profiles', 'training', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {
-      menuOrder.unshift('clients'); // Insert at beginning
+      menuOrder.splice(1, 0, 'clients'); // Insert after dashboard
     }
 
     menuOrder.forEach(capKey => {
@@ -283,15 +205,7 @@ function Layout() {
               }
             >
               <item.icon className="w-5 h-5" />
-              {sidebarOpen && (
-                <span className="flex-1">{item.label}</span>
-              )}
-              {/* Unread badge for Chat */}
-              {item.to === '/chat' && unreadChatCount > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
-                </span>
-              )}
+              {sidebarOpen && <span>{item.label}</span>}
             </NavLink>
           ))}
         </nav>
