@@ -70,7 +70,7 @@ export default function UsersPage() {
     line: '',
     hire_date: '',
     site: '',
-    has_global_access: false,
+    
     is_active: true,
     capabilities: {}
   });
@@ -192,7 +192,7 @@ export default function UsersPage() {
       line: '',
       hire_date: '',
       site: '',
-      has_global_access: false,
+      
       is_active: true,
       capabilities: getDefaultCapabilities(defaultRole)
     });
@@ -216,7 +216,7 @@ export default function UsersPage() {
       line: user.line || '',
       hire_date: user.hire_date || '',
       site: user.site || '',
-      has_global_access: user.has_global_access || false,
+      
       is_active: user.is_active !== false,
       capabilities: user.capabilities || getDefaultCapabilities(user.role || 'trainee')
     });
@@ -292,7 +292,7 @@ export default function UsersPage() {
           line: formData.line || null,
           hire_date: formData.hire_date || null,
           site: formData.site || null,
-          has_global_access: formData.role === 'site_admin' ? formData.has_global_access : false,
+          
           is_active: formData.is_active,
           capabilities: formData.capabilities || getDefaultCapabilities(formData.role),
           updated_at: new Date().toISOString()
@@ -350,7 +350,7 @@ export default function UsersPage() {
               line: formData.line || null,
               hire_date: formData.hire_date || null,
               site: formData.site || null,
-              has_global_access: formData.role === 'site_admin' ? formData.has_global_access : false,
+              
               capabilities: formData.capabilities || getDefaultCapabilities(formData.role),
               must_change_password: true,
               is_active: true
@@ -936,7 +936,7 @@ export default function UsersPage() {
                         name="role"
                         value="client_admin"
                         checked={formData.role === 'client_admin'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '', has_global_access: false, capabilities: getDefaultCapabilities(e.target.value) })}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, reports_to_id: '',  capabilities: getDefaultCapabilities(e.target.value) })}
                         className="sr-only"
                       />
                       <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
@@ -1071,25 +1071,6 @@ export default function UsersPage() {
                     <p className="text-xs text-gray-500 mt-1">
                       The site or location this admin will manage
                     </p>
-                  </div>
-                  
-                  {/* Global Access Toggle */}
-                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-cyan-200">
-                    <div>
-                      <p className="font-medium text-gray-900">Global Data Access</p>
-                      <p className="text-xs text-gray-500">
-                        Allow access to data across all sites within the organization
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.has_global_access}
-                        onChange={(e) => setFormData({ ...formData, has_global_access: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
-                    </label>
                   </div>
                 </div>
               )}
