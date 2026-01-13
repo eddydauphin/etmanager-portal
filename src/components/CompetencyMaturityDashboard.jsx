@@ -155,8 +155,18 @@ function TraineeDetailsPanel({ competency, clientId, onClose, onAssignCoaching }
     try {
       // Get all user_competencies for this competency
       const userComps = await dbFetch(
-        `user_competencies?select=*,user:user_id(id,full_name,email,role)&competency_id=eq.${competency.id}`
+        `user_competencies?select=*&competency_id=eq.${competency.id}`
       );
+      
+      // Get user profiles separately
+      const userIds = userComps?.map(uc => uc.user_id).filter(Boolean) || [];
+      let userMap = {};
+      if (userIds.length > 0) {
+        const users = await dbFetch(
+          `profiles?select=id,full_name,email,role&id=in.(${userIds.join(',')})`
+        );
+        users?.forEach(u => userMap[u.id] = u);
+      }
       
       // Get training scores for this competency's modules
       const competencyModules = await dbFetch(
@@ -168,6 +178,7 @@ function TraineeDetailsPanel({ competency, clientId, onClose, onAssignCoaching }
       const enrichedTrainees = await Promise.all((userComps || []).map(async (uc) => {
         let trainingScore = null;
         let trainingStatus = null;
+        const user = userMap[uc.user_id] || {};
         
         if (moduleIds.length > 0 && uc.user_id) {
           const userTrainings = await dbFetch(
@@ -192,9 +203,9 @@ function TraineeDetailsPanel({ competency, clientId, onClose, onAssignCoaching }
         return {
           id: uc.id,
           userId: uc.user_id,
-          name: uc.user?.full_name || 'Unknown',
-          email: uc.user?.email,
-          role: uc.user?.role,
+          name: user.full_name || 'Unknown',
+          email: user.email,
+          role: user.role,
           currentLevel: uc.current_level || 0,
           targetLevel: uc.target_level || 3,
           achieved,
@@ -439,20 +450,36 @@ export default function CompetencyMaturityDashboard({
 
         if (teamUserIds.length > 0) {
           userCompetencies = await dbFetch(
-            `user_competencies?select=*,competency:competency_id(id,name,description),user:user_id(id,full_name)&user_id=in.(${teamUserIds.join(',')})`
+            `user_competencies?select=*,competency:competency_id(id,name,description)&user_id=in.(${teamUserIds.join(',')})`
           );
+          // Fetch user names separately
+          const userProfiles = await dbFetch(
+            `profiles?select=id,full_name&id=in.(${teamUserIds.join(',')})`
+          );
+          const userMap = {};
+          userProfiles?.forEach(u => userMap[u.id] = u.full_name);
+          userCompetencies = userCompetencies?.map(uc => ({
+            ...uc,
+            user: { id: uc.user_id, full_name: userMap[uc.user_id] || 'Unknown' }
+          })) || [];
         }
       } else if (scope === 'organization') {
         if (clientId) {
           const clientUsers = await dbFetch(
-            `profiles?select=id&client_id=eq.${clientId}&is_active=eq.true`
+            `profiles?select=id,full_name&client_id=eq.${clientId}&is_active=eq.true`
           );
           const userIds = clientUsers?.map(u => u.id) || [];
+          const userMap = {};
+          clientUsers?.forEach(u => userMap[u.id] = u.full_name);
           
           if (userIds.length > 0) {
             userCompetencies = await dbFetch(
-              `user_competencies?select=*,competency:competency_id(id,name,description),user:user_id(id,full_name)&user_id=in.(${userIds.join(',')})`
+              `user_competencies?select=*,competency:competency_id(id,name,description)&user_id=in.(${userIds.join(',')})`
             );
+            userCompetencies = userCompetencies?.map(uc => ({
+              ...uc,
+              user: { id: uc.user_id, full_name: userMap[uc.user_id] || 'Unknown' }
+            })) || [];
           }
         }
       }
