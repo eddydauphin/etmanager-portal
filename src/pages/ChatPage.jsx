@@ -77,48 +77,57 @@ export default function ChatPage() {
     try {
       setLoading(true);
       const { data: parts } = await supabase.from('chat_participants')
-        .select('channel_id, last_read_at, chat_channels(id, type, name, client_id)')
+        .select('channel_id, last_read_at, chat_channels(id, type, name, client_id, created_by)')
         .eq('user_id', user.id);
       
       const list = parts?.map(p => ({ ...p.chat_channels, last_read_at: p.last_read_at })).filter(c => c?.id) || [];
       
-      // Ensure AI channel exists
-      const hasAI = list.find(c => c.type === 'ai_assistant' && c.client_id === profile.client_id);
-      if (!hasAI && profile.role !== 'super_admin') {
+      // Ensure user has their OWN AI channel (not shared)
+      const hasOwnAI = list.find(c => c.type === 'ai_assistant' && c.created_by === user.id);
+      if (!hasOwnAI && profile.role !== 'super_admin') {
         await createAIChannel();
         return loadChannels();
       }
       
-      setChannels(list);
-      await calcUnread(list);
+      // Filter out AI channels created by others (legacy shared channels)
+      const filteredList = list.filter(c => c.type !== 'ai_assistant' || c.created_by === user.id);
       
-      if (!activeChannel && list.length) {
-        setActiveChannel(list.find(c => c.type === 'ai_assistant') || list[0]);
+      setChannels(filteredList);
+      await calcUnread(filteredList);
+      
+      if (!activeChannel && filteredList.length) {
+        setActiveChannel(filteredList.find(c => c.type === 'ai_assistant') || filteredList[0]);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
   const createAIChannel = async () => {
-    const { data: client } = await supabase.from('clients').select('name').eq('id', profile.client_id).single();
+    // Create a PRIVATE AI channel for this user only
     const { data: ch } = await supabase.from('chat_channels')
-      .insert({ type: 'ai_assistant', name: `AI Assistant - ${client?.name || 'Team'}`, created_by: user.id, client_id: profile.client_id })
+      .insert({ 
+        type: 'ai_assistant', 
+        name: `AI Assistant`, 
+        created_by: user.id, 
+        client_id: profile.client_id 
+      })
       .select().single();
     
     if (ch) {
-      // Add participants
-      const { data: clientUsers } = await supabase.from('profiles').select('id').eq('client_id', profile.client_id).eq('is_active', true);
-      const { data: superAdmins } = await supabase.from('profiles').select('id').eq('role', 'super_admin').eq('is_active', true);
-      const allIds = new Set([...(clientUsers?.map(u => u.id) || []), ...(superAdmins?.map(u => u.id) || [])]);
-      
-      await supabase.from('chat_participants').insert(Array.from(allIds).map(id => ({ channel_id: ch.id, user_id: id, role: id === user.id ? 'owner' : 'member' })));
+      // Only add the current user as participant - this keeps it private
+      await supabase.from('chat_participants').insert({ 
+        channel_id: ch.id, 
+        user_id: user.id, 
+        role: 'owner' 
+      });
       
       // Welcome message
+      const firstName = profile.full_name?.split(' ')[0] || 'there';
       await supabase.from('chat_messages').insert({
         channel_id: ch.id,
         sender_id: user.id,
         sender_type: 'ai',
-        content: `👋 Hello! I'm your AI Assistant powered by Claude.\n\nI can help you with:\n• **Sending messages** - "Send Jean a message about tomorrow's meeting"\n• **Coaching** - "Request coaching with Aurelien on shift handover"\n• **Training** - "Show my pending trainings" or "Assign CIP training to Marie"\n• **Team management** - "How is my team doing?"\n• **Finding experts** - "Who knows about spray drying?"\n\nJust ask naturally - I understand context and can execute actions for you! 🚀`,
+        content: `👋 Hello ${firstName}! I'm your private AI Assistant powered by Claude.\n\nI can help you with:\n• **Check activities** - "What do I have pending?"\n• **Coaching** - "Request coaching on shift handover"\n• **Training** - "Show my trainings"\n• **Messages** - "Send Jean: Meeting at 2pm"\n• **Team** - "How is my team doing?"\n\nJust ask naturally! 🚀`,
         content_type: 'text'
       });
     }
@@ -217,9 +226,14 @@ export default function ChatPage() {
         });
       }
       
-      // Refresh channels in case actions were taken (new DMs, etc)
+      // Refresh channels in case actions were taken (new DMs, etc) - but don't reset scroll
       if (data?.toolResults?.some(r => r.success)) {
-        await loadChannels();
+        // Just refresh channel list without changing active channel
+        const { data: parts } = await supabase.from('chat_participants')
+          .select('channel_id, last_read_at, chat_channels(id, type, name, client_id)')
+          .eq('user_id', user.id);
+        const list = parts?.map(p => ({ ...p.chat_channels, last_read_at: p.last_read_at })).filter(c => c?.id) || [];
+        setChannels(list);
       }
       
     } catch (error) {
