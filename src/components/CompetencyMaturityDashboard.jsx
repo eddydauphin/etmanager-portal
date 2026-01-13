@@ -410,9 +410,11 @@ export default function CompetencyMaturityDashboard({
   const [rawUserCompetencies, setRawUserCompetencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showScopeDropdown, setShowScopeDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [viewMode, setViewMode] = useState('chart'); // 'chart' or 'list'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'achieved', 'onTrack', 'atRisk'
   const [selectedCompetencyId, setSelectedCompetencyId] = useState(null);
+  const [usersList, setUsersList] = useState([]);
 
   // Scope options based on role
   const scopeOptions = [
@@ -420,6 +422,31 @@ export default function CompetencyMaturityDashboard({
     { value: 'team', label: 'Team', icon: Users },
     { value: 'organization', label: 'Organization', icon: Building2 }
   ];
+
+  // Load users list for individual selector
+  useEffect(() => {
+    loadUsersList();
+  }, [clientId, profile?.id]);
+
+  const loadUsersList = async () => {
+    try {
+      if (clientId) {
+        const allUsers = await dbFetch(
+          `profiles?select=id,full_name,role&client_id=eq.${clientId}&is_active=eq.true&order=full_name.asc`
+        );
+        setUsersList(allUsers || []);
+        // If current user has no competencies, default to first trainee
+        if (allUsers?.length > 0 && scope === 'individual') {
+          const trainees = allUsers.filter(u => u.role === 'trainee');
+          if (trainees.length > 0 && !selectedUserId) {
+            setSelectedUserId(trainees[0].id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading users list:', error);
+    }
+  };
 
   // Load data when scope or selection changes
   useEffect(() => {
@@ -709,6 +736,53 @@ export default function CompetencyMaturityDashboard({
               )}
             </div>
 
+            {/* User Selector (only for Individual scope) */}
+            {scope === 'individual' && usersList.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                >
+                  <User className="w-4 h-4" />
+                  <span className="max-w-32 truncate">
+                    {usersList.find(u => u.id === selectedUserId)?.full_name || 'Select user'}
+                  </span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                
+                {showUserDropdown && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowUserDropdown(false)} 
+                    />
+                    <div className="absolute right-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 max-h-64 overflow-y-auto">
+                      {usersList.map(user => (
+                        <button
+                          key={user.id}
+                          onClick={() => {
+                            setSelectedUserId(user.id);
+                            setShowUserDropdown(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 ${
+                            selectedUserId === user.id ? 'bg-purple-50 text-purple-700' : 'text-gray-700'
+                          }`}
+                        >
+                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                            {user.full_name?.charAt(0) || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate">{user.full_name}</p>
+                            <p className="text-xs text-gray-400">{user.role?.replace('_', ' ')}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Refresh */}
             <button
               onClick={loadCompetencyData}
@@ -818,23 +892,16 @@ export default function CompetencyMaturityDashboard({
       </div>
 
       {/* Footer - Summary */}
-      <div className="p-3 border-t border-gray-100 bg-gray-50">
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4 text-gray-500">
+      {competencyData.length > 0 && (
+        <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center gap-4 text-sm text-gray-500">
             <span>Showing {filteredData.length} of {competencyData.length} competencies</span>
             {scope !== 'individual' && (
               <span>• Click a bar to see trainee details</span>
             )}
           </div>
-          <button
-            onClick={() => navigate('/competencies')}
-            className="text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
-          >
-            Manage competencies
-            <ChevronRight className="w-4 h-4" />
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
