@@ -3138,37 +3138,13 @@ function TeamLeadDashboard() {
       <PendingTrainingsSection teamIds={teamMembersList.map(m => m.id)} title="Pending Team Trainings" />
 
       {/* Team Progress Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
           <h3 className="text-sm font-medium text-gray-500 mb-4">Team Competency Progress</h3>
           <ProgressRing percentage={competencyProgress} color="#10B981" />
           <p className="text-sm text-gray-600 mt-4">
             {stats.competenciesAchieved} of {stats.competenciesAssigned} competencies achieved
           </p>
-        </div>
-
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Recent Training Completions</h3>
-          {recentActivity.length === 0 ? (
-            <p className="text-gray-400 text-sm">No recent completions</p>
-          ) : (
-            <div className="space-y-3">
-              {recentActivity.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">{item.trainee_name}</p>
-                      <p className="text-sm text-gray-500">{item.module_title}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
