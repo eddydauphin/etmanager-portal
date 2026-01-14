@@ -53,6 +53,9 @@ export default function TrainingModulesPage() {
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [assignDueDate, setAssignDueDate] = useState('');
+  const [assignValidatorId, setAssignValidatorId] = useState('');
+  const [userCompetencyLevels, setUserCompetencyLevels] = useState({});
+  const [loadingLevels, setLoadingLevels] = useState(false);
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -252,10 +255,38 @@ export default function TrainingModulesPage() {
 
   const loadAssignedUsers = async (moduleId) => {
     try {
-      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles(id,full_name,email)`);
+      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles:user_id(id,full_name,email)`);
       setAssignedUsers(data || []);
     } catch (error) {
       console.error('Error loading assigned users:', error);
+    }
+  };
+
+  // Load competency levels for all users when opening assign modal
+  const loadUserCompetencyLevels = async (competencyId) => {
+    if (!competencyId) {
+      setUserCompetencyLevels({});
+      return;
+    }
+    
+    setLoadingLevels(true);
+    try {
+      const levels = await dbFetch(
+        `user_competencies?select=user_id,current_level,target_level&competency_id=eq.${competencyId}`
+      );
+      
+      const levelMap = {};
+      (levels || []).forEach(uc => {
+        levelMap[uc.user_id] = {
+          current_level: uc.current_level || 0,
+          target_level: uc.target_level || 3
+        };
+      });
+      setUserCompetencyLevels(levelMap);
+    } catch (error) {
+      console.error('Error loading competency levels:', error);
+    } finally {
+      setLoadingLevels(false);
     }
   };
 
@@ -1513,6 +1544,14 @@ export default function TrainingModulesPage() {
                           onClick={async () => {
                             setSelectedModule(module);
                             await loadAssignedUsers(module.id);
+                            // Load competency levels for the module's competency
+                            if (module.competency_id) {
+                              await loadUserCompetencyLevels(module.competency_id);
+                            } else {
+                              setUserCompetencyLevels({});
+                            }
+                            // Set default validator to module owner or training developer
+                            setAssignValidatorId(module.owner_id || module.training_developer_id || '');
                             setShowAssignModal(true);
                             setOpenDropdown(null);
                           }}
@@ -2567,6 +2606,22 @@ export default function TrainingModulesPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
+              {/* Linked Competency Info */}
+              {selectedModule.competency_id && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-blue-800">
+                    <Target className="w-4 h-4" />
+                    <span className="font-medium">Linked Competency:</span>
+                    <span>{competencies.find(c => c.id === selectedModule.competency_id)?.name || 'Unknown'}</span>
+                    {selectedModule.target_level && (
+                      <span className="ml-2 px-2 py-0.5 bg-blue-200 text-blue-800 rounded text-xs font-medium">
+                        Target: L{selectedModule.target_level}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Already assigned */}
               {assignedUsers.length > 0 && (
                 <div className="mb-4">
@@ -2574,7 +2629,7 @@ export default function TrainingModulesPage() {
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {assignedUsers.map(au => (
                       <div key={au.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                        <span>{au.profiles?.full_name}</span>
+                        <span>{au.profiles?.full_name || au.user_id}</span>
                         <span className={`px-2 py-0.5 rounded text-xs ${
                           au.status === 'passed' ? 'bg-green-100 text-green-700' :
                           au.status === 'failed' ? 'bg-red-100 text-red-700' :
@@ -2589,44 +2644,118 @@ export default function TrainingModulesPage() {
                 </div>
               )}
 
-              {/* Select users */}
+              {/* Select users with maturity level display */}
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Select Users to Assign</h4>
                 {currentProfile?.role === 'department_lead' && (
                   <p className="text-xs text-gray-500 mb-2">Showing trainees in your department: {currentProfile.department}</p>
                 )}
+                {loadingLevels && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading competency levels...
+                  </div>
+                )}
                 <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
                   {users
                     .filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
                     .filter(u => !assignedUsers.some(au => au.user_id === u.id))
-                    .map(user => (
-                      <label key={user.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedUsers.includes(user.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedUsers([...selectedUsers, user.id]);
-                            } else {
-                              setSelectedUsers(selectedUsers.filter(id => id !== user.id));
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 rounded"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
-                          {user.department && (
-                            <p className="text-xs text-gray-400">{user.department}{user.line ? ` • ${user.line}` : ''}</p>
+                    .map(user => {
+                      const userLevel = userCompetencyLevels[user.id];
+                      const currentLevel = userLevel?.current_level || 0;
+                      const targetLevel = selectedModule.target_level || userLevel?.target_level || 3;
+                      const hasGap = currentLevel < targetLevel;
+                      
+                      return (
+                        <label key={user.id} className={`flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer ${
+                          selectedUsers.includes(user.id) ? 'bg-purple-50' : ''
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedUsers.includes(user.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedUsers([...selectedUsers, user.id]);
+                                } else {
+                                  setSelectedUsers(selectedUsers.filter(id => id !== user.id));
+                                }
+                              }}
+                              className="w-4 h-4 text-purple-600 rounded"
+                            />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                              <p className="text-xs text-gray-500">{user.email}</p>
+                              {user.department && (
+                                <p className="text-xs text-gray-400">{user.department}{user.line ? ` • ${user.line}` : ''}</p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Current Maturity Level */}
+                          {selectedModule.competency_id && (
+                            <div className="flex items-center gap-2">
+                              <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                currentLevel === 0 ? 'bg-gray-100 text-gray-600' :
+                                currentLevel >= targetLevel ? 'bg-green-100 text-green-700' :
+                                'bg-amber-100 text-amber-700'
+                              }`}>
+                                L{currentLevel}
+                              </div>
+                              {hasGap && (
+                                <span className="text-xs text-gray-400">→ L{targetLevel}</span>
+                              )}
+                              {!hasGap && currentLevel > 0 && (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              )}
+                            </div>
                           )}
-                        </div>
-                      </label>
-                    ))}
+                        </label>
+                      );
+                    })}
                   {users.filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
                     .filter(u => !assignedUsers.some(au => au.user_id === u.id)).length === 0 && (
                     <p className="text-sm text-gray-500 text-center py-4">No users available to assign</p>
                   )}
                 </div>
+                {selectedUsers.length > 0 && (
+                  <p className="text-xs text-purple-600 mt-1">{selectedUsers.length} user(s) selected</p>
+                )}
+              </div>
+
+              {/* Validator/Coach Selection - REQUIRED */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-amber-600" />
+                    Select Validator/Coach *
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  This person will be notified when training is completed and will validate the competency level.
+                </p>
+                <select
+                  value={assignValidatorId}
+                  onChange={(e) => setAssignValidatorId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  required
+                >
+                  <option value="">Select validator/coach...</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.full_name}
+                      {user.id === selectedModule.owner_id ? ' (Module Owner)' : ''}
+                      {user.id === selectedModule.training_developer_id ? ' (Training Developer)' : ''}
+                      {user.role === 'team_lead' || user.role === 'admin' ? ` (${user.role})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {!assignValidatorId && (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    A validator is required to approve competency levels after completion
+                  </p>
+                )}
               </div>
 
               {/* Due date */}
@@ -2636,7 +2765,8 @@ export default function TrainingModulesPage() {
                   type="date"
                   value={assignDueDate}
                   onChange={(e) => setAssignDueDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  min={new Date().toISOString().split('T')[0]}
                 />
               </div>
             </div>
@@ -2647,6 +2777,7 @@ export default function TrainingModulesPage() {
                   setShowAssignModal(false);
                   setSelectedUsers([]);
                   setAssignDueDate('');
+                  setAssignValidatorId('');
                 }}
                 className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100"
               >
@@ -2655,29 +2786,74 @@ export default function TrainingModulesPage() {
               <button
                 onClick={async () => {
                   if (selectedUsers.length === 0) return;
+                  if (!assignValidatorId) {
+                    alert('Please select a validator/coach who will validate the competency after completion');
+                    return;
+                  }
                   
                   try {
-                    const assignments = selectedUsers.map(userId => ({
-                      user_id: userId,
-                      module_id: selectedModule.id,
-                      assigned_by: currentProfile?.id,
-                      due_date: assignDueDate || null,
-                      status: 'pending'
-                    }));
+                    // Create assignments with validator_id
+                    for (const userId of selectedUsers) {
+                      const assignment = {
+                        user_id: userId,
+                        module_id: selectedModule.id,
+                        assigned_by: currentProfile?.id,
+                        validator_id: assignValidatorId,
+                        due_date: assignDueDate || null,
+                        status: 'pending',
+                        assigned_at: new Date().toISOString()
+                      };
 
-                    await dbFetch('user_training', {
-                      method: 'POST',
-                      body: JSON.stringify(assignments)
-                    });
+                      await supabase.from('user_training').insert(assignment);
+
+                      // Get user info for notification
+                      const userInfo = users.find(u => u.id === userId);
+                      
+                      // Notify the assigned user
+                      await supabase.from('notifications').insert({
+                        user_id: userId,
+                        type: 'training_assigned',
+                        title: 'New Training Assigned',
+                        message: `You have been assigned the training: "${selectedModule.title}"${assignDueDate ? ` - Due: ${new Date(assignDueDate).toLocaleDateString()}` : ''}`,
+                        link: '/my-training',
+                        metadata: {
+                          module_id: selectedModule.id,
+                          module_title: selectedModule.title,
+                          assigned_by: currentProfile?.id,
+                          validator_id: assignValidatorId
+                        }
+                      });
+
+                      // Notify the validator/coach
+                      if (assignValidatorId !== userId) {
+                        await supabase.from('notifications').insert({
+                          user_id: assignValidatorId,
+                          type: 'validator_assigned',
+                          title: 'Assigned as Validator',
+                          message: `You have been assigned to validate "${userInfo?.full_name || 'a trainee'}" after they complete: "${selectedModule.title}"`,
+                          link: '/dashboard',
+                          metadata: {
+                            module_id: selectedModule.id,
+                            module_title: selectedModule.title,
+                            trainee_id: userId,
+                            trainee_name: userInfo?.full_name,
+                            assigned_by: currentProfile?.id
+                          }
+                        });
+                      }
+                    }
 
                     setShowAssignModal(false);
                     setSelectedUsers([]);
                     setAssignDueDate('');
+                    setAssignValidatorId('');
+                    alert(`Successfully assigned ${selectedUsers.length} user(s) to this training`);
                   } catch (error) {
                     console.error('Error assigning users:', error);
+                    alert('Error assigning users. Please try again.');
                   }
                 }}
-                disabled={selectedUsers.length === 0}
+                disabled={selectedUsers.length === 0 || !assignValidatorId}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
               >
                 Assign {selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}
