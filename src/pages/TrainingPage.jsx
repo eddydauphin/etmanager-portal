@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { supabase } from '../lib/supabase';
 import {
   BookOpen,
   Plus,
@@ -72,6 +73,18 @@ export default function TrainingPage() {
     status: 'draft',
     owner_id: ''
   });
+
+  // Assign Users Modal state
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigningModule, setAssigningModule] = useState(null);
+  const [assignForm, setAssignForm] = useState({
+    selectedUsers: [],
+    validator_id: '',
+    due_date: ''
+  });
+  const [assigning, setAssigning] = useState(false);
+  const [userCompetencyLevels, setUserCompetencyLevels] = useState({}); // { odule.userId: { current_level, target_level } }
+  const [loadingLevels, setLoadingLevels] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -281,6 +294,160 @@ export default function TrainingPage() {
     }
   };
 
+  // Handle assigning users to training module
+  const handleAssignUsers = async () => {
+    if (assignForm.selectedUsers.length === 0) {
+      alert('Please select at least one user to assign');
+      return;
+    }
+    if (!assignForm.validator_id) {
+      alert('Please select a validator/coach who will validate the competency after completion');
+      return;
+    }
+
+    setAssigning(true);
+    try {
+      // Create user_training records for each selected user
+      for (const userId of assignForm.selectedUsers) {
+        // Check if already assigned
+        const existing = await dbFetch(
+          `user_training?user_id=eq.${userId}&module_id=eq.${assigningModule.id}`
+        );
+        
+        if (existing && existing.length > 0) {
+          // Update existing assignment with new validator
+          await supabase
+            .from('user_training')
+            .update({
+              validator_id: assignForm.validator_id,
+              due_date: assignForm.due_date || null,
+              assigned_by: currentProfile.id,
+              assigned_at: new Date().toISOString()
+            })
+            .eq('id', existing[0].id);
+        } else {
+          // Create new assignment
+          const { error: insertError } = await supabase
+            .from('user_training')
+            .insert({
+              user_id: userId,
+              module_id: assigningModule.id,
+              status: 'pending',
+              validator_id: assignForm.validator_id,
+              due_date: assignForm.due_date || null,
+              assigned_by: currentProfile.id,
+              assigned_at: new Date().toISOString()
+            });
+          
+          if (insertError) throw insertError;
+        }
+
+        // Get user info for notification
+        const userInfo = users.find(u => u.id === userId);
+        
+        // Notify the assigned user
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'training_assigned',
+          title: 'New Training Assigned',
+          message: `You have been assigned the training: "${assigningModule.title}"${assignForm.due_date ? ` - Due: ${new Date(assignForm.due_date).toLocaleDateString()}` : ''}`,
+          link: '/my-training',
+          metadata: {
+            module_id: assigningModule.id,
+            module_title: assigningModule.title,
+            assigned_by: currentProfile.id,
+            validator_id: assignForm.validator_id
+          }
+        });
+
+        // Notify the validator/coach that they've been assigned as validator
+        if (assignForm.validator_id !== userId) {
+          await supabase.from('notifications').insert({
+            user_id: assignForm.validator_id,
+            type: 'validator_assigned',
+            title: 'Assigned as Validator',
+            message: `You have been assigned to validate "${userInfo?.full_name || 'a trainee'}" after they complete: "${assigningModule.title}"`,
+            link: '/dashboard',
+            metadata: {
+              module_id: assigningModule.id,
+              module_title: assigningModule.title,
+              trainee_id: userId,
+              trainee_name: userInfo?.full_name,
+              assigned_by: currentProfile.id
+            }
+          });
+        }
+      }
+
+      setShowAssignModal(false);
+      setAssigningModule(null);
+      alert(`Successfully assigned ${assignForm.selectedUsers.length} user(s) to this training`);
+      
+    } catch (error) {
+      console.error('Error assigning users:', error);
+      alert('Error assigning users. Please try again.');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Toggle user selection for assignment
+  const toggleUserSelection = (userId) => {
+    setAssignForm(prev => ({
+      ...prev,
+      selectedUsers: prev.selectedUsers.includes(userId)
+        ? prev.selectedUsers.filter(id => id !== userId)
+        : [...prev.selectedUsers, userId]
+    }));
+  };
+
+  // Load competency levels for all users when opening assign modal
+  const loadUserCompetencyLevels = async (competencyId) => {
+    if (!competencyId) {
+      setUserCompetencyLevels({});
+      return;
+    }
+    
+    setLoadingLevels(true);
+    try {
+      const levels = await dbFetch(
+        `user_competencies?select=user_id,current_level,target_level&competency_id=eq.${competencyId}`
+      );
+      
+      const levelMap = {};
+      (levels || []).forEach(uc => {
+        levelMap[uc.user_id] = {
+          current_level: uc.current_level || 0,
+          target_level: uc.target_level || 3
+        };
+      });
+      setUserCompetencyLevels(levelMap);
+    } catch (error) {
+      console.error('Error loading competency levels:', error);
+    } finally {
+      setLoadingLevels(false);
+    }
+  };
+
+  // Open assign modal and load competency levels
+  const openAssignModal = async (module) => {
+    setAssigningModule(module);
+    setAssignForm({
+      selectedUsers: [],
+      validator_id: module.owner_id || module.training_developer_id || '',
+      due_date: ''
+    });
+    setShowAssignModal(true);
+    
+    // Get competency_id from module
+    const competencyId = module.competency_id || module.competency?.id;
+    if (competencyId) {
+      await loadUserCompetencyLevels(competencyId);
+    } else {
+      setUserCompetencyLevels({});
+    }
+  };
+
   // Filter modules by search
   const filteredModules = modules.filter(m =>
     m.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -462,7 +629,7 @@ export default function TrainingPage() {
                           )}
                           <button
                             onClick={() => {
-                              // TODO: Assign users
+                              openAssignModal(module);
                               setOpenDropdown(null);
                             }}
                             className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
@@ -814,6 +981,207 @@ export default function TrainingPage() {
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 {editingModule ? 'Save Changes' : 'Create Module'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Users Modal */}
+      {showAssignModal && assigningModule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Assign Users</h2>
+                <p className="text-sm text-gray-500">{assigningModule.title}</p>
+              </div>
+              <button onClick={() => setShowAssignModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {/* Module competency info */}
+              {(assigningModule.competency_id || assigningModule.competency?.id) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-blue-800">
+                    <Target className="w-4 h-4" />
+                    <span className="font-medium">Linked Competency:</span>
+                    <span>{assigningModule.competency?.name || 'Loading...'}</span>
+                    {assigningModule.target_level && (
+                      <span className="ml-2 px-2 py-0.5 bg-blue-200 text-blue-800 rounded text-xs">
+                        Target: L{assigningModule.target_level}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* User Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Users to Assign *
+                </label>
+                {loadingLevels && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading competency levels...
+                  </div>
+                )}
+                <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
+                  {users.filter(u => u.id !== currentProfile?.id).length === 0 ? (
+                    <p className="p-3 text-sm text-gray-500">No users available</p>
+                  ) : (
+                    users
+                      .filter(u => u.id !== currentProfile?.id && u.is_active !== false)
+                      .map(user => {
+                        const userLevel = userCompetencyLevels[user.id];
+                        const currentLevel = userLevel?.current_level || 0;
+                        const targetLevel = userLevel?.target_level || assigningModule.target_level || 3;
+                        const hasGap = currentLevel < targetLevel;
+                        
+                        return (
+                          <label
+                            key={user.id}
+                            className={`flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 ${
+                              assignForm.selectedUsers.includes(user.id) ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={assignForm.selectedUsers.includes(user.id)}
+                                onChange={() => toggleUserSelection(user.id)}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                              />
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-medium text-sm">
+                                  {user.full_name?.charAt(0) || '?'}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                                  <p className="text-xs text-gray-500">{user.role || user.email}</p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Current Maturity Level */}
+                            {(assigningModule.competency_id || assigningModule.competency?.id) && (
+                              <div className="flex items-center gap-2">
+                                <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                  currentLevel === 0 ? 'bg-gray-100 text-gray-600' :
+                                  currentLevel >= targetLevel ? 'bg-green-100 text-green-700' :
+                                  'bg-amber-100 text-amber-700'
+                                }`}>
+                                  L{currentLevel}
+                                </div>
+                                {hasGap && (
+                                  <span className="text-xs text-gray-400">→ L{targetLevel}</span>
+                                )}
+                                {!hasGap && currentLevel > 0 && (
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                )}
+                              </div>
+                            )}
+                          </label>
+                        );
+                      })
+                  )}
+                </div>
+                {assignForm.selectedUsers.length > 0 && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    {assignForm.selectedUsers.length} user(s) selected
+                  </p>
+                )}
+              </div>
+
+              {/* Validator/Coach Selection - REQUIRED */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-amber-600" />
+                    Select Validator/Coach *
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  This person will be notified when training is completed and will validate the competency level.
+                </p>
+                <select
+                  value={assignForm.validator_id}
+                  onChange={(e) => setAssignForm({ ...assignForm, validator_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select validator/coach...</option>
+                  {users
+                    .filter(u => u.is_active !== false)
+                    .map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.full_name}
+                        {user.id === assigningModule.owner_id ? ' (Module Owner)' : ''}
+                        {user.id === assigningModule.training_developer_id ? ' (Training Developer)' : ''}
+                        {user.role === 'team_lead' || user.role === 'admin' ? ` (${user.role})` : ''}
+                      </option>
+                    ))
+                  }
+                </select>
+                {!assignForm.validator_id && (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    A validator is required to approve competency levels after completion
+                  </p>
+                )}
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Due Date (optional)
+                </label>
+                <input
+                  type="date"
+                  value={assignForm.due_date}
+                  onChange={(e) => setAssignForm({ ...assignForm, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              {/* Info box about the workflow */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h4 className="text-sm font-medium text-blue-800 mb-1">📋 Validation Workflow</h4>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>1. Selected users will receive a notification to complete the training</li>
+                  <li>2. When training is completed, the validator/coach will be notified</li>
+                  <li>3. Validator reviews and grants the appropriate maturity level (1-4)</li>
+                  <li>4. The competency level is updated in the trainee's progress</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignUsers}
+                disabled={assigning || assignForm.selectedUsers.length === 0 || !assignForm.validator_id}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {assigning ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                Assign ({assignForm.selectedUsers.length})
               </button>
             </div>
           </div>
