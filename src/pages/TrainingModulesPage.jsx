@@ -57,6 +57,7 @@ export default function TrainingModulesPage() {
   const [userCompetencyLevels, setUserCompetencyLevels] = useState({}); // {user_id: {current_level, target_level}}
   const [linkedCompetency, setLinkedCompetency] = useState(null); // {id, name, target_level}
   const [potentialValidators, setPotentialValidators] = useState([]);
+  const [userAssignLevels, setUserAssignLevels] = useState({}); // {user_id: {current_level, target_level}} - editable by user
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -2635,6 +2636,7 @@ export default function TrainingModulesPage() {
                   setAssignDueDate('');
                   setAssignValidatorId('');
                   setLinkedCompetency(null);
+                  setUserAssignLevels({});
                 }}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
@@ -2683,15 +2685,13 @@ export default function TrainingModulesPage() {
               {/* Select users with maturity levels */}
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Select Users to Assign</h4>
-                <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
                   {users
                     .filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
                     .filter(u => !assignedUsers.some(au => au.user_id === u.id))
                     .map(user => {
                       const userLevel = userCompetencyLevels[user.id];
-                      const currentLevel = userLevel?.current_level || 0;
-                      const targetLevel = linkedCompetency?.target_level || 3;
-                      const atTarget = currentLevel >= targetLevel;
+                      const dbCurrentLevel = userLevel?.current_level || 0;
                       
                       return (
                         <label key={user.id} className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
@@ -2703,8 +2703,22 @@ export default function TrainingModulesPage() {
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedUsers([...selectedUsers, user.id]);
+                                // Initialize levels for this user
+                                setUserAssignLevels(prev => ({
+                                  ...prev,
+                                  [user.id]: {
+                                    current_level: dbCurrentLevel,
+                                    target_level: linkedCompetency?.target_level || 3
+                                  }
+                                }));
                               } else {
                                 setSelectedUsers(selectedUsers.filter(id => id !== user.id));
+                                // Remove levels for this user
+                                setUserAssignLevels(prev => {
+                                  const newLevels = { ...prev };
+                                  delete newLevels[user.id];
+                                  return newLevels;
+                                });
                               }
                             }}
                             className="w-4 h-4 text-purple-600 rounded"
@@ -2712,21 +2726,9 @@ export default function TrainingModulesPage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                              {/* Current Level Badge */}
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                                currentLevel === 0 ? 'bg-gray-100 text-gray-600' :
-                                atTarget ? 'bg-green-100 text-green-700' :
-                                'bg-amber-100 text-amber-700'
-                              }`}>
-                                L{currentLevel}
+                              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                                Current: L{dbCurrentLevel}
                               </span>
-                              {/* Gap indicator */}
-                              {linkedCompetency && !atTarget && currentLevel > 0 && (
-                                <span className="text-xs text-amber-600">→ L{targetLevel}</span>
-                              )}
-                              {atTarget && (
-                                <span className="text-xs text-green-600">✓ At target</span>
-                              )}
                             </div>
                             <p className="text-xs text-gray-500">{user.email}</p>
                           </div>
@@ -2738,10 +2740,80 @@ export default function TrainingModulesPage() {
                     <p className="text-sm text-gray-500 text-center py-4">No users available to assign</p>
                   )}
                 </div>
-                {selectedUsers.length > 0 && (
-                  <p className="text-xs text-purple-600 mt-1">{selectedUsers.length} user(s) selected</p>
-                )}
               </div>
+
+              {/* Selected users - Set levels */}
+              {selectedUsers.length > 0 && (
+                <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <h4 className="text-sm font-medium text-purple-900 mb-3">
+                    Set Maturity Levels ({selectedUsers.length} user{selectedUsers.length > 1 ? 's' : ''})
+                  </h4>
+                  <div className="space-y-3">
+                    {selectedUsers.map(userId => {
+                      const user = users.find(u => u.id === userId);
+                      const levels = userAssignLevels[userId] || { 
+                        current_level: userCompetencyLevels[userId]?.current_level || 0, 
+                        target_level: linkedCompetency?.target_level || 3 
+                      };
+                      const atTarget = levels.current_level >= levels.target_level;
+                      
+                      return (
+                        <div key={userId} className="bg-white p-3 rounded-lg border border-purple-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
+                            {atTarget && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                                ✓ Will auto-pass
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Current Level</label>
+                              <select
+                                value={levels.current_level}
+                                onChange={(e) => {
+                                  setUserAssignLevels(prev => ({
+                                    ...prev,
+                                    [userId]: { ...prev[userId], current_level: parseInt(e.target.value) }
+                                  }));
+                                }}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
+                              >
+                                {[0, 1, 2, 3, 4].map(l => (
+                                  <option key={l} value={l}>Level {l}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Target Level</label>
+                              <select
+                                value={levels.target_level}
+                                onChange={(e) => {
+                                  setUserAssignLevels(prev => ({
+                                    ...prev,
+                                    [userId]: { ...prev[userId], target_level: parseInt(e.target.value) }
+                                  }));
+                                }}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
+                              >
+                                {[1, 2, 3, 4, 5].map(l => (
+                                  <option key={l} value={l}>Level {l}{l === 5 ? ' (Expert)' : ''}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          {levels.current_level > 0 && !atTarget && (
+                            <p className="text-xs text-amber-600 mt-2">
+                              Gap: L{levels.current_level} → L{levels.target_level}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Validator/Coach Selection */}
               <div className="mb-4">
@@ -2795,6 +2867,7 @@ export default function TrainingModulesPage() {
                   setAssignDueDate('');
                   setAssignValidatorId('');
                   setLinkedCompetency(null);
+                  setUserAssignLevels({});
                 }}
                 className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100"
               >
@@ -2809,9 +2882,13 @@ export default function TrainingModulesPage() {
                   
                   try {
                     for (const userId of selectedUsers) {
-                      const userLevel = userCompetencyLevels[userId];
-                      const currentLevel = userLevel?.current_level || 0;
-                      const targetLevel = linkedCompetency?.target_level || 3;
+                      // Get user-specific levels from the form
+                      const levels = userAssignLevels[userId] || {
+                        current_level: userCompetencyLevels[userId]?.current_level || 0,
+                        target_level: linkedCompetency?.target_level || 3
+                      };
+                      const currentLevel = levels.current_level;
+                      const targetLevel = levels.target_level;
                       const alreadyAtTarget = currentLevel >= targetLevel;
                       
                       // Create user_training record
@@ -2833,18 +2910,29 @@ export default function TrainingModulesPage() {
                         })
                       });
                       
-                      // Create user_competency record if it doesn't exist
+                      // Create or update user_competency record
                       if (linkedCompetency) {
                         const existingUC = await dbFetch(
                           `user_competencies?select=id&user_id=eq.${userId}&competency_id=eq.${linkedCompetency.id}`
                         );
                         
                         if (!existingUC || existingUC.length === 0) {
+                          // Create new record
                           await dbFetch('user_competencies', {
                             method: 'POST',
                             body: JSON.stringify({
                               user_id: userId,
                               competency_id: linkedCompetency.id,
+                              current_level: currentLevel,
+                              target_level: targetLevel,
+                              status: alreadyAtTarget ? 'achieved' : 'in_progress'
+                            })
+                          });
+                        } else {
+                          // Update existing record with new levels
+                          await dbFetch(`user_competencies?id=eq.${existingUC[0].id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({
                               current_level: currentLevel,
                               target_level: targetLevel,
                               status: alreadyAtTarget ? 'achieved' : 'in_progress'
@@ -2888,6 +2976,7 @@ export default function TrainingModulesPage() {
                     setAssignDueDate('');
                     setAssignValidatorId('');
                     setLinkedCompetency(null);
+                    setUserAssignLevels({});
                     await loadAssignedUsers(selectedModule.id);
                   } catch (error) {
                     console.error('Error assigning users:', error);
