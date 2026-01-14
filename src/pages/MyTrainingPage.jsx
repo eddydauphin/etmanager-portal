@@ -771,6 +771,7 @@ export default function MyTrainingPage() {
       const updateData = {
         attempts: newAttempts,
         best_score: newBestScore,
+        score: score, // Also save current score
         status: passed ? 'passed' : (newAttempts >= (selectedTraining.training_modules?.max_attempts || 3) ? 'failed' : 'in_progress'),
         ...(passed && { completed_at: new Date().toISOString() })
       };
@@ -780,20 +781,60 @@ export default function MyTrainingPage() {
         body: JSON.stringify(updateData)
       });
 
-      // Record the attempt
-      await dbFetch('user_training_attempts', {
-        method: 'POST',
-        body: JSON.stringify({
-          user_training_id: selectedTraining.id,
-          user_id: profile.id,
-          module_id: selectedTraining.module_id,
-          attempt_number: newAttempts,
-          score: score,
-          passed: passed,
-          answers: answers,
-          completed_at: new Date().toISOString()
-        })
-      });
+      // Record the attempt (wrapped in try-catch in case table doesn't exist)
+      try {
+        await dbFetch('user_training_attempts', {
+          method: 'POST',
+          body: JSON.stringify({
+            user_training_id: selectedTraining.id,
+            user_id: profile.id,
+            module_id: selectedTraining.module_id,
+            attempt_number: newAttempts,
+            score: score,
+            passed: passed,
+            answers: answers,
+            completed_at: new Date().toISOString()
+          })
+        });
+      } catch (attemptError) {
+        console.warn('Could not record attempt (table may not exist):', attemptError);
+      }
+
+      // If passed, ensure user_competency record exists for linked competency
+      if (passed) {
+        try {
+          // Get linked competency from training module
+          const competencyLinks = await dbFetch(
+            `competency_modules?select=competency_id,target_level&module_id=eq.${selectedTraining.module_id}`
+          );
+          
+          if (competencyLinks && competencyLinks.length > 0) {
+            const { competency_id, target_level } = competencyLinks[0];
+            
+            // Check if user_competency record exists
+            const existingUC = await dbFetch(
+              `user_competencies?select=id&user_id=eq.${profile.id}&competency_id=eq.${competency_id}`
+            );
+            
+            if (!existingUC || existingUC.length === 0) {
+              // Create user_competency record
+              await dbFetch('user_competencies', {
+                method: 'POST',
+                body: JSON.stringify({
+                  user_id: profile.id,
+                  competency_id: competency_id,
+                  current_level: 0,
+                  target_level: target_level || 3,
+                  status: 'in_progress'
+                })
+              });
+              console.log('Created user_competency record for competency:', competency_id);
+            }
+          }
+        } catch (ucError) {
+          console.warn('Could not create user_competency record:', ucError);
+        }
+      }
 
       // Update local state
       const updatedTraining = { 
