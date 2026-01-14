@@ -3131,17 +3131,6 @@ function TeamLeadDashboard() {
       {/* Pending Team Trainings - Detailed List */}
       <PendingTrainingsSection teamIds={teamMembersList.map(m => m.id)} title="Pending Team Trainings" />
 
-      {/* Team Progress Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col items-center">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Team Competency Progress</h3>
-          <ProgressRing percentage={competencyProgress} color="#10B981" />
-          <p className="text-sm text-gray-600 mt-4">
-            {stats.competenciesAchieved} of {stats.competenciesAssigned} competencies achieved
-          </p>
-        </div>
-      </div>
-
       {/* Pending Training Approvals - Draft modules needing review */}
       {pendingTrainingApprovals.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl shadow-sm p-6">
