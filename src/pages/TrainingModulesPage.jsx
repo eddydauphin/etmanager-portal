@@ -56,6 +56,7 @@ export default function TrainingModulesPage() {
   const [assignValidatorId, setAssignValidatorId] = useState('');
   const [userCompetencyLevels, setUserCompetencyLevels] = useState({});
   const [loadingLevels, setLoadingLevels] = useState(false);
+  const [potentialValidators, setPotentialValidators] = useState([]);
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -287,6 +288,31 @@ export default function TrainingModulesPage() {
       console.error('Error loading competency levels:', error);
     } finally {
       setLoadingLevels(false);
+    }
+  };
+
+  // Load potential validators (team leads, admins, etc.) for the assign modal
+  const loadPotentialValidators = async (moduleClientId) => {
+    try {
+      // Get all users who can be validators from the SAME CLIENT
+      let url = 'profiles?select=id,full_name,email,role,client_id&is_active=eq.true&order=full_name.asc';
+      
+      // Filter by client - validators must be from the same client as the module
+      if (moduleClientId) {
+        url += `&client_id=eq.${moduleClientId}`;
+      }
+      
+      const data = await dbFetch(url);
+      
+      // Sort by role importance (team leads and admins first)
+      const roleOrder = { 'super_admin': 1, 'admin': 2, 'client_admin': 3, 'team_lead': 4, 'department_lead': 5, 'trainee': 6 };
+      const sorted = (data || []).sort((a, b) => {
+        return (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99);
+      });
+      
+      setPotentialValidators(sorted);
+    } catch (error) {
+      console.error('Error loading potential validators:', error);
     }
   };
 
@@ -1544,6 +1570,8 @@ export default function TrainingModulesPage() {
                           onClick={async () => {
                             setSelectedModule(module);
                             await loadAssignedUsers(module.id);
+                            // Load potential validators (all users who can validate)
+                            await loadPotentialValidators(module.client_id);
                             // Load competency levels for the module's competency
                             if (module.competency_id) {
                               await loadUserCompetencyLevels(module.competency_id);
@@ -2741,12 +2769,12 @@ export default function TrainingModulesPage() {
                   required
                 >
                   <option value="">Select validator/coach...</option>
-                  {users.map(user => (
+                  {potentialValidators.map(user => (
                     <option key={user.id} value={user.id}>
                       {user.full_name}
                       {user.id === selectedModule.owner_id ? ' (Module Owner)' : ''}
                       {user.id === selectedModule.training_developer_id ? ' (Training Developer)' : ''}
-                      {user.role === 'team_lead' || user.role === 'admin' ? ` (${user.role})` : ''}
+                      {user.role && user.role !== 'trainee' ? ` (${user.role.replace('_', ' ')})` : ''}
                     </option>
                   ))}
                 </select>
