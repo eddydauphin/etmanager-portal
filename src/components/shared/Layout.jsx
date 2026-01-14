@@ -146,7 +146,7 @@ function Layout() {
     // Define menu order - Chat added after dashboard for all roles
     const menuOrder = role === 'trainee' 
       ? ['dashboard', 'chat', 'my_progress', 'my_training', 'settings']
-      : ['dashboard', 'chat', 'users', 'expert_network', 'development', 'profiles', 'training', 'reports', 'settings'];
+      : ['dashboard', 'chat', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {

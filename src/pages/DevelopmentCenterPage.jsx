@@ -27,7 +27,15 @@ import {
   Check,
   Award,
   Briefcase,
-  Calendar
+  Calendar,
+  Clock,
+  TrendingUp,
+  AlertCircle,
+  MessageSquare,
+  UserCheck,
+  Send,
+  Eye,
+  Filter
 } from 'lucide-react';
 
 export default function DevelopmentCenterPage() {
@@ -88,6 +96,17 @@ export default function DevelopmentCenterPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [userTrainingMap, setUserTrainingMap] = useState({});
   const [validateModal, setValidateModal] = useState(null);
+  
+  // Activity Management State (from DevelopmentActivitiesPage)
+  const [activities, setActivities] = useState([]);
+  const [showActivityDetail, setShowActivityDetail] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [activityFilter, setActivityFilter] = useState('all'); // 'all', 'pending', 'in_progress', 'completed'
+  const [feedback, setFeedback] = useState([]);
+  const [newFeedback, setNewFeedback] = useState('');
+  const [feedbackType, setFeedbackType] = useState('progress');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [activeTab, setActiveTab] = useState('competencies'); // 'competencies', 'activities'
 
   // ==========================================================================
   // DATA LOADING
@@ -107,7 +126,8 @@ export default function DevelopmentCenterPage() {
         loadUsers(),
         loadTags(),
         loadTemplates(),
-        loadUserTraining()
+        loadUserTraining(),
+        loadActivities()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -277,6 +297,195 @@ export default function DevelopmentCenterPage() {
       console.error('Error loading user training:', error);
     }
   };
+
+  // ==========================================================================
+  // ACTIVITY MANAGEMENT FUNCTIONS (from DevelopmentActivitiesPage)
+  // ==========================================================================
+
+  const loadActivities = async () => {
+    try {
+      let url = 'development_activities?select=*&order=created_at.desc';
+      
+      if (currentProfile?.role === 'client_admin' && clientId) {
+        url += `&client_id=eq.${clientId}`;
+      } else if (currentProfile?.role === 'team_lead' && clientId) {
+        url += `&client_id=eq.${clientId}&or=(assigned_by.eq.${currentProfile.id},coach_id.eq.${currentProfile.id})`;
+      } else if (currentProfile?.role !== 'super_admin' && clientId) {
+        url += `&client_id=eq.${clientId}`;
+      }
+      
+      const data = await dbFetch(url);
+      setActivities(data || []);
+    } catch (error) {
+      console.error('Error loading activities:', error);
+    }
+  };
+
+  const loadFeedback = async (activityId) => {
+    try {
+      const data = await dbFetch(
+        `activity_feedback?activity_id=eq.${activityId}&order=created_at.desc`
+      );
+      setFeedback(data || []);
+    } catch (error) {
+      console.error('Error loading feedback:', error);
+    }
+  };
+
+  const handleStatusChange = async (activityId, newStatus) => {
+    try {
+      const updateData = { 
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      };
+      
+      if (newStatus === 'validated') {
+        updateData.validated_at = new Date().toISOString();
+        updateData.validated_by = currentProfile.id;
+        
+        // Also update competency if linked
+        const activity = activities.find(a => a.id === activityId);
+        if (activity?.competency_id && activity?.trainee_id) {
+          const existingComp = await dbFetch(
+            `user_competencies?user_id=eq.${activity.trainee_id}&competency_id=eq.${activity.competency_id}`
+          );
+          
+          if (existingComp && existingComp.length > 0) {
+            if (activity.target_level > (existingComp[0].current_level || 0)) {
+              await dbFetch(`user_competencies?id=eq.${existingComp[0].id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                  current_level: activity.target_level,
+                  status: 'achieved',
+                  last_assessed: new Date().toISOString()
+                })
+              });
+            }
+          } else {
+            await dbFetch('user_competencies', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: activity.trainee_id,
+                competency_id: activity.competency_id,
+                current_level: activity.target_level,
+                target_level: activity.target_level,
+                status: 'achieved'
+              })
+            });
+          }
+        }
+      } else if (newStatus === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+      }
+      
+      await dbFetch(`development_activities?id=eq.${activityId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updateData)
+      });
+      
+      await loadActivities();
+      await loadUserCompetencies();
+      
+      if (selectedActivity?.id === activityId) {
+        setSelectedActivity({ ...selectedActivity, ...updateData });
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status. Please try again.');
+    }
+  };
+
+  const handleAddFeedback = async () => {
+    if (!newFeedback.trim() || !selectedActivity) return;
+    
+    setSubmittingFeedback(true);
+    try {
+      await dbFetch('activity_feedback', {
+        method: 'POST',
+        body: JSON.stringify({
+          activity_id: selectedActivity.id,
+          author_id: currentProfile.id,
+          author_role: currentProfile.role === 'trainee' ? 'coachee' : 
+                       selectedActivity.coach_id === currentProfile.id ? 'coach' : 'manager',
+          feedback_type: feedbackType,
+          content: newFeedback
+        })
+      });
+      
+      setNewFeedback('');
+      await loadFeedback(selectedActivity.id);
+    } catch (error) {
+      console.error('Error adding feedback:', error);
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  const openActivityDetail = async (activity) => {
+    setSelectedActivity(activity);
+    await loadFeedback(activity.id);
+    setShowActivityDetail(true);
+  };
+
+  // Activity helper functions
+  const getActivityStatusColor = (status, dueDate) => {
+    if (dueDate && new Date(dueDate) < new Date() && !['completed', 'validated', 'cancelled'].includes(status)) {
+      return 'bg-red-100 text-red-700';
+    }
+    switch (status) {
+      case 'pending': return 'bg-amber-100 text-amber-700';
+      case 'in_progress': return 'bg-blue-100 text-blue-700';
+      case 'completed': return 'bg-purple-100 text-purple-700';
+      case 'validated': return 'bg-green-100 text-green-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const getActivityTypeIcon = (type) => {
+    switch (type) {
+      case 'training': return BookOpen;
+      case 'coaching': return Users;
+      case 'task': return Briefcase;
+      default: return Target;
+    }
+  };
+
+  const getActivityTypeColor = (type) => {
+    switch (type) {
+      case 'training': return 'bg-blue-100 text-blue-700';
+      case 'coaching': return 'bg-purple-100 text-purple-700';
+      case 'task': return 'bg-orange-100 text-orange-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const getUserName = (userId) => {
+    const user = users.find(u => u.id === userId);
+    return user?.full_name || 'Unknown';
+  };
+
+  const getCompetencyName = (competencyId) => {
+    const comp = competencies.find(c => c.id === competencyId);
+    return comp?.name || '';
+  };
+
+  // Activity stats
+  const activityStats = {
+    total: activities.length,
+    pending: activities.filter(a => a.status === 'pending').length,
+    inProgress: activities.filter(a => a.status === 'in_progress').length,
+    completed: activities.filter(a => a.status === 'completed' || a.status === 'validated').length,
+    overdue: activities.filter(a => a.due_date && new Date(a.due_date) < new Date() && !['completed', 'validated'].includes(a.status)).length
+  };
+
+  // Filtered activities
+  const filteredActivities = activities.filter(activity => {
+    if (activityFilter === 'all') return true;
+    if (activityFilter === 'overdue') {
+      return activity.due_date && new Date(activity.due_date) < new Date() && !['completed', 'validated'].includes(activity.status);
+    }
+    return activity.status === activityFilter;
+  });
 
   // ==========================================================================
   // COMPUTED VALUES
@@ -824,6 +1033,46 @@ export default function DevelopmentCenterPage() {
         </button>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-8">
+          <button
+            onClick={() => setActiveTab('competencies')}
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'competencies'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              Competencies
+              <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{competencies.length}</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('activities')}
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'activities'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" />
+              Activities
+              <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{activities.length}</span>
+              {activityStats.overdue > 0 && (
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">{activityStats.overdue} overdue</span>
+              )}
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* COMPETENCIES TAB */}
+      {activeTab === 'competencies' && (
+        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -1072,6 +1321,191 @@ export default function DevelopmentCenterPage() {
           </div>
         )}
       </div>
+        </>
+      )}
+
+      {/* ACTIVITIES TAB */}
+      {activeTab === 'activities' && (
+        <>
+          {/* Activity Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-100 rounded-lg"><Target className="w-5 h-5 text-gray-600" /></div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{activityStats.total}</p>
+                  <p className="text-sm text-gray-500">Total</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-lg"><Clock className="w-5 h-5 text-amber-600" /></div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{activityStats.pending}</p>
+                  <p className="text-sm text-gray-500">Pending</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg"><TrendingUp className="w-5 h-5 text-blue-600" /></div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{activityStats.inProgress}</p>
+                  <p className="text-sm text-gray-500">In Progress</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg"><CheckCircle className="w-5 h-5 text-green-600" /></div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{activityStats.completed}</p>
+                  <p className="text-sm text-gray-500">Completed</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg"><AlertCircle className="w-5 h-5 text-red-600" /></div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{activityStats.overdue}</p>
+                  <p className="text-sm text-gray-500">Overdue</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity Filters */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex flex-wrap gap-4">
+              <select
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-200 rounded-lg"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="validated">Validated</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Activities List */}
+          {filteredActivities.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Activities Found</h3>
+              <p className="text-gray-500 mb-4">
+                {activities.length === 0 
+                  ? "Create a competency and assign it to team members to see activities here"
+                  : "No activities match your current filter"}
+              </p>
+              {activities.length === 0 && (
+                <button
+                  onClick={() => { setActiveTab('competencies'); openWizard(); }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Create First Competency
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredActivities.map(activity => {
+                const TypeIcon = getActivityTypeIcon(activity.type);
+                const isOverdue = activity.due_date && new Date(activity.due_date) < new Date() && 
+                  !['completed', 'validated', 'cancelled'].includes(activity.status);
+                
+                return (
+                  <div 
+                    key={activity.id} 
+                    className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => openActivityDetail(activity)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className={`p-2 rounded-lg ${getActivityTypeColor(activity.type)}`}>
+                            <TypeIcon className="w-4 h-4" />
+                          </div>
+                          <h3 className="font-semibold text-gray-900">{activity.title}</h3>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getActivityStatusColor(activity.status, activity.due_date)}`}>
+                            {isOverdue ? 'Overdue' : activity.status?.replace('_', ' ')}
+                          </span>
+                        </div>
+                        
+                        {activity.description && (
+                          <p className="text-sm text-gray-500 mb-3 line-clamp-2">{activity.description}</p>
+                        )}
+                        
+                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <UserCheck className="w-4 h-4" />
+                            <span>Trainee: {getUserName(activity.trainee_id)}</span>
+                          </div>
+                          
+                          {activity.coach_id && (
+                            <div className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              <span>Coach: {getUserName(activity.coach_id)}</span>
+                            </div>
+                          )}
+                          
+                          {activity.due_date && (
+                            <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
+                              <Calendar className="w-4 h-4" />
+                              <span>Due: {new Date(activity.due_date).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                          
+                          {activity.competency_id && (
+                            <div className="flex items-center gap-1">
+                              <Target className="w-4 h-4" />
+                              <span>{getCompetencyName(activity.competency_id)} → Level {activity.target_level}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="ml-4 flex items-center gap-2">
+                        {activity.status === 'pending' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStatusChange(activity.id, 'in_progress'); }}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                          >
+                            Start
+                          </button>
+                        )}
+                        {activity.status === 'in_progress' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStatusChange(activity.id, 'completed'); }}
+                            className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
+                          >
+                            Complete
+                          </button>
+                        )}
+                        {activity.status === 'completed' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStatusChange(activity.id, 'validated'); }}
+                            className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                          >
+                            Validate
+                          </button>
+                        )}
+                        <Eye className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {/* ======================================================================== */}
       {/* WIZARD MODAL */}
@@ -1791,6 +2225,191 @@ export default function DevelopmentCenterPage() {
               >
                 Validate Level
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activity Detail Modal */}
+      {showActivityDetail && selectedActivity && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${getActivityTypeColor(selectedActivity.type)}`}>
+                  {(() => { const Icon = getActivityTypeIcon(selectedActivity.type); return <Icon className="w-5 h-5" />; })()}
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">{selectedActivity.title}</h2>
+                  <p className="text-sm text-gray-500">{selectedActivity.type} activity</p>
+                </div>
+              </div>
+              <button onClick={() => setShowActivityDetail(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-6">
+              {/* Status & Actions */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">Status:</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getActivityStatusColor(selectedActivity.status, selectedActivity.due_date)}`}>
+                    {selectedActivity.status?.replace('_', ' ')}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {selectedActivity.status === 'pending' && (
+                    <button
+                      onClick={() => handleStatusChange(selectedActivity.id, 'in_progress')}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                    >
+                      Start
+                    </button>
+                  )}
+                  {selectedActivity.status === 'in_progress' && (
+                    <button
+                      onClick={() => handleStatusChange(selectedActivity.id, 'completed')}
+                      className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
+                    >
+                      Mark Complete
+                    </button>
+                  )}
+                  {selectedActivity.status === 'completed' && (
+                    <button
+                      onClick={() => handleStatusChange(selectedActivity.id, 'validated')}
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                    >
+                      Validate & Close
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Trainee</p>
+                  <p className="font-medium">{getUserName(selectedActivity.trainee_id)}</p>
+                </div>
+                {selectedActivity.coach_id && (
+                  <div>
+                    <p className="text-sm text-gray-500">Coach</p>
+                    <p className="font-medium">{getUserName(selectedActivity.coach_id)}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-500">Assigned By</p>
+                  <p className="font-medium">{getUserName(selectedActivity.assigned_by)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Due Date</p>
+                  <p className="font-medium">
+                    {selectedActivity.due_date 
+                      ? new Date(selectedActivity.due_date).toLocaleDateString() 
+                      : 'No due date'}
+                  </p>
+                </div>
+                {selectedActivity.competency_id && (
+                  <div>
+                    <p className="text-sm text-gray-500">Linked Competency</p>
+                    <p className="font-medium">
+                      {getCompetencyName(selectedActivity.competency_id)} → Level {selectedActivity.target_level}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {selectedActivity.description && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Description</p>
+                  <p className="text-gray-700">{selectedActivity.description}</p>
+                </div>
+              )}
+              
+              {selectedActivity.objectives && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Objectives</p>
+                  <p className="text-gray-700">{selectedActivity.objectives}</p>
+                </div>
+              )}
+              
+              {selectedActivity.success_criteria && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Success Criteria</p>
+                  <p className="text-gray-700">{selectedActivity.success_criteria}</p>
+                </div>
+              )}
+              
+              {/* Feedback Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Feedback & Progress ({feedback.length})
+                </h3>
+                
+                {/* Add Feedback */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex gap-2 mb-2">
+                    <select
+                      value={feedbackType}
+                      onChange={(e) => setFeedbackType(e.target.value)}
+                      className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                    >
+                      <option value="progress">Progress Update</option>
+                      <option value="milestone">Milestone</option>
+                      <option value="challenge">Challenge</option>
+                      <option value="support">Need Support</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newFeedback}
+                      onChange={(e) => setNewFeedback(e.target.value)}
+                      placeholder="Add a comment or update..."
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg"
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddFeedback()}
+                    />
+                    <button
+                      onClick={handleAddFeedback}
+                      disabled={!newFeedback.trim() || submittingFeedback}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {submittingFeedback ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Feedback List */}
+                {feedback.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No feedback yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {feedback.map(fb => (
+                      <div key={fb.id} className="p-3 bg-white border border-gray-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{getUserName(fb.author_id)}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${
+                              fb.feedback_type === 'milestone' ? 'bg-green-100 text-green-700' :
+                              fb.feedback_type === 'challenge' ? 'bg-red-100 text-red-700' :
+                              fb.feedback_type === 'support' ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {fb.feedback_type}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {new Date(fb.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700">{fb.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
