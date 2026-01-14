@@ -2,6 +2,8 @@
 // Direct fetch helper for Supabase REST API
 // Use this instead of supabase.from() for database queries
 
+import { supabase } from './supabase';
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -10,52 +12,64 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * @param {string} endpoint - API endpoint (e.g., 'profiles?select=*')
  * @param {object} options - Fetch options (method, body, headers)
  * @returns {Promise<any>} - JSON response
- * 
+ *
  * @example
  * // GET all clients
  * const clients = await dbFetch('clients?select=*&order=name.asc');
- * 
+ *
  * // GET with filter
  * const admins = await dbFetch('profiles?select=*&role=eq.super_admin');
- * 
+ *
  * // POST (create)
  * await dbFetch('clients', {
  *   method: 'POST',
  *   body: JSON.stringify({ name: 'New Client', code: 'NC' })
  * });
- * 
+ *
  * // PATCH (update)
  * await dbFetch('clients?id=eq.123', {
  *   method: 'PATCH',
  *   body: JSON.stringify({ name: 'Updated Name' })
  * });
- * 
+ *
  * // DELETE
  * await dbFetch('clients?id=eq.123', { method: 'DELETE' });
  */
 export async function dbFetch(endpoint, options = {}) {
+  // Get the current session token for authenticated requests
+  let authToken = supabaseKey;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      authToken = session.access_token;
+    }
+  } catch (e) {
+    // Fall back to anon key if session check fails
+    console.warn('Could not get session, using anon key');
+  }
+
   const response = await fetch(`${supabaseUrl}/rest/v1/${endpoint}`, {
     ...options,
     headers: {
       'apikey': supabaseKey,
-      'Authorization': `Bearer ${supabaseKey}`,
+      'Authorization': `Bearer ${authToken}`,
       'Content-Type': 'application/json',
-      'Prefer': options.method === 'POST' ? 'return=representation' : 
+      'Prefer': options.method === 'POST' ? 'return=representation' :
                 (options.method === 'PATCH' || options.method === 'DELETE') ? 'return=minimal' : undefined,
       ...options.headers
     }
   });
-  
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(error);
   }
-  
+
   // DELETE and some PATCH responses don't have body
   if (options.method === 'DELETE' || (options.method === 'PATCH' && response.status === 204)) {
     return null;
   }
-  
+
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
@@ -74,7 +88,7 @@ export async function getClients() {
 /**
  * Get profiles/users with client name included
  * @param {string|null} clientId - Filter by client (optional)
- * 
+ *
  * Returns: { ..., clients: { name: "Client Name" } }
  * Access client name with: user.clients?.name
  */
@@ -87,7 +101,7 @@ export async function getProfiles(clientId = null) {
 /**
  * Get expert networks with client name included
  * @param {string|null} clientId - Filter by client (optional)
- * 
+ *
  * Returns: { ..., clients: { name: "Client Name" } }
  * Access client name with: network.clients?.name
  */
@@ -100,7 +114,7 @@ export async function getNetworks(clientId = null) {
 /**
  * Get network members with user profile included
  * @param {string} networkId - Network ID
- * 
+ *
  * Returns: { ..., profiles: { full_name, email } }
  * Access user name with: member.profiles?.full_name
  */
@@ -111,7 +125,7 @@ export async function getNetworkMembers(networkId) {
 /**
  * Get action plans for a network with assigned user included
  * @param {string} networkId - Network ID
- * 
+ *
  * Returns: { ..., profiles: { full_name } }
  * Access assigned user with: action.profiles?.full_name
  */
