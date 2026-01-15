@@ -2281,11 +2281,13 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
       let url = `development_activities?type=eq.coaching&select=*,trainee:trainee_id(id,full_name,email),coach:coach_id(id,full_name),competencies(id,name)&order=created_at.desc`;
       
       if (showAll && clientId) {
+        // Client Admin / Site Admin - see all within organization
         url += `&client_id=eq.${clientId}`;
       } else if (showAll) {
         // Super Admin - see all
       } else {
-        url += `&coach_id=eq.${profile.id}`;
+        // Regular user (including trainees) - see activities where they are coach OR trainee
+        url += `&or=(coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
       }
       
       const data = await dbFetch(url);
@@ -2526,19 +2528,25 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
     return null;
   }
 
-  // Group by trainee
-  const traineeMap = {};
+  // Group activities by the "other person" (if I'm coach, group by trainee; if I'm trainee, group by coach)
+  const personMap = {};
   coachingActivities.forEach(activity => {
-    const traineeId = activity.trainee?.id;
-    if (traineeId) {
-      if (!traineeMap[traineeId]) {
-        traineeMap[traineeId] = {
-          trainee: activity.trainee,
-          activities: []
-        };
-      }
-      traineeMap[traineeId].activities.push(activity);
+    // Determine the "other person" - if I'm the coach, show trainee; if I'm the trainee, show coach
+    const isMyCoaching = activity.coach_id === profile.id;
+    const otherPerson = isMyCoaching ? activity.trainee : activity.coach;
+    const personId = otherPerson?.id || 'unknown';
+    
+    if (!personMap[personId]) {
+      personMap[personId] = {
+        person: otherPerson,
+        isCoach: isMyCoaching, // Am I the coach for these activities?
+        activities: []
+      };
     }
+    personMap[personId].activities.push({
+      ...activity,
+      myRole: isMyCoaching ? 'coach' : 'coachee'
+    });
   });
 
   const stats = {
@@ -2558,9 +2566,9 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Users className="w-5 h-5 text-purple-500" />
-            {showAll ? 'All Coaching Activities' : 'My Coachees'}
+            {showAll ? 'All Coaching Activities' : 'My Coaching'}
           </h2>
-          <Link to="/development" className="text-sm text-blue-600 hover:text-blue-700">
+          <Link to="/development-center" className="text-sm text-blue-600 hover:text-blue-700">
             View all →
           </Link>
         </div>
@@ -2594,35 +2602,44 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
           </div>
         )}
 
-        {/* Coachee List */}
+        {/* Person List - shows other person in coaching relationship */}
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {Object.values(traineeMap).map(({ trainee, activities }) => {
+          {Object.values(personMap).map(({ person, isCoach, activities }) => {
             const pendingCount = activities.filter(a => a.status !== 'validated').length;
             const readyCount = activities.filter(a => a.status === 'completed').length;
+            const roleLabel = isCoach ? 'Coachee' : 'Coach';
+            const roleColor = isCoach ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600';
             
             return (
-              <div key={trainee.id} className="border border-gray-200 rounded-lg p-3">
+              <div key={person?.id || 'unknown'} className="border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div 
                     className="flex items-center gap-2 cursor-pointer hover:opacity-80"
-                    onClick={() => openTraineeModal(trainee)}
+                    onClick={() => person && openTraineeModal(person)}
                   >
-                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4 text-purple-600" />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${roleColor}`}>
+                      <User className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{trainee.full_name}</p>
-                      <p className="text-xs text-gray-500">{trainee.email}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{person?.full_name || 'Unknown'}</p>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${roleColor}`}>
+                          {roleLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">{person?.email || ''}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => openTraineeModal(trainee)}
-                      className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                    >
-                      View All Competencies
-                    </button>
-                    {readyCount > 0 && (
+                    {person && (
+                      <button
+                        onClick={() => openTraineeModal(person)}
+                        className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                      >
+                        View All Competencies
+                      </button>
+                    )}
+                    {readyCount > 0 && isCoach && (
                       <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                         {readyCount} to review
                       </span>
@@ -2646,8 +2663,10 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
                           {activity.target_level && (
                             <span className="text-xs text-gray-400">→ L{activity.target_level}</span>
                           )}
-                          {showAll && activity.coach && (
-                            <span className="text-xs text-gray-400">• Coach: {activity.coach.full_name}</span>
+                          {showAll && (
+                            <span className="text-xs text-gray-400">
+                              • {activity.myRole === 'coach' ? `Coaching ${activity.trainee?.full_name}` : `With ${activity.coach?.full_name}`}
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -5089,9 +5108,15 @@ function TraineeDashboard() {
             onClick={() => navigate('/my-training')}
           />
           <StatCard 
-            title="Active Coaching" 
-            value={stats.coachingActive}
-            subtitle="Sessions in progress"
+            title="Coaching" 
+            value={stats.coachingActive + stats.sessionsAsCoach}
+            subtitle={stats.coachingActive > 0 && stats.sessionsAsCoach > 0 
+              ? `${stats.coachingActive} receiving, ${stats.sessionsAsCoach} giving`
+              : stats.sessionsAsCoach > 0 
+                ? `${stats.sessionsAsCoach} as coach`
+                : stats.coachingActive > 0
+                  ? `${stats.coachingActive} as trainee`
+                  : 'No active sessions'}
             icon={Users}
             color="purple"
             onClick={() => navigate('/my-plan')}
