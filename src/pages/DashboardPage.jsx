@@ -233,22 +233,74 @@ function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, o
     amber: 'bg-amber-50 text-amber-600'
   };
 
+  // Stock-style trend indicator
+  const getTrendIndicator = (trendValue) => {
+    if (trendValue === null || trendValue === undefined) return null;
+    
+    if (trendValue > 20) {
+      // Strong uptrend
+      return (
+        <div className="flex items-center gap-1 text-green-600" title="Strong uptrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3,17 9,11 13,15 21,7" />
+            <polyline points="15,7 21,7 21,13" />
+          </svg>
+        </div>
+      );
+    } else if (trendValue > 0) {
+      // Mild uptrend
+      return (
+        <div className="flex items-center gap-1 text-green-500" title="Uptrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="5,15 12,8 19,15" />
+          </svg>
+        </div>
+      );
+    } else if (trendValue < -20) {
+      // Strong downtrend
+      return (
+        <div className="flex items-center gap-1 text-red-600" title="Strong downtrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3,7 9,13 13,9 21,17" />
+            <polyline points="15,17 21,17 21,11" />
+          </svg>
+        </div>
+      );
+    } else if (trendValue < 0) {
+      // Mild downtrend
+      return (
+        <div className="flex items-center gap-1 text-red-500" title="Downtrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="5,9 12,16 19,9" />
+          </svg>
+        </div>
+      );
+    } else {
+      // Flat
+      return (
+        <div className="flex items-center gap-1 text-gray-400" title="Stable vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="4" y1="12" x2="20" y2="12" />
+          </svg>
+        </div>
+      );
+    }
+  };
+
   return (
     <div 
       className={`bg-white rounded-xl shadow-sm p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-gray-500">{title}</p>
+            {getTrendIndicator(trend)}
+          </div>
           <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
           {subtitle && (
             <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
-          )}
-          {trend !== undefined && trend !== null && (
-            <p className={`text-sm mt-2 ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-              {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'} {Math.abs(trend)}% from last month
-            </p>
           )}
         </div>
         <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
@@ -2946,8 +2998,15 @@ function TeamLeadDashboard() {
     competenciesAchieved: 0,
     trainingPending: 0,
     trainingCompleted: 0,
+    trainingTotal: 0,
     coachingActive: 0,
-    coachingOverdue: 0
+    coachingCompleted: 0,
+    coachingTotal: 0,
+    coachingOverdue: 0,
+    // Trends (percentage change from last week)
+    competencyTrend: null,
+    trainingTrend: null,
+    coachingTrend: null
   });
   const [teamMembersList, setTeamMembersList] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
@@ -2988,24 +3047,66 @@ function TeamLeadDashboard() {
 
         // Training for ALL users including team lead
         const training = await dbFetch(
-          `user_training?select=id,status&user_id=in.(${allIdList})`
+          `user_training?select=id,status,completed_at&user_id=in.(${allIdList})`
         );
         const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
         const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+        const trainingTotal = training?.length || 0;
 
         // Coaching - where team lead is coach OR coachee
-        let coachingQuery = `development_activities?select=id,status,due_date&type=eq.coaching`;
+        let coachingQuery = `development_activities?select=id,status,due_date,created_at,validated_at&type=eq.coaching`;
         if (teamIds.length > 0) {
           coachingQuery += `&or=(trainee_id.in.(${teamIdList}),coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
         } else {
           coachingQuery += `&or=(coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
         }
         const coaching = await dbFetch(coachingQuery);
+        const coachingTotal = coaching?.length || 0;
+        const coachingCompleted = coaching?.filter(c => c.status === 'validated').length || 0;
         const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
         const coachingOverdue = coaching?.filter(c => {
           if (!c.due_date || c.status === 'validated') return false;
           return new Date(c.due_date) < new Date();
         }).length || 0;
+
+        // Calculate weekly trends
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+        // Coaching completed this week vs last week
+        const coachingCompletedThisWeek = coaching?.filter(c => 
+          c.status === 'validated' && c.validated_at && new Date(c.validated_at) >= oneWeekAgo
+        ).length || 0;
+        const coachingCompletedLastWeek = coaching?.filter(c => 
+          c.status === 'validated' && c.validated_at && 
+          new Date(c.validated_at) >= twoWeeksAgo && new Date(c.validated_at) < oneWeekAgo
+        ).length || 0;
+        
+        // Calculate trend percentage
+        let coachingTrend = null;
+        if (coachingCompletedLastWeek > 0) {
+          coachingTrend = Math.round(((coachingCompletedThisWeek - coachingCompletedLastWeek) / coachingCompletedLastWeek) * 100);
+        } else if (coachingCompletedThisWeek > 0) {
+          coachingTrend = 100; // If no completions last week but some this week, +100%
+        }
+
+        // Training completed this week vs last week
+        const trainingCompletedThisWeek = training?.filter(t => 
+          t.status === 'passed' && t.completed_at && new Date(t.completed_at) >= oneWeekAgo
+        ).length || 0;
+        const trainingCompletedLastWeek = training?.filter(t => 
+          t.status === 'passed' && t.completed_at && 
+          new Date(t.completed_at) >= twoWeeksAgo && new Date(t.completed_at) < oneWeekAgo
+        ).length || 0;
+        
+        let trainingTrend = null;
+        if (trainingCompletedLastWeek > 0) {
+          trainingTrend = Math.round(((trainingCompletedThisWeek - trainingCompletedLastWeek) / trainingCompletedLastWeek) * 100);
+        } else if (trainingCompletedThisWeek > 0) {
+          trainingTrend = 100;
+        }
 
         setStats({
           teamMembers: allUserIds.length, // Total including self
@@ -3013,8 +3114,13 @@ function TeamLeadDashboard() {
           competenciesAchieved: compAchieved,
           trainingPending,
           trainingCompleted,
+          trainingTotal,
           coachingActive,
-          coachingOverdue
+          coachingCompleted,
+          coachingTotal,
+          coachingOverdue,
+          trainingTrend,
+          coachingTrend
         });
 
         // Recent training completions (team members only for this view)
@@ -3114,17 +3220,18 @@ function TeamLeadDashboard() {
         />
         <StatCard 
           title="Training" 
-          value={stats.trainingPending}
-          subtitle={`Pending (${stats.trainingCompleted} completed)`}
+          value={`${stats.trainingCompleted}/${stats.trainingTotal}`}
+          subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'}
           icon={GraduationCap}
           color="amber"
         />
         <StatCard 
           title="Coaching" 
-          value={stats.coachingActive}
-          subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : 'Active sessions'}
+          value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
+          subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'}
           icon={Users}
           color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
+          trend={stats.coachingTrend}
         />
       </div>
 
