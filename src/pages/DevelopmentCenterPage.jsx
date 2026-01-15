@@ -854,6 +854,17 @@ export default function DevelopmentCenterPage() {
       } else if (quickAction === 'task' || quickAction === 'coaching') {
         // Create development activity for each user
         for (const assignment of assignments) {
+          // Get target level from user_competencies if exists
+          let targetLevel = 3; // default
+          if (wizardData.competency_id) {
+            const userComp = await dbFetch(
+              `user_competencies?select=target_level&user_id=eq.${assignment.user_id}&competency_id=eq.${wizardData.competency_id}`
+            );
+            if (userComp?.[0]?.target_level) {
+              targetLevel = userComp[0].target_level;
+            }
+          }
+
           const activityResult = await dbFetch('development_activities?select=id', {
             method: 'POST',
             body: JSON.stringify({
@@ -864,6 +875,8 @@ export default function DevelopmentCenterPage() {
               coach_id: coach_id,
               assigned_by: currentProfile?.id,
               client_id: clientId,
+              competency_id: wizardData.competency_id || null,
+              target_level: targetLevel,
               status: 'pending',
               start_date: startDate || new Date().toISOString().split('T')[0],
               due_date: dueDate || null
@@ -1922,6 +1935,26 @@ export default function DevelopmentCenterPage() {
               {/* QUICK ACTION: Task or Coaching - Activity details */}
               {wizardStep === 1 && (wizardData.quickAction === 'task' || wizardData.quickAction === 'coaching') && (
                 <div className="space-y-4">
+                  {/* Competency Selection - Required */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Link to Competency *
+                    </label>
+                    <select
+                      value={wizardData.competency_id || ''}
+                      onChange={(e) => setWizardData({ ...wizardData, competency_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                    >
+                      <option value="">-- Select competency --</option>
+                      {competencies.map(comp => (
+                        <option key={comp.id} value={comp.id}>{comp.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This activity will help develop this competency
+                    </p>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {wizardData.quickAction === 'task' ? 'Task Title *' : 'Coaching Topic *'}
@@ -2615,6 +2648,10 @@ export default function DevelopmentCenterPage() {
                         // Validation for quick action step 1
                         if (wizardData.quickAction === 'training' && !wizardData.linkedModuleId) {
                           setFormError('Please select a training module');
+                          return;
+                        }
+                        if ((wizardData.quickAction === 'task' || wizardData.quickAction === 'coaching') && !wizardData.competency_id) {
+                          setFormError('Please select a competency to link this activity to');
                           return;
                         }
                         if ((wizardData.quickAction === 'task' || wizardData.quickAction === 'coaching') && !wizardData.activityTitle) {
