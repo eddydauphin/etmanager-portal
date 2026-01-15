@@ -4880,7 +4880,9 @@ function TraineeDashboard() {
     competenciesAchieved: 0,
     trainingPending: 0,
     trainingCompleted: 0,
-    coachingActive: 0
+    coachingActive: 0,
+    sessionsAsCoach: 0,
+    sessionsToReview: 0
   });
   const [loading, setLoading] = useState(true);
   const [showRequestCoaching, setShowRequestCoaching] = useState(false);
@@ -4908,10 +4910,16 @@ function TraineeDashboard() {
       const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'assigned').length || 0;
       const trainingCompleted = training?.filter(t => t.status === 'passed' || t.status === 'completed').length || 0;
 
-      // Coaching
+      // Coaching (where I'm the trainee)
       const coaching = await dbFetch(`development_activities?select=id,status,title&trainee_id=eq.${profile.id}&type=eq.coaching`);
       console.log('TraineeDashboard: Coaching activities:', coaching);
       const activeCoaching = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
+
+      // Coaching (where I'm the coach - for peer coaching)
+      const coachingSessions = await dbFetch(`development_activities?select=id,status,title&coach_id=eq.${profile.id}&type=eq.coaching`);
+      console.log('TraineeDashboard: Sessions as coach:', coachingSessions);
+      const sessionsAsCoach = coachingSessions?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
+      const sessionsToReview = coachingSessions?.filter(c => c.status === 'completed').length || 0;
 
       setStats({
         competenciesTotal: compTotal,
@@ -4919,7 +4927,9 @@ function TraineeDashboard() {
         competenciesToDevelop: compInProgress,
         trainingPending,
         trainingCompleted,
-        coachingActive: activeCoaching
+        coachingActive: activeCoaching,
+        sessionsAsCoach,
+        sessionsToReview
       });
     } catch (error) {
       console.error('Error loading trainee data:', error);
@@ -4992,6 +5002,9 @@ function TraineeDashboard() {
 
       {/* My Active Development Activities */}
       <MyDevelopmentActivitiesSection profile={profile} />
+
+      {/* My Coaching Sessions - Where I am the coach (even as trainee) */}
+      <MyCoacheesSection profile={profile} />
 
       {/* Competency Maturity Dashboard - Individual view for trainee */}
       <CompetencyMaturityDashboard 
