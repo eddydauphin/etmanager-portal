@@ -3157,6 +3157,11 @@ function TeamLeadDashboard() {
     coachingCompleted: 0,
     coachingTotal: 0,
     coachingOverdue: 0,
+    // Tasks (Learn by Doing)
+    tasksActive: 0,
+    tasksCompleted: 0,
+    tasksTotal: 0,
+    tasksTrend: null,
     // Trends (percentage change from last week)
     competencyTrend: null,
     trainingTrend: null,
@@ -3207,7 +3212,7 @@ function TeamLeadDashboard() {
         const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
         const trainingTotal = training?.length || 0;
 
-        // Coaching - where team lead is coach OR coachee
+        // Coaching (Learn through Others) - where team lead is coach OR coachee
         let coachingQuery = `development_activities?select=id,status,due_date,created_at,validated_at&type=eq.coaching`;
         if (teamIds.length > 0) {
           coachingQuery += `&or=(trainee_id.in.(${teamIdList}),coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
@@ -3222,6 +3227,18 @@ function TeamLeadDashboard() {
           if (!c.due_date || c.status === 'validated') return false;
           return new Date(c.due_date) < new Date();
         }).length || 0;
+
+        // Tasks (Learn by Doing) - where team lead or team members are involved
+        let tasksQuery = `development_activities?select=id,status,due_date,created_at,validated_at&type=eq.task`;
+        if (teamIds.length > 0) {
+          tasksQuery += `&or=(trainee_id.in.(${teamIdList}),coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
+        } else {
+          tasksQuery += `&or=(coach_id.eq.${profile.id},trainee_id.eq.${profile.id})`;
+        }
+        const tasks = await dbFetch(tasksQuery);
+        const tasksTotal = tasks?.length || 0;
+        const tasksCompleted = tasks?.filter(t => t.status === 'validated').length || 0;
+        const tasksActive = tasks?.filter(t => t.status !== 'validated' && t.status !== 'cancelled').length || 0;
 
         // Calculate weekly trends
         const oneWeekAgo = new Date();
@@ -3244,6 +3261,22 @@ function TeamLeadDashboard() {
           coachingTrend = Math.round(((coachingCompletedThisWeek - coachingCompletedLastWeek) / coachingCompletedLastWeek) * 100);
         } else if (coachingCompletedThisWeek > 0) {
           coachingTrend = 100; // If no completions last week but some this week, +100%
+        }
+
+        // Tasks completed this week vs last week
+        const tasksCompletedThisWeek = tasks?.filter(t => 
+          t.status === 'validated' && t.validated_at && new Date(t.validated_at) >= oneWeekAgo
+        ).length || 0;
+        const tasksCompletedLastWeek = tasks?.filter(t => 
+          t.status === 'validated' && t.validated_at && 
+          new Date(t.validated_at) >= twoWeeksAgo && new Date(t.validated_at) < oneWeekAgo
+        ).length || 0;
+        
+        let tasksTrend = null;
+        if (tasksCompletedLastWeek > 0) {
+          tasksTrend = Math.round(((tasksCompletedThisWeek - tasksCompletedLastWeek) / tasksCompletedLastWeek) * 100);
+        } else if (tasksCompletedThisWeek > 0) {
+          tasksTrend = 100;
         }
 
         // Training completed this week vs last week
@@ -3273,6 +3306,10 @@ function TeamLeadDashboard() {
           coachingCompleted,
           coachingTotal,
           coachingOverdue,
+          tasksActive,
+          tasksCompleted,
+          tasksTotal,
+          tasksTrend,
           trainingTrend,
           coachingTrend
         });
@@ -3356,39 +3393,48 @@ function TeamLeadDashboard() {
         <p className="text-gray-600 mt-1">Welcome back, {profile?.full_name}!</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Team Size" 
-          value={stats.teamMembers}
-          subtitle="Including you"
-          icon={Users}
-          color="blue"
-        />
+      {/* Stats - 5 KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard 
           title="Competencies" 
           value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`}
           subtitle={`${competencyProgress}% achieved`}
           icon={Target}
           color="green"
-          info="Skills achieved vs total assigned. A competency is achieved when validated at or above target level through training, coaching, or direct assessment."
+          info="Formal skills achieved vs total assigned. Competencies are validated at or above target level and appear in the competency matrix."
         />
         <StatCard 
-          title="Training" 
+          title="Formal Education" 
           value={`${stats.trainingCompleted}/${stats.trainingTotal}`}
           subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'}
           icon={GraduationCap}
           color="amber"
-          info="E-learning modules completed vs total assigned. Counts training modules passed with the required score."
+          info="Learning through structured courses and e-learning modules. Completed vs total assigned."
         />
         <StatCard 
-          title="Coaching" 
+          title="Learn by Doing" 
+          value={`${stats.tasksCompleted}/${stats.tasksTotal}`}
+          subtitle={stats.tasksActive > 0 ? `${stats.tasksActive} active` : 'Completed'}
+          icon={Briefcase}
+          color="blue"
+          trend={stats.tasksTrend}
+          info="Learning through initiatives, projects, and hands-on experience. Completed vs total assigned."
+        />
+        <StatCard 
+          title="Learn through Others" 
           value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
           subtitle={stats.coachingOverdue > 0 ? `${stats.coachingOverdue} overdue` : stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'}
           icon={Users}
           color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
           trend={stats.coachingTrend}
-          info="Coaching sessions validated vs total created. Includes sessions where team members are being coached or are coaching others. Trend shows weekly engagement."
+          info="Learning through feedback, coaching, and mentoring. Completed vs total sessions."
+        />
+        <StatCard 
+          title="Team Size" 
+          value={stats.teamMembers}
+          subtitle="Including you"
+          icon={Users}
+          color="gray"
         />
       </div>
 
@@ -3517,12 +3563,13 @@ function TeamLeadDashboard() {
       </div>
 
       {/* Big Visual KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { icon: Users, value: stats.teamMembers, label: 'Team Members', color: 'blue', info: null },
-          { icon: Target, value: `${competencyProgress}%`, label: 'Competency Progress', color: 'emerald', info: 'Skills achieved vs total assigned across your team.' },
-          { icon: GraduationCap, value: `${stats.trainingCompleted}/${stats.trainingTotal}`, label: 'Training Done', color: 'amber', info: 'E-learning modules completed vs total assigned.' },
-          { icon: MessageSquare, value: `${stats.coachingCompleted}/${stats.coachingTotal}`, label: 'Coaching Done', color: stats.coachingOverdue > 0 ? 'red' : 'purple', info: 'Coaching sessions validated vs total created.', trend: stats.coachingTrend },
+          { icon: Target, value: `${stats.competenciesAchieved}/${stats.competenciesAssigned}`, label: 'Competencies', color: 'emerald', info: 'Formal skills achieved vs total assigned.' },
+          { icon: GraduationCap, value: `${stats.trainingCompleted}/${stats.trainingTotal}`, label: 'Formal Education', color: 'amber', info: 'Learning through structured courses and e-learning modules.' },
+          { icon: Briefcase, value: `${stats.tasksCompleted}/${stats.tasksTotal}`, label: 'Learn by Doing', color: 'blue', info: 'Learning through initiatives, projects, and hands-on experience.', trend: stats.tasksTrend },
+          { icon: Users, value: `${stats.coachingCompleted}/${stats.coachingTotal}`, label: 'Learn through Others', color: stats.coachingOverdue > 0 ? 'red' : 'purple', info: 'Learning through feedback, coaching, and mentoring.', trend: stats.coachingTrend },
+          { icon: Users, value: stats.teamMembers, label: 'Team Size', color: 'gray', info: null },
         ].map((card, i) => (
           <MagazineKpiCard key={i} card={card} />
         ))}
@@ -3721,18 +3768,22 @@ function TeamLeadDashboard() {
         </div>
         
         {/* Simple Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            <p className="text-3xl font-bold text-gray-900">{stats.teamMembers}</p>
-            <p className="text-sm text-gray-500">Team Size</p>
+            <p className="text-3xl font-bold text-gray-900">{stats.competenciesAchieved}/{stats.competenciesAssigned}</p>
+            <p className="text-sm text-gray-500">Competencies</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            <p className="text-3xl font-bold text-gray-900">{competencyProgress}%</p>
-            <p className="text-sm text-gray-500">Competency</p>
+            <p className="text-3xl font-bold text-gray-900">{stats.trainingCompleted}/{stats.trainingTotal}</p>
+            <p className="text-sm text-gray-500">Formal Education</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+            <p className="text-3xl font-bold text-gray-900">{stats.tasksCompleted}/{stats.tasksTotal}</p>
+            <p className="text-sm text-gray-500">Learn by Doing</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
             <p className="text-3xl font-bold text-gray-900">{stats.coachingCompleted}/{stats.coachingTotal}</p>
-            <p className="text-sm text-gray-500">Coaching</p>
+            <p className="text-sm text-gray-500">Learn through Others</p>
           </div>
         </div>
         
@@ -3759,22 +3810,26 @@ function TeamLeadDashboard() {
         </div>
       ),
       kpiStrip: (
-        <div className="grid grid-cols-4 gap-3 col-span-2">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600" />
-            <div><p className="text-xl font-bold text-blue-700">{stats.teamMembers}</p><p className="text-xs text-gray-500">Team</p></div>
-          </div>
+        <div className="grid grid-cols-5 gap-3 col-span-2">
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2">
             <Target className="w-5 h-5 text-emerald-600" />
-            <div><p className="text-xl font-bold text-emerald-700">{competencyProgress}%</p><p className="text-xs text-gray-500">Progress</p></div>
+            <div><p className="text-xl font-bold text-emerald-700">{stats.competenciesAchieved}/{stats.competenciesAssigned}</p><p className="text-xs text-gray-500">Competencies</p></div>
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-amber-600" />
-            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}/{stats.trainingTotal}</p><p className="text-xs text-gray-500">Training</p></div>
+            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}/{stats.trainingTotal}</p><p className="text-xs text-gray-500">Education</p></div>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
+            <Briefcase className="w-5 h-5 text-blue-600" />
+            <div><p className="text-xl font-bold text-blue-700">{stats.tasksCompleted}/{stats.tasksTotal}</p><p className="text-xs text-gray-500">By Doing</p></div>
           </div>
           <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'} border rounded-xl p-3 flex items-center gap-2`}>
-            <MessageSquare className={`w-5 h-5 ${stats.coachingOverdue > 0 ? 'text-red-600' : 'text-purple-600'}`} />
-            <div><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingCompleted}/{stats.coachingTotal}</p><p className="text-xs text-gray-500">Coaching</p></div>
+            <Users className={`w-5 h-5 ${stats.coachingOverdue > 0 ? 'text-red-600' : 'text-purple-600'}`} />
+            <div><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingCompleted}/{stats.coachingTotal}</p><p className="text-xs text-gray-500">Others</p></div>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center gap-2">
+            <Users className="w-5 h-5 text-gray-600" />
+            <div><p className="text-xl font-bold text-gray-700">{stats.teamMembers}</p><p className="text-xs text-gray-500">Team</p></div>
           </div>
         </div>
       ),
@@ -3827,10 +3882,19 @@ function TeamLeadDashboard() {
       ),
       coachingOverview: (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Coaching</h3>
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-purple-600" /> Learn through Others</h3>
           <div className="grid grid-cols-2 gap-2 text-center">
             <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{stats.coachingCompleted}/{stats.coachingTotal}</p><p className="text-xs text-gray-500">Done</p></div>
             <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50' : 'bg-emerald-50'} rounded-lg p-2`}><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{stats.coachingOverdue}</p><p className="text-xs text-gray-500">Overdue</p></div>
+          </div>
+        </div>
+      ),
+      learnByDoing: (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><Briefcase className="w-4 h-4 text-blue-600" /> Learn by Doing</h3>
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-blue-50 rounded-lg p-2"><p className="text-xl font-bold text-blue-700">{stats.tasksCompleted}/{stats.tasksTotal}</p><p className="text-xs text-gray-500">Done</p></div>
+            <div className="bg-gray-50 rounded-lg p-2"><p className="text-xl font-bold text-gray-700">{stats.tasksActive}</p><p className="text-xs text-gray-500">Active</p></div>
           </div>
         </div>
       ),
@@ -3959,7 +4023,13 @@ function SuperAdminDashboard() {
     coachingCompleted: 0,
     coachingTotal: 0,
     coachingTrend: null,
-    trainingPending: 0
+    tasksActive: 0,
+    tasksCompleted: 0,
+    tasksTotal: 0,
+    tasksTrend: null,
+    trainingPending: 0,
+    trainingCompleted: 0,
+    trainingTotal: 0
   });
   const [loading, setLoading] = useState(true);
   const [showDevModal, setShowDevModal] = useState(false);
@@ -3987,7 +4057,13 @@ function SuperAdminDashboard() {
       const coachingCompleted = coaching?.filter(c => c.status === 'validated').length || 0;
       const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
 
-      // Calculate weekly trend for coaching
+      // Tasks (Learn by Doing)
+      const tasks = await dbFetch('development_activities?select=id,status,validated_at&type=eq.task');
+      const tasksTotal = tasks?.length || 0;
+      const tasksCompleted = tasks?.filter(t => t.status === 'validated').length || 0;
+      const tasksActive = tasks?.filter(t => t.status !== 'validated' && t.status !== 'cancelled').length || 0;
+
+      // Calculate weekly trends
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       const twoWeeksAgo = new Date();
@@ -4008,8 +4084,26 @@ function SuperAdminDashboard() {
         coachingTrend = 100;
       }
 
-      // Count pending training
-      const training = await dbFetch('user_training?select=id&status=in.(pending,in_progress)');
+      const tasksCompletedThisWeek = tasks?.filter(t => 
+        t.status === 'validated' && t.validated_at && new Date(t.validated_at) >= oneWeekAgo
+      ).length || 0;
+      const tasksCompletedLastWeek = tasks?.filter(t => 
+        t.status === 'validated' && t.validated_at && 
+        new Date(t.validated_at) >= twoWeeksAgo && new Date(t.validated_at) < oneWeekAgo
+      ).length || 0;
+
+      let tasksTrend = null;
+      if (tasksCompletedLastWeek > 0) {
+        tasksTrend = Math.round(((tasksCompletedThisWeek - tasksCompletedLastWeek) / tasksCompletedLastWeek) * 100);
+      } else if (tasksCompletedThisWeek > 0) {
+        tasksTrend = 100;
+      }
+
+      // Count training
+      const training = await dbFetch('user_training?select=id,status');
+      const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress').length || 0;
+      const trainingCompleted = training?.filter(t => t.status === 'passed').length || 0;
+      const trainingTotal = training?.length || 0;
 
       setStats({
         userCount: users?.length || 0,
@@ -4018,7 +4112,13 @@ function SuperAdminDashboard() {
         coachingCompleted,
         coachingTotal,
         coachingTrend,
-        trainingPending: training?.length || 0
+        tasksActive,
+        tasksCompleted,
+        tasksTotal,
+        tasksTrend,
+        trainingPending,
+        trainingCompleted,
+        trainingTotal
       });
 
     } catch (error) {
@@ -4043,13 +4143,39 @@ function SuperAdminDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard 
+          title="Formal Education" 
+          value={`${stats.trainingCompleted}/${stats.trainingTotal}`}
+          subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'}
+          icon={GraduationCap}
+          color="amber"
+          info="Learning through structured courses and e-learning modules across all clients."
+        />
+        <StatCard 
+          title="Learn by Doing" 
+          value={`${stats.tasksCompleted}/${stats.tasksTotal}`}
+          subtitle={stats.tasksActive > 0 ? `${stats.tasksActive} active` : 'Completed'}
+          icon={Briefcase}
+          color="blue"
+          trend={stats.tasksTrend}
+          info="Learning through initiatives, projects, and hands-on experience across all clients."
+        />
+        <StatCard 
+          title="Learn through Others" 
+          value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
+          subtitle={stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'}
+          icon={Users}
+          color="purple"
+          trend={stats.coachingTrend}
+          info="Learning through feedback, coaching, and mentoring across all clients."
+        />
         <StatCard 
           title="Active Clients" 
           value={activeClients}
           subtitle="Organizations"
           icon={Building2}
-          color="blue"
+          color="green"
           info="Total number of active client organizations in the system."
         />
         <StatCard 
@@ -4057,25 +4183,8 @@ function SuperAdminDashboard() {
           value={stats.userCount}
           subtitle="Across all clients"
           icon={Users}
-          color="green"
+          color="gray"
           info="Total number of trainees across all client organizations."
-        />
-        <StatCard 
-          title="Coaching" 
-          value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
-          subtitle={stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'}
-          icon={Target}
-          color="purple"
-          trend={stats.coachingTrend}
-          info="Coaching sessions validated vs total created across all clients. Trend shows weekly engagement."
-        />
-        <StatCard 
-          title="Training Pending" 
-          value={stats.trainingPending}
-          subtitle="Awaiting completion"
-          icon={GraduationCap}
-          color="amber"
-          info="E-learning modules assigned but not yet completed across all clients."
         />
       </div>
 
@@ -4548,10 +4657,15 @@ function ClientAdminDashboard() {
     competenciesAchieved: 0,
     trainingPending: 0,
     trainingCompleted: 0,
+    trainingTotal: 0,
     coachingActive: 0,
     coachingCompleted: 0,
     coachingTotal: 0,
     coachingTrend: null,
+    tasksActive: 0,
+    tasksCompleted: 0,
+    tasksTotal: 0,
+    tasksTrend: null,
     modulesCount: 0,
     overdueCount: 0,
     traineeCount: 0
@@ -4608,13 +4722,19 @@ function ClientAdminDashboard() {
           return new Date(t.due_date) < new Date();
         }).length || 0;
 
-        // Coaching - get ALL to calculate completed/total and trend
+        // Coaching (Learn through Others) - get ALL to calculate completed/total and trend
         const coaching = await dbFetch(`development_activities?select=id,status,validated_at&client_id=eq.${clientId}&type=eq.coaching`);
         const coachingTotal = coaching?.length || 0;
         const coachingCompleted = coaching?.filter(c => c.status === 'validated').length || 0;
         const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
 
-        // Calculate weekly trend for coaching
+        // Tasks (Learn by Doing)
+        const tasks = await dbFetch(`development_activities?select=id,status,validated_at&client_id=eq.${clientId}&type=eq.task`);
+        const tasksTotal = tasks?.length || 0;
+        const tasksCompleted = tasks?.filter(t => t.status === 'validated').length || 0;
+        const tasksActive = tasks?.filter(t => t.status !== 'validated' && t.status !== 'cancelled').length || 0;
+
+        // Calculate weekly trends
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
         const twoWeeksAgo = new Date();
@@ -4635,19 +4755,39 @@ function ClientAdminDashboard() {
           coachingTrend = 100;
         }
 
+        const tasksCompletedThisWeek = tasks?.filter(t => 
+          t.status === 'validated' && t.validated_at && new Date(t.validated_at) >= oneWeekAgo
+        ).length || 0;
+        const tasksCompletedLastWeek = tasks?.filter(t => 
+          t.status === 'validated' && t.validated_at && 
+          new Date(t.validated_at) >= twoWeeksAgo && new Date(t.validated_at) < oneWeekAgo
+        ).length || 0;
+
+        let tasksTrend = null;
+        if (tasksCompletedLastWeek > 0) {
+          tasksTrend = Math.round(((tasksCompletedThisWeek - tasksCompletedLastWeek) / tasksCompletedLastWeek) * 100);
+        } else if (tasksCompletedThisWeek > 0) {
+          tasksTrend = 100;
+        }
+
         setStats({
           networkCount: networks?.length || 0,
           competenciesAssigned: compAssigned,
           competenciesAchieved: compAchieved,
           trainingPending,
           trainingCompleted,
+          trainingTotal: training?.length || 0,
           coachingActive,
           coachingCompleted,
           coachingTotal,
           coachingTrend,
+          tasksActive,
+          tasksCompleted,
+          tasksTotal,
+          tasksTrend,
           modulesCount: modules?.length || 0,
           overdueCount,
-          traineeCount // Keep track of trainee count separately
+          traineeCount
         });
       } else {
         setStats({
@@ -4656,10 +4796,15 @@ function ClientAdminDashboard() {
           competenciesAchieved: 0,
           trainingPending: 0,
           trainingCompleted: 0,
+          trainingTotal: 0,
           coachingActive: 0,
           coachingCompleted: 0,
           coachingTotal: 0,
           coachingTrend: null,
+          tasksActive: 0,
+          tasksCompleted: 0,
+          tasksTotal: 0,
+          tasksTrend: null,
           modulesCount: modules?.length || 0,
           overdueCount: 0,
           traineeCount: 0
@@ -4704,15 +4849,7 @@ function ClientAdminDashboard() {
       </div>
 
       {/* Stats - Clickable */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Team Size" 
-          value={teamCount} 
-          subtitle={`${traineeCount} trainees`} 
-          icon={Users} 
-          color="blue" 
-          onClick={() => navigate('/profiles')} 
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard 
           title="Competencies" 
           value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`} 
@@ -4720,26 +4857,44 @@ function ClientAdminDashboard() {
           icon={Target} 
           color="green" 
           onClick={() => navigate('/competencies')} 
-          info="Skills achieved vs total assigned across your organization. A competency is achieved when validated at or above target level."
+          info="Formal skills achieved vs total assigned. Competencies validated at or above target level."
         />
         <StatCard 
-          title="Training" 
-          value={`${stats.trainingCompleted}/${stats.trainingPending + stats.trainingCompleted}`} 
+          title="Formal Education" 
+          value={`${stats.trainingCompleted}/${stats.trainingTotal}`} 
           subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'} 
           icon={GraduationCap} 
           color="amber" 
           onClick={() => navigate('/training')} 
-          info="E-learning modules completed vs total assigned across your organization."
+          info="Learning through structured courses and e-learning modules. Completed vs total assigned."
         />
         <StatCard 
-          title="Coaching" 
+          title="Learn by Doing" 
+          value={`${stats.tasksCompleted}/${stats.tasksTotal}`} 
+          subtitle={stats.tasksActive > 0 ? `${stats.tasksActive} active` : 'Completed'} 
+          icon={Briefcase} 
+          color="blue" 
+          onClick={() => navigate('/development')} 
+          trend={stats.tasksTrend}
+          info="Learning through initiatives, projects, and hands-on experience. Completed vs total assigned."
+        />
+        <StatCard 
+          title="Learn through Others" 
           value={`${stats.coachingCompleted}/${stats.coachingTotal}`} 
           subtitle={stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'} 
-          icon={MessageSquare} 
+          icon={Users} 
           color="purple" 
           onClick={() => navigate('/development')} 
           trend={stats.coachingTrend}
-          info="Coaching sessions validated vs total created in your organization. Trend shows weekly engagement."
+          info="Learning through feedback, coaching, and mentoring. Completed vs total sessions."
+        />
+        <StatCard 
+          title="Team Size" 
+          value={teamCount} 
+          subtitle={`${traineeCount} trainees`} 
+          icon={Users} 
+          color="gray" 
+          onClick={() => navigate('/profiles')} 
         />
       </div>
 
@@ -5238,13 +5393,19 @@ function TraineeDashboard() {
     competenciesAchieved: 0,
     trainingPending: 0,
     trainingCompleted: 0,
+    trainingTotal: 0,
     coachingActive: 0,
     sessionsAsCoach: 0,
     sessionsToReview: 0,
     coachingTotal: 0,
     coachingCompleted: 0,
     coachingActiveTotal: 0,
-    coachingTrend: null
+    coachingTrend: null,
+    // Tasks (Learn by Doing)
+    tasksActive: 0,
+    tasksCompleted: 0,
+    tasksTotal: 0,
+    tasksTrend: null
   });
   const [loading, setLoading] = useState(true);
   const [showRequestCoaching, setShowRequestCoaching] = useState(false);
@@ -5271,8 +5432,9 @@ function TraineeDashboard() {
       console.log('TraineeDashboard: Training assignments:', training);
       const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'assigned').length || 0;
       const trainingCompleted = training?.filter(t => t.status === 'passed' || t.status === 'completed').length || 0;
+      const trainingTotal = training?.length || 0;
 
-      // Coaching (where I'm the trainee)
+      // Coaching (where I'm the trainee) - Learn through Others
       const coaching = await dbFetch(`development_activities?select=id,status,title,validated_at&trainee_id=eq.${profile.id}&type=eq.coaching`);
       console.log('TraineeDashboard: Coaching activities:', coaching);
       const activeCoaching = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
@@ -5284,6 +5446,12 @@ function TraineeDashboard() {
       const sessionsAsCoach = coachingSessions?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
       const sessionsToReview = coachingSessions?.filter(c => c.status === 'completed').length || 0;
       const completedAsCoach = coachingSessions?.filter(c => c.status === 'validated').length || 0;
+
+      // Tasks (Learn by Doing) - where I'm trainee or coach
+      const tasks = await dbFetch(`development_activities?select=id,status,title,validated_at&or=(trainee_id.eq.${profile.id},coach_id.eq.${profile.id})&type=eq.task`);
+      const tasksTotal = tasks?.length || 0;
+      const tasksCompleted = tasks?.filter(t => t.status === 'validated').length || 0;
+      const tasksActive = tasks?.filter(t => t.status !== 'validated' && t.status !== 'cancelled').length || 0;
 
       // Combined coaching stats
       const coachingTotal = (coaching?.length || 0) + (coachingSessions?.length || 0);
@@ -5312,19 +5480,40 @@ function TraineeDashboard() {
         coachingTrend = 100;
       }
 
+      // Tasks trend
+      const tasksCompletedThisWeek = tasks?.filter(t => 
+        t.status === 'validated' && t.validated_at && new Date(t.validated_at) >= oneWeekAgo
+      ).length || 0;
+      const tasksCompletedLastWeek = tasks?.filter(t => 
+        t.status === 'validated' && t.validated_at && 
+        new Date(t.validated_at) >= twoWeeksAgo && new Date(t.validated_at) < oneWeekAgo
+      ).length || 0;
+
+      let tasksTrend = null;
+      if (tasksCompletedLastWeek > 0) {
+        tasksTrend = Math.round(((tasksCompletedThisWeek - tasksCompletedLastWeek) / tasksCompletedLastWeek) * 100);
+      } else if (tasksCompletedThisWeek > 0) {
+        tasksTrend = 100;
+      }
+
       setStats({
         competenciesTotal: compTotal,
         competenciesAchieved: compAchieved,
         competenciesToDevelop: compInProgress,
         trainingPending,
         trainingCompleted,
+        trainingTotal,
         coachingActive: activeCoaching,
         sessionsAsCoach,
         sessionsToReview,
         coachingTotal,
         coachingCompleted,
         coachingActiveTotal,
-        coachingTrend
+        coachingTrend,
+        tasksActive,
+        tasksCompleted,
+        tasksTotal,
+        tasksTrend
       });
     } catch (error) {
       console.error('Error loading trainee data:', error);
@@ -5359,27 +5548,28 @@ function TraineeDashboard() {
           </p>
         </div>
 
-        <div className="lg:col-span-2 grid grid-cols-2 gap-4">
+        <div className="lg:col-span-2 grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard 
-            title="Skills to Develop" 
-            value={stats.competenciesTotal - stats.competenciesAchieved}
-            subtitle="In progress"
-            icon={Target}
-            color="blue"
-            onClick={() => navigate('/my-progress')}
-            info="Competencies assigned to you that haven't reached the target level yet. Complete training or coaching to develop these skills."
-          />
-          <StatCard 
-            title="Training Pending" 
-            value={stats.trainingPending}
-            subtitle={`${stats.trainingCompleted} completed`}
+            title="Formal Education" 
+            value={`${stats.trainingCompleted}/${stats.trainingTotal}`}
+            subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'}
             icon={GraduationCap}
             color="amber"
             onClick={() => navigate('/my-training')}
-            info="E-learning modules assigned to you that are pending completion. Complete the training and pass the quiz to mark as done."
+            info="Learning through structured courses and e-learning modules. Completed vs total assigned."
           />
           <StatCard 
-            title="Coaching" 
+            title="Learn by Doing" 
+            value={`${stats.tasksCompleted}/${stats.tasksTotal}`}
+            subtitle={stats.tasksActive > 0 ? `${stats.tasksActive} active` : 'Completed'}
+            icon={Briefcase}
+            color="blue"
+            trend={stats.tasksTrend}
+            onClick={() => navigate('/my-plan')}
+            info="Learning through initiatives, projects, and hands-on experience. Completed vs total assigned."
+          />
+          <StatCard 
+            title="Learn through Others" 
             value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
             subtitle={stats.coachingActiveTotal > 0 
               ? `${stats.coachingActiveTotal} active`
@@ -5388,7 +5578,7 @@ function TraineeDashboard() {
             color="purple"
             trend={stats.coachingTrend}
             onClick={() => navigate('/my-plan')}
-            info="Coaching sessions validated vs total. Includes sessions where you are being coached and sessions where you are coaching others. Trend shows weekly progress."
+            info="Learning through feedback, coaching, and mentoring. Completed vs total sessions."
           />
           <StatCard 
             title="Skills Achieved" 
@@ -5397,7 +5587,7 @@ function TraineeDashboard() {
             icon={CheckCircle}
             color="green"
             onClick={() => navigate('/my-progress')}
-            info="Competencies where you've reached or exceeded the target level. These skills have been validated through training, coaching, or assessment."
+            info="Competencies where you've reached or exceeded the target level."
           />
         </div>
       </div>
