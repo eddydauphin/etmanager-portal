@@ -257,7 +257,7 @@ export default function TrainingModulesPage() {
 
   const loadAssignedUsers = async (moduleId) => {
     try {
-      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles(id,full_name,email)`);
+      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles!user_training_user_id_fkey(id,full_name,email)`);
       setAssignedUsers(data || []);
     } catch (error) {
       console.error('Error loading assigned users:', error);
