@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import {
@@ -40,6 +41,7 @@ import {
 
 export default function DevelopmentCenterPage() {
   const { profile: currentProfile } = useAuth();
+  const navigate = useNavigate();
   const clientId = currentProfile?.client_id;
   
   // Data state
@@ -828,7 +830,7 @@ export default function DevelopmentCenterPage() {
             body: JSON.stringify({
               user_id: assignment.user_id,
               module_id: linkedModuleId,
-              status: 'assigned',
+              status: 'pending',
               assigned_by: currentProfile?.id,
               assigned_at: new Date().toISOString(),
               due_date: dueDate || null
@@ -1270,9 +1272,9 @@ export default function DevelopmentCenterPage() {
           </div>
         </button>
 
-        {/* Formal Education - Training assignment */}
+        {/* Formal Education - Redirect to Training page */}
         <button
-          onClick={() => openWizard('training')}
+          onClick={() => navigate('/training')}
           className="flex items-start gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-amber-500 hover:bg-amber-50 transition-all text-left group"
         >
           <div className="p-3 bg-amber-100 rounded-xl group-hover:bg-amber-200 transition-colors">
@@ -1280,7 +1282,7 @@ export default function DevelopmentCenterPage() {
           </div>
           <div>
             <p className="font-semibold text-gray-900">Formal Education</p>
-            <p className="text-sm text-gray-500 mt-0.5">Assign e-learning modules</p>
+            <p className="text-sm text-gray-500 mt-0.5">Assign e-learning modules →</p>
           </div>
         </button>
 
