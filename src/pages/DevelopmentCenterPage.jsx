@@ -810,6 +810,23 @@ export default function DevelopmentCenterPage() {
             body: JSON.stringify({ competency_id: competencyId, client_id: clientId })
           });
         }
+        
+        // NOTIFICATION: Training development assigned to someone
+        if (trainingDeveloperId && trainingDeveloperId !== currentProfile?.id) {
+          const developerName = users.find(u => u.id === trainingDeveloperId)?.full_name || 'Developer';
+          await dbFetch('notifications', {
+            method: 'POST',
+            body: JSON.stringify({
+              user_id: trainingDeveloperId,
+              type: 'training_development_assigned',
+              title: 'Training Development Assigned',
+              message: `${currentProfile?.full_name || 'Someone'} has assigned you to develop training materials for "${wizardData.name}". Please create the training content.`,
+              link: '/training',
+              related_id: competencyId,
+              related_type: 'competency'
+            })
+          });
+        }
       }
       
       // Link tags
@@ -885,6 +902,28 @@ export default function DevelopmentCenterPage() {
                 is_mandatory: true
               })
             });
+            
+            // NOTIFICATION: Training material generated - notify for approval
+            // Find client admins and team leads to notify about new training material
+            const approvers = users.filter(u => 
+              u.id !== currentProfile?.id && 
+              ['client_admin', 'team_lead'].includes(u.role)
+            );
+            
+            for (const approver of approvers.slice(0, 3)) { // Limit to 3 approvers
+              await dbFetch('notifications', {
+                method: 'POST',
+                body: JSON.stringify({
+                  user_id: approver.id,
+                  type: 'training_material_created',
+                  title: 'New Training Material Created',
+                  message: `${currentProfile?.full_name || 'Someone'} has created "${wizardData.generateTitle || wizardData.name}" training material with ${generatedSlides.length} slides and ${generatedQuiz.length} quiz questions. Review and approve to make it available.`,
+                  link: '/training',
+                  related_id: moduleId,
+                  related_type: 'training_module'
+                })
+              });
+            }
           }
         } else if (wizardData.trainingOption === 'link' && wizardData.linkedModuleId) {
           moduleId = wizardData.linkedModuleId;
@@ -936,7 +975,7 @@ export default function DevelopmentCenterPage() {
         
         // Create development activity for coaching/task
         if (hasGap && (wizardData.developmentMethod === 'coaching' || wizardData.developmentMethod === 'task')) {
-          await dbFetch('development_activities', {
+          const activityResult = await dbFetch('development_activities?select=id', {
             method: 'POST',
             body: JSON.stringify({
               type: wizardData.developmentMethod,
@@ -955,6 +994,42 @@ export default function DevelopmentCenterPage() {
               client_id: clientId || null
             })
           });
+          
+          const activityId = activityResult?.[0]?.id;
+          const activityTitle = wizardData.activityTitle || `${wizardData.name} - ${wizardData.developmentMethod}`;
+          const traineeName = users.find(u => u.id === assignment.user_id)?.full_name || 'Trainee';
+          
+          // NOTIFICATION: Notify trainee about assigned activity
+          if (assignment.user_id !== currentProfile?.id) {
+            await dbFetch('notifications', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: assignment.user_id,
+                type: wizardData.developmentMethod === 'coaching' ? 'coaching_assigned' : 'task_assigned',
+                title: wizardData.developmentMethod === 'coaching' ? 'New Coaching Session Assigned' : 'New Task Assigned',
+                message: `${currentProfile?.full_name || 'Your manager'} has assigned you ${wizardData.developmentMethod === 'coaching' ? 'a coaching session' : 'a task'}: "${activityTitle}"`,
+                link: '/development-center',
+                related_id: activityId,
+                related_type: 'development_activity'
+              })
+            });
+          }
+          
+          // NOTIFICATION: Notify coach when assigned as coach
+          if (wizardData.developmentMethod === 'coaching' && wizardData.coach_id && wizardData.coach_id !== currentProfile?.id) {
+            await dbFetch('notifications', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: wizardData.coach_id,
+                type: 'coach_assigned',
+                title: 'You are Assigned as Coach',
+                message: `${currentProfile?.full_name || 'Someone'} has assigned you as coach for ${traineeName}: "${activityTitle}"`,
+                link: '/development-center',
+                related_id: activityId,
+                related_type: 'development_activity'
+              })
+            });
+          }
         }
         
         // Assign training module
