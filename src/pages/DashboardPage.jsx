@@ -3956,6 +3956,9 @@ function SuperAdminDashboard() {
     userCount: 0,
     networkCount: 0,
     coachingActive: 0,
+    coachingCompleted: 0,
+    coachingTotal: 0,
+    coachingTrend: null,
     trainingPending: 0
   });
   const [loading, setLoading] = useState(true);
@@ -3978,8 +3981,32 @@ function SuperAdminDashboard() {
       // Count networks
       const networks = await dbFetch('expert_networks?select=id&is_active=eq.true');
 
-      // Count active coaching
-      const coaching = await dbFetch('development_activities?select=id&type=eq.coaching&status=neq.validated&status=neq.cancelled');
+      // Count active coaching - get ALL to calculate completed/total and trend
+      const coaching = await dbFetch('development_activities?select=id,status,validated_at&type=eq.coaching');
+      const coachingTotal = coaching?.length || 0;
+      const coachingCompleted = coaching?.filter(c => c.status === 'validated').length || 0;
+      const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
+
+      // Calculate weekly trend for coaching
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+      const coachingCompletedThisWeek = coaching?.filter(c => 
+        c.status === 'validated' && c.validated_at && new Date(c.validated_at) >= oneWeekAgo
+      ).length || 0;
+      const coachingCompletedLastWeek = coaching?.filter(c => 
+        c.status === 'validated' && c.validated_at && 
+        new Date(c.validated_at) >= twoWeeksAgo && new Date(c.validated_at) < oneWeekAgo
+      ).length || 0;
+
+      let coachingTrend = null;
+      if (coachingCompletedLastWeek > 0) {
+        coachingTrend = Math.round(((coachingCompletedThisWeek - coachingCompletedLastWeek) / coachingCompletedLastWeek) * 100);
+      } else if (coachingCompletedThisWeek > 0) {
+        coachingTrend = 100;
+      }
 
       // Count pending training
       const training = await dbFetch('user_training?select=id&status=in.(pending,in_progress)');
@@ -3987,7 +4014,10 @@ function SuperAdminDashboard() {
       setStats({
         userCount: users?.length || 0,
         networkCount: networks?.length || 0,
-        coachingActive: coaching?.length || 0,
+        coachingActive,
+        coachingCompleted,
+        coachingTotal,
+        coachingTrend,
         trainingPending: training?.length || 0
       });
 
@@ -4031,12 +4061,13 @@ function SuperAdminDashboard() {
           info="Total number of trainees across all client organizations."
         />
         <StatCard 
-          title="Active Coaching" 
-          value={stats.coachingActive}
-          subtitle="Sessions in progress"
+          title="Coaching" 
+          value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
+          subtitle={stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'}
           icon={Target}
           color="purple"
-          info="Coaching sessions currently in progress across all clients. Does not include completed or cancelled sessions."
+          trend={stats.coachingTrend}
+          info="Coaching sessions validated vs total created across all clients. Trend shows weekly engagement."
         />
         <StatCard 
           title="Training Pending" 
@@ -4520,6 +4551,7 @@ function ClientAdminDashboard() {
     coachingActive: 0,
     coachingCompleted: 0,
     coachingTotal: 0,
+    coachingTrend: null,
     modulesCount: 0,
     overdueCount: 0,
     traineeCount: 0
@@ -4576,11 +4608,32 @@ function ClientAdminDashboard() {
           return new Date(t.due_date) < new Date();
         }).length || 0;
 
-        // Coaching - get ALL to calculate completed/total
-        const coaching = await dbFetch(`development_activities?select=id,status&client_id=eq.${clientId}&type=eq.coaching`);
+        // Coaching - get ALL to calculate completed/total and trend
+        const coaching = await dbFetch(`development_activities?select=id,status,validated_at&client_id=eq.${clientId}&type=eq.coaching`);
         const coachingTotal = coaching?.length || 0;
         const coachingCompleted = coaching?.filter(c => c.status === 'validated').length || 0;
         const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
+
+        // Calculate weekly trend for coaching
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+        const coachingCompletedThisWeek = coaching?.filter(c => 
+          c.status === 'validated' && c.validated_at && new Date(c.validated_at) >= oneWeekAgo
+        ).length || 0;
+        const coachingCompletedLastWeek = coaching?.filter(c => 
+          c.status === 'validated' && c.validated_at && 
+          new Date(c.validated_at) >= twoWeeksAgo && new Date(c.validated_at) < oneWeekAgo
+        ).length || 0;
+
+        let coachingTrend = null;
+        if (coachingCompletedLastWeek > 0) {
+          coachingTrend = Math.round(((coachingCompletedThisWeek - coachingCompletedLastWeek) / coachingCompletedLastWeek) * 100);
+        } else if (coachingCompletedThisWeek > 0) {
+          coachingTrend = 100;
+        }
 
         setStats({
           networkCount: networks?.length || 0,
@@ -4591,6 +4644,7 @@ function ClientAdminDashboard() {
           coachingActive,
           coachingCompleted,
           coachingTotal,
+          coachingTrend,
           modulesCount: modules?.length || 0,
           overdueCount,
           traineeCount // Keep track of trainee count separately
@@ -4605,6 +4659,7 @@ function ClientAdminDashboard() {
           coachingActive: 0,
           coachingCompleted: 0,
           coachingTotal: 0,
+          coachingTrend: null,
           modulesCount: modules?.length || 0,
           overdueCount: 0,
           traineeCount: 0
@@ -4683,7 +4738,8 @@ function ClientAdminDashboard() {
           icon={MessageSquare} 
           color="purple" 
           onClick={() => navigate('/development')} 
-          info="Coaching sessions validated vs total created in your organization."
+          trend={stats.coachingTrend}
+          info="Coaching sessions validated vs total created in your organization. Trend shows weekly engagement."
         />
       </div>
 
