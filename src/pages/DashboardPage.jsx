@@ -5008,7 +5008,11 @@ function TraineeDashboard() {
     trainingCompleted: 0,
     coachingActive: 0,
     sessionsAsCoach: 0,
-    sessionsToReview: 0
+    sessionsToReview: 0,
+    coachingTotal: 0,
+    coachingCompleted: 0,
+    coachingActiveTotal: 0,
+    coachingTrend: null
   });
   const [loading, setLoading] = useState(true);
   const [showRequestCoaching, setShowRequestCoaching] = useState(false);
@@ -5037,15 +5041,44 @@ function TraineeDashboard() {
       const trainingCompleted = training?.filter(t => t.status === 'passed' || t.status === 'completed').length || 0;
 
       // Coaching (where I'm the trainee)
-      const coaching = await dbFetch(`development_activities?select=id,status,title&trainee_id=eq.${profile.id}&type=eq.coaching`);
+      const coaching = await dbFetch(`development_activities?select=id,status,title,validated_at&trainee_id=eq.${profile.id}&type=eq.coaching`);
       console.log('TraineeDashboard: Coaching activities:', coaching);
       const activeCoaching = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
+      const completedAsTrainee = coaching?.filter(c => c.status === 'validated').length || 0;
 
       // Coaching (where I'm the coach - for peer coaching)
-      const coachingSessions = await dbFetch(`development_activities?select=id,status,title&coach_id=eq.${profile.id}&type=eq.coaching`);
+      const coachingSessions = await dbFetch(`development_activities?select=id,status,title,validated_at&coach_id=eq.${profile.id}&type=eq.coaching`);
       console.log('TraineeDashboard: Sessions as coach:', coachingSessions);
       const sessionsAsCoach = coachingSessions?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
       const sessionsToReview = coachingSessions?.filter(c => c.status === 'completed').length || 0;
+      const completedAsCoach = coachingSessions?.filter(c => c.status === 'validated').length || 0;
+
+      // Combined coaching stats
+      const coachingTotal = (coaching?.length || 0) + (coachingSessions?.length || 0);
+      const coachingCompleted = completedAsTrainee + completedAsCoach;
+      const coachingActiveTotal = activeCoaching + sessionsAsCoach;
+
+      // Calculate weekly trend for coaching
+      const allCoaching = [...(coaching || []), ...(coachingSessions || [])];
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+      const coachingCompletedThisWeek = allCoaching.filter(c => 
+        c.status === 'validated' && c.validated_at && new Date(c.validated_at) >= oneWeekAgo
+      ).length;
+      const coachingCompletedLastWeek = allCoaching.filter(c => 
+        c.status === 'validated' && c.validated_at && 
+        new Date(c.validated_at) >= twoWeeksAgo && new Date(c.validated_at) < oneWeekAgo
+      ).length;
+
+      let coachingTrend = null;
+      if (coachingCompletedLastWeek > 0) {
+        coachingTrend = Math.round(((coachingCompletedThisWeek - coachingCompletedLastWeek) / coachingCompletedLastWeek) * 100);
+      } else if (coachingCompletedThisWeek > 0) {
+        coachingTrend = 100;
+      }
 
       setStats({
         competenciesTotal: compTotal,
@@ -5055,7 +5088,11 @@ function TraineeDashboard() {
         trainingCompleted,
         coachingActive: activeCoaching,
         sessionsAsCoach,
-        sessionsToReview
+        sessionsToReview,
+        coachingTotal,
+        coachingCompleted,
+        coachingActiveTotal,
+        coachingTrend
       });
     } catch (error) {
       console.error('Error loading trainee data:', error);
@@ -5109,16 +5146,13 @@ function TraineeDashboard() {
           />
           <StatCard 
             title="Coaching" 
-            value={stats.coachingActive + stats.sessionsAsCoach}
-            subtitle={stats.coachingActive > 0 && stats.sessionsAsCoach > 0 
-              ? `${stats.coachingActive} receiving, ${stats.sessionsAsCoach} giving`
-              : stats.sessionsAsCoach > 0 
-                ? `${stats.sessionsAsCoach} as coach`
-                : stats.coachingActive > 0
-                  ? `${stats.coachingActive} as trainee`
-                  : 'No active sessions'}
+            value={`${stats.coachingCompleted}/${stats.coachingTotal}`}
+            subtitle={stats.coachingActiveTotal > 0 
+              ? `${stats.coachingActiveTotal} active`
+              : 'Completed'}
             icon={Users}
             color="purple"
+            trend={stats.coachingTrend}
             onClick={() => navigate('/my-plan')}
           />
           <StatCard 
