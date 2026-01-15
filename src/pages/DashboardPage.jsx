@@ -223,7 +223,9 @@ function useLayoutPreferences(userId) {
 }
 
 // Stat Card Component
-function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick }) {
+function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick, info }) {
+  const [showInfo, setShowInfo] = useState(false);
+  
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -289,13 +291,29 @@ function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, o
 
   return (
     <div 
-      className={`bg-white rounded-xl shadow-sm p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      className={`bg-white rounded-xl shadow-sm p-6 relative ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-gray-500">{title}</p>
+            {info && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowInfo(!showInfo);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title="Click for more info"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+              </button>
+            )}
             {getTrendIndicator(trend)}
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
@@ -307,6 +325,28 @@ function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, o
           <Icon className="w-6 h-6" />
         </div>
       </div>
+      
+      {/* Info Tooltip */}
+      {showInfo && info && (
+        <div 
+          className="absolute top-full left-0 right-0 mt-2 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-start gap-2">
+            <p>{info}</p>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowInfo(false);
+              }}
+              className="text-gray-400 hover:text-white flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="absolute -top-2 left-6 w-4 h-4 bg-gray-900 rotate-45"></div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3000,6 +3040,101 @@ function MyCoacheesSection({ profile, showAll = false, clientId = null }) {
   );
 }
 
+// Magazine KPI Card with info tooltip and trend support
+function MagazineKpiCard({ card }) {
+  const [showInfo, setShowInfo] = useState(false);
+  
+  // Stock-style trend indicator
+  const getTrendIndicator = (trendValue) => {
+    if (trendValue === null || trendValue === undefined) return null;
+    
+    if (trendValue > 20) {
+      return (
+        <div className="absolute top-2 right-2 text-green-600" title="Strong uptrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3,17 9,11 13,15 21,7" />
+            <polyline points="15,7 21,7 21,13" />
+          </svg>
+        </div>
+      );
+    } else if (trendValue > 0) {
+      return (
+        <div className="absolute top-2 right-2 text-green-500" title="Uptrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="5,15 12,8 19,15" />
+          </svg>
+        </div>
+      );
+    } else if (trendValue < -20) {
+      return (
+        <div className="absolute top-2 right-2 text-red-600" title="Strong downtrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3,7 9,13 13,9 21,17" />
+            <polyline points="15,17 21,17 21,11" />
+          </svg>
+        </div>
+      );
+    } else if (trendValue < 0) {
+      return (
+        <div className="absolute top-2 right-2 text-red-500" title="Downtrend vs last week">
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="5,9 12,16 19,9" />
+          </svg>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center hover:shadow-lg transition-all cursor-pointer relative">
+      {getTrendIndicator(card.trend)}
+      {card.info && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowInfo(!showInfo);
+          }}
+          className="absolute top-2 left-2 text-gray-400 hover:text-gray-600"
+          title="Click for more info"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+        </button>
+      )}
+      <div className={`w-16 h-16 mx-auto bg-gradient-to-br from-${card.color}-400 to-${card.color}-600 rounded-2xl flex items-center justify-center mb-3`}>
+        <card.icon className="w-8 h-8 text-white" />
+      </div>
+      <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+      <p className="text-sm text-gray-500">{card.label}</p>
+      
+      {/* Info Tooltip */}
+      {showInfo && card.info && (
+        <div 
+          className="absolute top-full left-0 right-0 mt-2 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-50 text-left"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-start gap-2">
+            <p>{card.info}</p>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowInfo(false);
+              }}
+              className="text-gray-400 hover:text-white flex-shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Team Lead Dashboard - sees all team coaching and training
 function TeamLeadDashboard() {
   const { profile, clientId: authClientId } = useAuth();
@@ -3236,6 +3371,7 @@ function TeamLeadDashboard() {
           subtitle={`${competencyProgress}% achieved`}
           icon={Target}
           color="green"
+          info="Skills achieved vs total assigned. A competency is achieved when validated at or above target level through training, coaching, or direct assessment."
         />
         <StatCard 
           title="Training" 
@@ -3243,6 +3379,7 @@ function TeamLeadDashboard() {
           subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'}
           icon={GraduationCap}
           color="amber"
+          info="E-learning modules completed vs total assigned. Counts training modules passed with the required score."
         />
         <StatCard 
           title="Coaching" 
@@ -3251,6 +3388,7 @@ function TeamLeadDashboard() {
           icon={Users}
           color={stats.coachingOverdue > 0 ? 'red' : 'purple'}
           trend={stats.coachingTrend}
+          info="Coaching sessions validated vs total created. Includes sessions where team members are being coached or are coaching others. Trend shows weekly engagement."
         />
       </div>
 
@@ -3381,18 +3519,12 @@ function TeamLeadDashboard() {
       {/* Big Visual KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: Users, value: stats.teamMembers, label: 'Team Members', color: 'blue' },
-          { icon: Target, value: `${competencyProgress}%`, label: 'Competency Progress', color: 'emerald' },
-          { icon: GraduationCap, value: stats.trainingCompleted, label: 'Training Done', color: 'amber' },
-          { icon: MessageSquare, value: stats.coachingActive, label: 'Active Coaching', color: stats.coachingOverdue > 0 ? 'red' : 'purple' },
+          { icon: Users, value: stats.teamMembers, label: 'Team Members', color: 'blue', info: null },
+          { icon: Target, value: `${competencyProgress}%`, label: 'Competency Progress', color: 'emerald', info: 'Skills achieved vs total assigned across your team.' },
+          { icon: GraduationCap, value: `${stats.trainingCompleted}/${stats.trainingTotal}`, label: 'Training Done', color: 'amber', info: 'E-learning modules completed vs total assigned.' },
+          { icon: MessageSquare, value: `${stats.coachingCompleted}/${stats.coachingTotal}`, label: 'Coaching Done', color: stats.coachingOverdue > 0 ? 'red' : 'purple', info: 'Coaching sessions validated vs total created.', trend: stats.coachingTrend },
         ].map((card, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 text-center hover:shadow-lg transition-all cursor-pointer">
-            <div className={`w-16 h-16 mx-auto bg-gradient-to-br from-${card.color}-400 to-${card.color}-600 rounded-2xl flex items-center justify-center mb-3`}>
-              <card.icon className="w-8 h-8 text-white" />
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{card.value}</p>
-            <p className="text-sm text-gray-500">{card.label}</p>
-          </div>
+          <MagazineKpiCard key={i} card={card} />
         ))}
       </div>
 
@@ -3599,7 +3731,7 @@ function TeamLeadDashboard() {
             <p className="text-sm text-gray-500">Competency</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-            <p className="text-3xl font-bold text-gray-900">{stats.coachingActive}</p>
+            <p className="text-3xl font-bold text-gray-900">{stats.coachingCompleted}/{stats.coachingTotal}</p>
             <p className="text-sm text-gray-500">Coaching</p>
           </div>
         </div>
@@ -3638,11 +3770,11 @@ function TeamLeadDashboard() {
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-amber-600" />
-            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Done</p></div>
+            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}/{stats.trainingTotal}</p><p className="text-xs text-gray-500">Training</p></div>
           </div>
           <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-200'} border rounded-xl p-3 flex items-center gap-2`}>
             <MessageSquare className={`w-5 h-5 ${stats.coachingOverdue > 0 ? 'text-red-600' : 'text-purple-600'}`} />
-            <div><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
+            <div><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingCompleted}/{stats.coachingTotal}</p><p className="text-xs text-gray-500">Coaching</p></div>
           </div>
         </div>
       ),
@@ -3697,7 +3829,7 @@ function TeamLeadDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Coaching</h3>
           <div className="grid grid-cols-2 gap-2 text-center">
-            <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{stats.coachingActive}</p><p className="text-xs text-gray-500">Active</p></div>
+            <div className="bg-purple-50 rounded-lg p-2"><p className="text-xl font-bold text-purple-700">{stats.coachingCompleted}/{stats.coachingTotal}</p><p className="text-xs text-gray-500">Done</p></div>
             <div className={`${stats.coachingOverdue > 0 ? 'bg-red-50' : 'bg-emerald-50'} rounded-lg p-2`}><p className={`text-xl font-bold ${stats.coachingOverdue > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{stats.coachingOverdue}</p><p className="text-xs text-gray-500">Overdue</p></div>
           </div>
         </div>
@@ -3888,6 +4020,7 @@ function SuperAdminDashboard() {
           subtitle="Organizations"
           icon={Building2}
           color="blue"
+          info="Total number of active client organizations in the system."
         />
         <StatCard 
           title="Total Trainees" 
@@ -3895,6 +4028,7 @@ function SuperAdminDashboard() {
           subtitle="Across all clients"
           icon={Users}
           color="green"
+          info="Total number of trainees across all client organizations."
         />
         <StatCard 
           title="Active Coaching" 
@@ -3902,6 +4036,7 @@ function SuperAdminDashboard() {
           subtitle="Sessions in progress"
           icon={Target}
           color="purple"
+          info="Coaching sessions currently in progress across all clients. Does not include completed or cancelled sessions."
         />
         <StatCard 
           title="Training Pending" 
@@ -3909,6 +4044,7 @@ function SuperAdminDashboard() {
           subtitle="Awaiting completion"
           icon={GraduationCap}
           color="amber"
+          info="E-learning modules assigned but not yet completed across all clients."
         />
       </div>
 
@@ -4382,6 +4518,8 @@ function ClientAdminDashboard() {
     trainingPending: 0,
     trainingCompleted: 0,
     coachingActive: 0,
+    coachingCompleted: 0,
+    coachingTotal: 0,
     modulesCount: 0,
     overdueCount: 0,
     traineeCount: 0
@@ -4438,8 +4576,11 @@ function ClientAdminDashboard() {
           return new Date(t.due_date) < new Date();
         }).length || 0;
 
-        // Coaching
-        const coaching = await dbFetch(`development_activities?select=id&client_id=eq.${clientId}&type=eq.coaching&status=neq.validated&status=neq.cancelled`);
+        // Coaching - get ALL to calculate completed/total
+        const coaching = await dbFetch(`development_activities?select=id,status&client_id=eq.${clientId}&type=eq.coaching`);
+        const coachingTotal = coaching?.length || 0;
+        const coachingCompleted = coaching?.filter(c => c.status === 'validated').length || 0;
+        const coachingActive = coaching?.filter(c => c.status !== 'validated' && c.status !== 'cancelled').length || 0;
 
         setStats({
           networkCount: networks?.length || 0,
@@ -4447,7 +4588,9 @@ function ClientAdminDashboard() {
           competenciesAchieved: compAchieved,
           trainingPending,
           trainingCompleted,
-          coachingActive: coaching?.length || 0,
+          coachingActive,
+          coachingCompleted,
+          coachingTotal,
           modulesCount: modules?.length || 0,
           overdueCount,
           traineeCount // Keep track of trainee count separately
@@ -4460,6 +4603,8 @@ function ClientAdminDashboard() {
           trainingPending: 0,
           trainingCompleted: 0,
           coachingActive: 0,
+          coachingCompleted: 0,
+          coachingTotal: 0,
           modulesCount: modules?.length || 0,
           overdueCount: 0,
           traineeCount: 0
@@ -4505,10 +4650,41 @@ function ClientAdminDashboard() {
 
       {/* Stats - Clickable */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Team Size" value={teamCount} subtitle={`${traineeCount} trainees`} icon={Users} color="blue" onClick={() => navigate('/profiles')} />
-        <StatCard title="Competencies" value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`} subtitle={`${avgScore}% achieved`} icon={Target} color="green" onClick={() => navigate('/competencies')} />
-        <StatCard title="Training Pending" value={stats.trainingPending} subtitle={`${stats.trainingCompleted} completed`} icon={GraduationCap} color="amber" onClick={() => navigate('/training')} />
-        <StatCard title="Active Coaching" value={stats.coachingActive} subtitle="Sessions in progress" icon={MessageSquare} color="purple" onClick={() => navigate('/development')} />
+        <StatCard 
+          title="Team Size" 
+          value={teamCount} 
+          subtitle={`${traineeCount} trainees`} 
+          icon={Users} 
+          color="blue" 
+          onClick={() => navigate('/profiles')} 
+        />
+        <StatCard 
+          title="Competencies" 
+          value={`${stats.competenciesAchieved}/${stats.competenciesAssigned}`} 
+          subtitle={`${avgScore}% achieved`} 
+          icon={Target} 
+          color="green" 
+          onClick={() => navigate('/competencies')} 
+          info="Skills achieved vs total assigned across your organization. A competency is achieved when validated at or above target level."
+        />
+        <StatCard 
+          title="Training" 
+          value={`${stats.trainingCompleted}/${stats.trainingPending + stats.trainingCompleted}`} 
+          subtitle={stats.trainingPending > 0 ? `${stats.trainingPending} pending` : 'Completed'} 
+          icon={GraduationCap} 
+          color="amber" 
+          onClick={() => navigate('/training')} 
+          info="E-learning modules completed vs total assigned across your organization."
+        />
+        <StatCard 
+          title="Coaching" 
+          value={`${stats.coachingCompleted}/${stats.coachingTotal}`} 
+          subtitle={stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'Completed'} 
+          icon={MessageSquare} 
+          color="purple" 
+          onClick={() => navigate('/development')} 
+          info="Coaching sessions validated vs total created in your organization."
+        />
       </div>
 
       {/* Pending Trainings - Detailed list */}
@@ -4596,8 +4772,8 @@ function ClientAdminDashboard() {
         <div onClick={() => navigate('/profiles')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Users className="w-4 h-4" />Team Size</div><div className="text-2xl font-bold text-gray-900">{teamCount}</div><div className="text-xs text-gray-500">{traineeCount} trainees</div></div>
         <div onClick={() => navigate('/training')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><BookOpen className="w-4 h-4" />Modules</div><div className="text-2xl font-bold text-gray-900">{stats.modulesCount}</div><div className="text-xs text-gray-500">{stats.modulesCount} published</div></div>
         <div onClick={() => navigate('/competencies')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-green-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Target className="w-4 h-4" />Competencies</div><div className="text-2xl font-bold text-gray-900">{stats.competenciesAchieved}/{stats.competenciesAssigned}</div><div className="text-xs text-gray-500">{avgScore}% achieved</div></div>
-        <div onClick={() => navigate('/development')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><ClipboardList className="w-4 h-4" />Coaching</div><div className="text-2xl font-bold text-gray-900">{stats.coachingActive}</div><div className="text-xs text-gray-500">{stats.coachingActive === 0 ? 'none active' : 'active'}</div></div>
-        <div onClick={() => navigate('/training')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-cyan-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Clock className="w-4 h-4" />Training</div><div className="text-2xl font-bold text-gray-900">{stats.trainingCompleted}</div><div className="text-xs text-gray-500">{stats.trainingPending} pending</div></div>
+        <div onClick={() => navigate('/development')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-purple-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><ClipboardList className="w-4 h-4" />Coaching</div><div className="text-2xl font-bold text-gray-900">{stats.coachingCompleted || 0}/{stats.coachingTotal || stats.coachingActive}</div><div className="text-xs text-gray-500">{stats.coachingActive > 0 ? `${stats.coachingActive} active` : 'completed'}</div></div>
+        <div onClick={() => navigate('/training')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-cyan-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><Clock className="w-4 h-4" />Training</div><div className="text-2xl font-bold text-gray-900">{stats.trainingCompleted}/{stats.trainingPending + stats.trainingCompleted}</div><div className="text-xs text-gray-500">{stats.trainingPending} pending</div></div>
         <div onClick={() => navigate('/reports')} className="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-red-300 hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-500 text-sm mb-1"><AlertTriangle className="w-4 h-4" />Overdue</div><div className={`text-2xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{stats.overdueCount}</div><div className="text-xs text-gray-500">{stats.overdueCount === 0 ? 'all on track' : 'items'}</div></div>
       </div>
 
@@ -4718,14 +4894,14 @@ function ClientAdminDashboard() {
             className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
           >
             <GraduationCap className="w-5 h-5 text-amber-600" />
-            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}</p><p className="text-xs text-gray-500">Completed</p></div>
+            <div><p className="text-xl font-bold text-amber-700">{stats.trainingCompleted}/{stats.trainingPending + stats.trainingCompleted}</p><p className="text-xs text-gray-500">Training</p></div>
           </div>
           <div 
             onClick={() => navigate('/development')}
             className={`${stats.overdueCount > 0 ? 'bg-red-50 border-red-200 hover:border-red-400' : 'bg-purple-50 border-purple-200 hover:border-purple-400'} border rounded-xl p-3 flex items-center gap-2 cursor-pointer hover:shadow-md transition-all`}
           >
             <MessageSquare className={`w-5 h-5 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-purple-600'}`} />
-            <div><p className={`text-xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
+            <div><p className={`text-xl font-bold ${stats.overdueCount > 0 ? 'text-red-700' : 'text-purple-700'}`}>{stats.coachingCompleted || 0}/{stats.coachingTotal || stats.coachingActive}</p><p className="text-xs text-gray-500">Coaching</p></div>
           </div>
         </div>
       ),
@@ -5135,6 +5311,7 @@ function TraineeDashboard() {
             icon={Target}
             color="blue"
             onClick={() => navigate('/my-progress')}
+            info="Competencies assigned to you that haven't reached the target level yet. Complete training or coaching to develop these skills."
           />
           <StatCard 
             title="Training Pending" 
@@ -5143,6 +5320,7 @@ function TraineeDashboard() {
             icon={GraduationCap}
             color="amber"
             onClick={() => navigate('/my-training')}
+            info="E-learning modules assigned to you that are pending completion. Complete the training and pass the quiz to mark as done."
           />
           <StatCard 
             title="Coaching" 
@@ -5154,6 +5332,7 @@ function TraineeDashboard() {
             color="purple"
             trend={stats.coachingTrend}
             onClick={() => navigate('/my-plan')}
+            info="Coaching sessions validated vs total. Includes sessions where you are being coached and sessions where you are coaching others. Trend shows weekly progress."
           />
           <StatCard 
             title="Skills Achieved" 
@@ -5162,6 +5341,7 @@ function TraineeDashboard() {
             icon={CheckCircle}
             color="green"
             onClick={() => navigate('/my-progress')}
+            info="Competencies where you've reached or exceeded the target level. These skills have been validated through training, coaching, or assessment."
           />
         </div>
       </div>
