@@ -157,7 +157,9 @@ function Layout() {
           // Count messages after last_read_at
           let query = `chat_messages?select=id&channel_id=eq.${part.channel_id}&sender_id=neq.${profile.id}&is_deleted=eq.false`;
           if (part.last_read_at) {
-            query += `&created_at=gt.${part.last_read_at}`;
+            // URL encode the timestamp to handle + sign
+            const encodedTimestamp = encodeURIComponent(part.last_read_at);
+            query += `&created_at=gt.${encodedTimestamp}`;
           }
           
           const messages = await dbFetch(query);
