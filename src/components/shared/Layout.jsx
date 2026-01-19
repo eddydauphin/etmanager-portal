@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
+import { dbFetch } from '../../lib/db';
 import NotificationBell from '../NotificationBell';
 import {
   LayoutDashboard,
@@ -132,6 +133,49 @@ function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  // Fetch unread messages count
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        // Get all conversations where user is participant
+        const conversations = await dbFetch(
+          `chat_participants?select=conversation_id,last_read_at&user_id=eq.${profile.id}`
+        );
+        
+        if (!conversations || conversations.length === 0) {
+          setUnreadMessages(0);
+          return;
+        }
+
+        let totalUnread = 0;
+        
+        for (const conv of conversations) {
+          // Count messages after last_read_at
+          let query = `chat_messages?select=id&conversation_id=eq.${conv.conversation_id}&sender_id=neq.${profile.id}`;
+          if (conv.last_read_at) {
+            query += `&created_at=gt.${conv.last_read_at}`;
+          }
+          
+          const messages = await dbFetch(query);
+          totalUnread += messages?.length || 0;
+        }
+        
+        setUnreadMessages(totalUnread);
+      } catch (error) {
+        console.error('Error fetching unread messages:', error);
+      }
+    };
+
+    fetchUnreadCount();
+    
+    // Poll for new messages every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [profile?.id]);
 
   const handleLogout = async () => {
     await signOut();
@@ -169,7 +213,8 @@ function Layout() {
         items.push({
           to: config.path,
           icon: config.icon,
-          label: label
+          label: label,
+          badge: capKey === 'chat' ? unreadMessages : 0
         });
       }
     });
@@ -210,8 +255,24 @@ function Layout() {
                 }`
               }
             >
-              <item.icon className="w-5 h-5" />
-              {sidebarOpen && <span>{item.label}</span>}
+              <div className="relative">
+                <item.icon className="w-5 h-5" />
+                {item.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-xs font-bold text-white bg-red-500 rounded-full">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </div>
+              {sidebarOpen && (
+                <span className="flex-1 flex items-center justify-between">
+                  {item.label}
+                  {item.badge > 0 && (
+                    <span className="ml-2 px-2 py-0.5 text-xs font-medium text-red-600 bg-red-100 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
