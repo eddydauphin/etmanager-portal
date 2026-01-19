@@ -141,23 +141,23 @@ function Layout() {
 
     const fetchUnreadCount = async () => {
       try {
-        // Get all conversations where user is participant
-        const conversations = await dbFetch(
-          `chat_participants?select=conversation_id,last_read_at&user_id=eq.${profile.id}`
+        // Get all channels where user is participant
+        const participants = await dbFetch(
+          `chat_participants?select=channel_id,last_read_at&user_id=eq.${profile.id}`
         );
         
-        if (!conversations || conversations.length === 0) {
+        if (!participants || participants.length === 0) {
           setUnreadMessages(0);
           return;
         }
 
         let totalUnread = 0;
         
-        for (const conv of conversations) {
+        for (const part of participants) {
           // Count messages after last_read_at
-          let query = `chat_messages?select=id&conversation_id=eq.${conv.conversation_id}&sender_id=neq.${profile.id}`;
-          if (conv.last_read_at) {
-            query += `&created_at=gt.${conv.last_read_at}`;
+          let query = `chat_messages?select=id&channel_id=eq.${part.channel_id}&sender_id=neq.${profile.id}&is_deleted=eq.false`;
+          if (part.last_read_at) {
+            query += `&created_at=gt.${part.last_read_at}`;
           }
           
           const messages = await dbFetch(query);
