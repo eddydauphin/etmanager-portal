@@ -57,12 +57,16 @@ export function hasCapability(profile, capability) {
   // Chat is available to everyone
   if (capability === 'chat') return true;
   
-  // Check capabilities object
+  // Check capabilities object if it exists and has the specific capability key
   if (profile.capabilities && typeof profile.capabilities === 'object') {
-    return profile.capabilities[capability] === true;
+    // If the capability key exists in the object, use that value
+    if (capability in profile.capabilities) {
+      return profile.capabilities[capability] === true;
+    }
+    // If capability key doesn't exist, fall through to defaults
   }
   
-  // Fallback to role-based defaults if no capabilities set
+  // Fallback to role-based defaults if no capabilities set or key not found
   return getDefaultCapabilities(profile.role)[capability] || false;
 }
 
