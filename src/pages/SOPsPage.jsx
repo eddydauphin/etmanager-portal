@@ -158,21 +158,33 @@ const EquipmentMultiSelect = ({ equipment, selected = [], onChange }) => {
   };
 
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">Applicable Equipment</label>
-      <div className="max-h-40 overflow-y-auto border rounded-lg p-2 space-y-1">
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+        <Building2 className="w-4 h-4" /> Applicable Equipment
+      </label>
+      <div className="max-h-48 overflow-y-auto bg-white border rounded-lg p-2 space-y-1">
         {equipment.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-2">No equipment defined</p>
+          <p className="text-sm text-gray-500 text-center py-4">No equipment defined. Create equipment first.</p>
         ) : equipment.map(eq => (
-          <label key={eq.id} className={`flex items-center gap-2 p-2 rounded cursor-pointer ${selected.includes(eq.id) ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'}`}>
-            <input type="checkbox" checked={selected.includes(eq.id)} onChange={() => toggleEquipment(eq.id)} className="rounded text-blue-600" />
-            <Building2 className="w-4 h-4 text-gray-400" />
-            <span className="text-sm">{eq.name}</span>
-            {eq.code && <span className="text-xs text-gray-400">({eq.code})</span>}
+          <label key={eq.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-colors ${selected.includes(eq.id) ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100 hover:bg-gray-50'}`}>
+            <input 
+              type="checkbox" 
+              checked={selected.includes(eq.id)} 
+              onChange={() => toggleEquipment(eq.id)} 
+              className="w-4 h-4 rounded text-blue-600 border-gray-300" 
+            />
+            <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium">{eq.name}</span>
+              {eq.code && <span className="text-xs text-gray-500 ml-2">({eq.code})</span>}
+            </div>
+            {eq.site && <span className="text-xs text-gray-400">{eq.site}</span>}
           </label>
         ))}
       </div>
-      {selected.length > 0 && <p className="text-xs text-blue-600">{selected.length} equipment selected</p>}
+      {selected.length > 0 && (
+        <p className="text-xs text-blue-600 mt-2 font-medium">✓ {selected.length} equipment selected</p>
+      )}
     </div>
   );
 };
@@ -565,7 +577,7 @@ export default function SOPsPage() {
                   <h4 className="font-medium text-blue-900 mb-3 flex items-center gap-2"><User className="w-4 h-4" /> Assignment</h4>
                   <div className="grid grid-cols-3 gap-4">
                     <div><label className="block text-sm font-medium mb-1">Owner</label><select value={sopData.owner_id} onChange={(e) => setSopData({...sopData, owner_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-white">{users.filter(u => u.role !== 'trainee').map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></div>
-                    <div><label className="block text-sm font-medium mb-1">Assign To</label><select value={sopData.assigned_to} onChange={(e) => setSopData({...sopData, assigned_to: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-white"><option value="">Not assigned</option>{users.filter(u => u.role !== 'trainee').map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium mb-1">Assign To</label><select value={sopData.assigned_to} onChange={(e) => setSopData({...sopData, assigned_to: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-white"><option value="">Not assigned</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name} {u.role === 'trainee' ? '(Trainee)' : ''}</option>)}</select></div>
                     <div><label className="block text-sm font-medium mb-1">Due Date</label><input type="date" value={sopData.due_date} onChange={(e) => setSopData({...sopData, due_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-white" /></div>
                   </div>
                 </div>
