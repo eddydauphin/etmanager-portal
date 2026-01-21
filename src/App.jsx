@@ -23,6 +23,7 @@ import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
 import DevelopmentCenterPage from './pages/DevelopmentCenterPage';
 import ChatPage from './pages/ChatPage';
+import SOPsPage from './pages/SOPsPage';
 
 // My Pages (Trainee view)
 import MyProgressPage from './pages/MyProgressPage';
@@ -184,6 +185,13 @@ function AppRoutes() {
         <Route path="training" element={
           <ProtectedRoute requiredCapability="training">
             <TrainingModulesPage />
+          </ProtectedRoute>
+        } />
+
+        {/* SOPs - requires sops capability */}
+        <Route path="sops" element={
+          <ProtectedRoute requiredCapability="sops">
+            <SOPsPage />
           </ProtectedRoute>
         } />
 
