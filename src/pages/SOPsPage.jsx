@@ -277,17 +277,14 @@ const SmartPicker = ({ label, icon, options, selected = [], onChange, grouped = 
 };
 
 // ============================================================================
-// STEP EDITOR COMPONENT - Camera, Upload & AI Generation
+// STEP EDITOR COMPONENT - Simple for Step 2 (Content Entry)
 // ============================================================================
-const StepEditor = ({ step, index, sopTitle, sopDescription, onUpdate, onRemove, clientId }) => {
+const StepEditor = ({ step, index, onUpdate, onRemove, clientId }) => {
   const [uploading, setUploading] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const fileInputRef = React.useRef(null);
   const cameraInputRef = React.useRef(null);
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadImage = async (file) => {
     if (!file.type.startsWith('image/')) { alert('Please select an image file'); return; }
     if (file.size > 5 * 1024 * 1024) { alert('Image must be less than 5MB'); return; }
 
@@ -308,42 +305,17 @@ const StepEditor = ({ step, index, sopTitle, sopDescription, onUpdate, onRemove,
     }
   };
 
-  const handleGenerateNarrative = async () => {
-    if (!step.title?.trim()) { alert('Please enter a step title first'); return; }
-    setGenerating(true);
-    try {
-      const safetyContext = (step.safety_warnings || []).map(w => SAFETY_WARNINGS[w]?.name).filter(Boolean).join(', ');
-      const ppeContext = (step.ppe_required || []).map(p => PPE_TYPES[p]?.name).filter(Boolean).join(', ');
-      const prompt = `You are an expert SOP writer for manufacturing. Generate clear instructions for:\n\nSOP: ${sopTitle}\nStep ${index + 1}: ${step.title}\n${safetyContext ? `Safety: ${safetyContext}` : ''}\n${ppeContext ? `PPE: ${ppeContext}` : ''}\n\nWrite 2-4 sentences of clear, actionable instructions. Use active voice. No bullets.`;
-
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: 300 })
-      });
-      if (!response.ok) throw new Error('AI generation failed');
-      const data = await response.json();
-      const generatedText = data.choices?.[0]?.message?.content || data.content || '';
-      if (generatedText) onUpdate('instruction_text', generatedText.trim());
-    } catch (error) {
-      console.error('Error generating narrative:', error);
-      alert('Failed to generate. Try again or write manually.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   return (
     <div className="border rounded-xl p-4 bg-white shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           <span className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">{index + 1}</span>
           <input value={step.title || ''} onChange={(e) => onUpdate('title', e.target.value)} className="font-semibold text-lg bg-transparent border-none focus:outline-none placeholder-gray-400 flex-1" placeholder="Step title..." />
         </div>
         <button onClick={onRemove} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 className="w-5 h-5" /></button>
       </div>
 
-      {/* Image */}
+      {/* Image - Camera & Upload */}
       <div className="mb-4">
         {step.image_url ? (
           <div className="relative inline-block">
@@ -352,26 +324,21 @@ const StepEditor = ({ step, index, sopTitle, sopDescription, onUpdate, onRemove,
           </div>
         ) : (
           <div className="flex gap-2">
-            <button onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-50">
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />} 📷 Photo
+            <button onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm disabled:opacity-50 border border-blue-200">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />} 📷 Camera
             </button>
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-50">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} 📁 Upload
             </button>
           </div>
         )}
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
-        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} className="hidden" />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} className="hidden" />
       </div>
 
-      {/* Instructions with AI */}
+      {/* Instructions */}
       <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-gray-700">Instructions</label>
-          <button onClick={handleGenerateNarrative} disabled={generating || !step.title?.trim()} className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg text-xs font-medium hover:from-purple-600 hover:to-indigo-600 disabled:opacity-50 shadow-sm" title={!step.title?.trim() ? 'Enter title first' : 'AI generate'}>
-            {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} {generating ? 'Writing...' : '✨ AI Write'}
-          </button>
-        </div>
+        <label className="text-sm font-medium text-gray-700 mb-2 block">Instructions</label>
         <textarea value={step.instruction_text || ''} onChange={(e) => onUpdate('instruction_text', e.target.value)} className="w-full px-4 py-3 border rounded-xl text-sm resize-none focus:ring-2 focus:ring-blue-500" rows={3} placeholder="Describe what the operator should do..." />
       </div>
 
@@ -686,12 +653,17 @@ export default function SOPsPage() {
       assigned_to: selectedSOP?.assigned_to || '',
       due_date: selectedSOP?.due_date || '',
       requires_supervisor_signoff: selectedSOP?.requires_supervisor_signoff ?? true,
-      review_frequency_months: selectedSOP?.review_frequency_months || 12
+      review_frequency_months: selectedSOP?.review_frequency_months || 12,
+      has_audio: selectedSOP?.has_audio ?? false
     });
     const [selectedEquipmentIds, setSelectedEquipmentIds] = useState([]);
     const [steps, setSteps] = useState([]);
     const [saving, setSaving] = useState(false);
     const [loadingSteps, setLoadingSteps] = useState(false);
+    const [generatingAI, setGeneratingAI] = useState(false);
+    const [generatingAudio, setGeneratingAudio] = useState(false);
+    const [aiProgress, setAiProgress] = useState({ current: 0, total: 0, status: '' });
+    const [audioProgress, setAudioProgress] = useState({ current: 0, total: 0, status: '' });
 
     useEffect(() => {
       if (selectedSOP?.id) {
@@ -784,14 +756,148 @@ export default function SOPsPage() {
       finally { setSaving(false); }
     };
 
+    // AI Generate narratives for all steps
+    const handleGenerateAllNarratives = async () => {
+      if (steps.length === 0) return;
+      setGeneratingAI(true);
+      try {
+        const updatedSteps = [...steps];
+        for (let i = 0; i < updatedSteps.length; i++) {
+          const s = updatedSteps[i];
+          if (!s.title?.trim()) continue;
+          
+          setAiProgress({ current: i + 1, total: steps.length, status: `Generating step ${i + 1}...` });
+          
+          const safetyContext = (s.safety_warnings || []).map(w => SAFETY_WARNINGS[w]?.name).filter(Boolean).join(', ');
+          const ppeContext = (s.ppe_required || []).map(p => PPE_TYPES[p]?.name).filter(Boolean).join(', ');
+          
+          const prompt = `You are an expert SOP writer for manufacturing. Generate clear instructions for:
+
+SOP: ${sopData.title}
+${sopData.description ? `Description: ${sopData.description}` : ''}
+Step ${i + 1}: ${s.title}
+${safetyContext ? `Safety: ${safetyContext}` : ''}
+${ppeContext ? `PPE: ${ppeContext}` : ''}
+
+Write 2-3 sentences of clear, actionable instructions. Use active voice. No bullets.`;
+
+          try {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': import.meta.env.VITE_CLAUDE_API_KEY || '',
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 200,
+                messages: [{ role: 'user', content: prompt }]
+              })
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              const text = data.content?.[0]?.text || '';
+              if (text) updatedSteps[i] = { ...updatedSteps[i], instruction_text: text.trim() };
+            }
+          } catch (err) {
+            console.warn(`Failed to generate for step ${i + 1}:`, err);
+          }
+        }
+        setSteps(updatedSteps);
+        setAiProgress({ current: 0, total: 0, status: '' });
+      } catch (error) {
+        console.error('Error generating narratives:', error);
+        alert('Some steps failed to generate. You can edit them manually.');
+      } finally {
+        setGeneratingAI(false);
+      }
+    };
+
+    // Generate audio for all steps using ElevenLabs (same as Training Modules)
+    const handleGenerateAudio = async () => {
+      const stepsWithText = steps.filter(s => s.instruction_text?.trim());
+      if (stepsWithText.length === 0) { alert('No instructions to generate audio from'); return; }
+      
+      setGeneratingAudio(true);
+      try {
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          if (!s.instruction_text?.trim()) continue;
+          
+          setAudioProgress({ current: i + 1, total: stepsWithText.length, status: `Generating audio for step ${i + 1}...` });
+          
+          try {
+            // Call ElevenLabs API (same endpoint as Training Modules)
+            const response = await fetch('/api/generate-audio', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: s.instruction_text, voice_id: 'default' })
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.audio) {
+                // Upload to Supabase storage
+                const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audio}`).then(r => r.blob());
+                const fileName = `sop-audio-${Date.now()}-step${i + 1}.mp3`;
+                const filePath = `${clientId}/sop-audio/${fileName}`;
+                
+                const { error: uploadError } = await supabase.storage.from('audio').upload(filePath, audioBlob);
+                if (!uploadError) {
+                  const { data: { publicUrl } } = supabase.storage.from('audio').getPublicUrl(filePath);
+                  const newSteps = [...steps];
+                  newSteps[i] = { ...newSteps[i], audio_url: publicUrl };
+                  setSteps(newSteps);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(`Failed to generate audio for step ${i + 1}:`, err);
+          }
+        }
+        setAudioProgress({ current: 0, total: 0, status: '' });
+        alert('Audio generation complete!');
+      } catch (error) {
+        console.error('Error generating audio:', error);
+        alert('Audio generation failed');
+      } finally {
+        setGeneratingAudio(false);
+      }
+    };
+
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between p-4 border-b">
-            <div><h2 className="text-lg font-semibold">{selectedSOP ? 'Edit SOP' : 'Create SOP'}</h2><p className="text-sm text-gray-500">Step {step} of 2</p></div>
+            <div>
+              <h2 className="text-lg font-semibold">{selectedSOP ? 'Edit SOP' : 'Create SOP'}</h2>
+              <p className="text-sm text-gray-500">Step {step} of 3</p>
+            </div>
             <button onClick={() => { setShowSOPBuilder(false); setSelectedSOP(null); }}><X className="w-5 h-5" /></button>
           </div>
+          
+          {/* Progress bar */}
+          <div className="px-6 pt-4">
+            <div className="flex items-center gap-2">
+              {[1, 2, 3].map(s => (
+                <div key={s} className="flex items-center flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step >= s ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>{s}</div>
+                  {s < 3 && <div className={`flex-1 h-1 mx-2 ${step > s ? 'bg-blue-600' : 'bg-gray-200'}`} />}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between mt-1 text-xs text-gray-500">
+              <span>Details</span>
+              <span>Steps</span>
+              <span>Review & Audio</span>
+            </div>
+          </div>
+          
           <div className="flex-1 overflow-y-auto p-6">
+            {/* Step 1: SOP Details */}
             {step === 1 && (
               <div className="space-y-4">
                 <div><label className="block text-sm font-medium mb-1">Title *</label><input value={sopData.title} onChange={(e) => setSopData({...sopData, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
@@ -811,8 +917,11 @@ export default function SOPsPage() {
                 </div>
                 <EquipmentMultiSelect equipment={equipment} selected={selectedEquipmentIds} onChange={setSelectedEquipmentIds} />
                 <label className="flex items-center gap-2"><input type="checkbox" checked={sopData.requires_supervisor_signoff} onChange={(e) => setSopData({...sopData, requires_supervisor_signoff: e.target.checked})} className="rounded" /><span className="text-sm">Requires supervisor sign-off</span></label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={sopData.has_audio} onChange={(e) => setSopData({...sopData, has_audio: e.target.checked})} className="rounded" /><span className="text-sm">✅ Enable audio narration (ElevenLabs)</span></label>
               </div>
             )}
+            
+            {/* Step 2: Add Steps */}
             {step === 2 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><h3 className="font-semibold">SOP Steps ({steps.length})</h3><button onClick={addStep} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1"><PlusCircle className="w-4 h-4" /> Add Step</button></div>
@@ -825,8 +934,6 @@ export default function SOPsPage() {
                         key={s.id || idx}
                         step={s}
                         index={idx}
-                        sopTitle={sopData.title}
-                        sopDescription={sopData.description}
                         onUpdate={(field, value) => updateStep(idx, field, value)}
                         onRemove={() => removeStep(idx)}
                         clientId={clientId}
@@ -836,12 +943,81 @@ export default function SOPsPage() {
                 )}
               </div>
             )}
+            
+            {/* Step 3: Review & Generate Audio */}
+            {step === 3 && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Review & Generate Content</h3>
+                  <div className="flex gap-2">
+                    <button onClick={handleGenerateAllNarratives} disabled={generatingAI || steps.length === 0} className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-50">
+                      {generatingAI ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      {generatingAI ? `Generating ${aiProgress.current}/${aiProgress.total}...` : '✨ AI Generate All'}
+                    </button>
+                    {sopData.has_audio && (
+                      <button onClick={handleGenerateAudio} disabled={generatingAudio || steps.length === 0} className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-50">
+                        {generatingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+                        {generatingAudio ? `Audio ${audioProgress.current}/${audioProgress.total}...` : '🔊 Generate Audio'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Progress banner */}
+                {(generatingAI || generatingAudio) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-900">{generatingAI ? aiProgress.status : audioProgress.status}</p>
+                        <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                          <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${((generatingAI ? aiProgress.current : audioProgress.current) / (generatingAI ? aiProgress.total : audioProgress.total)) * 100}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Review each step */}
+                <div className="space-y-4">
+                  {steps.map((s, idx) => (
+                    <div key={s.id || idx} className="border rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <span className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">{idx + 1}</span>
+                        <div className="flex-1">
+                          <h4 className="font-medium mb-2">{s.title || `Step ${idx + 1}`}</h4>
+                          {s.image_url && <img src={s.image_url} alt="" className="max-h-24 rounded mb-2" />}
+                          <textarea 
+                            value={s.instruction_text || ''} 
+                            onChange={(e) => updateStep(idx, 'instruction_text', e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg text-sm mb-2" 
+                            rows={2}
+                            placeholder="Instructions will appear here after AI generation..."
+                          />
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {(s.ppe_required || []).map(p => <span key={p} className="px-2 py-1 bg-blue-100 text-blue-700 rounded">{PPE_TYPES[p]?.emoji} {PPE_TYPES[p]?.name}</span>)}
+                            {(s.safety_warnings || []).map(w => <span key={w} className="px-2 py-1 bg-amber-100 text-amber-700 rounded">{SAFETY_WARNINGS[w]?.emoji} {SAFETY_WARNINGS[w]?.name}</span>)}
+                          </div>
+                          {s.audio_url && <p className="text-xs text-green-600 mt-2 flex items-center gap-1"><Volume2 className="w-3 h-3" /> Audio generated</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+          
           <div className="flex items-center justify-between p-4 border-t">
-            <button onClick={() => step > 1 ? setStep(1) : (setShowSOPBuilder(false), setSelectedSOP(null))} className="px-4 py-2 border rounded-lg flex items-center gap-1"><ChevronLeft className="w-4 h-4" /> {step === 1 ? 'Cancel' : 'Back'}</button>
+            <button onClick={() => step > 1 ? setStep(step - 1) : (setShowSOPBuilder(false), setSelectedSOP(null))} className="px-4 py-2 border rounded-lg flex items-center gap-1"><ChevronLeft className="w-4 h-4" /> {step === 1 ? 'Cancel' : 'Back'}</button>
             <div className="flex gap-2">
-              {step === 2 && <><button onClick={() => handleSave(false)} disabled={saving} className="px-4 py-2 border rounded-lg"><Save className="w-4 h-4 inline mr-1" />Save Draft</button><button onClick={() => handleSave(true)} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded-lg"><Send className="w-4 h-4 inline mr-1" />Submit</button></>}
-              {step === 1 && <button onClick={() => setStep(2)} disabled={!sopData.title.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Next <ChevronRight className="w-4 h-4 inline" /></button>}
+              {step === 3 && (
+                <>
+                  <button onClick={() => handleSave(false)} disabled={saving} className="px-4 py-2 border rounded-lg"><Save className="w-4 h-4 inline mr-1" />Save Draft</button>
+                  <button onClick={() => handleSave(true)} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded-lg"><Send className="w-4 h-4 inline mr-1" />Submit for Review</button>
+                </>
+              )}
+              {step < 3 && <button onClick={() => setStep(step + 1)} disabled={step === 1 && !sopData.title.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Next <ChevronRight className="w-4 h-4 inline" /></button>}
             </div>
           </div>
         </div>
