@@ -1182,6 +1182,10 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
     const [sopSteps, setSopSteps] = useState([]);
     const [equipmentLinks, setEquipmentLinks] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectComment, setRejectComment] = useState('');
+    const [rejecting, setRejecting] = useState(false);
+
     useEffect(() => {
       if (selectedSOP?.id) {
         setLoading(true);
@@ -1191,8 +1195,88 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
         ]).then(([stepsData, linksData]) => { setSopSteps(stepsData || []); setEquipmentLinks(linksData || []); }).finally(() => setLoading(false));
       }
     }, [selectedSOP?.id]);
+
+    const handleApprove = async () => {
+      await dbFetch(`sops?id=eq.${selectedSOP.id}`, { 
+        method: 'PATCH', 
+        body: JSON.stringify({ 
+          status: 'published', 
+          approved_by: profile.id, 
+          approved_at: new Date().toISOString() 
+        }) 
+      });
+      // Notify assignee if exists
+      if (selectedSOP.assigned_to) {
+        try {
+          await dbFetch('notifications', {
+            method: 'POST',
+            body: JSON.stringify({
+              user_id: selectedSOP.assigned_to,
+              type: 'sop_approved',
+              title: 'SOP Approved ✅',
+              message: `Your SOP "${selectedSOP.title}" has been approved and published by ${profile.full_name}`,
+              link: '/sops',
+              metadata: { sop_id: selectedSOP.id }
+            })
+          });
+        } catch (e) { console.warn('Notification failed:', e); }
+      }
+      setShowSOPViewer(false); 
+      setSelectedSOP(null); 
+      loadData();
+    };
+
+    const handleReject = async () => {
+      if (!rejectComment.trim()) {
+        alert('Please provide feedback for the rejection');
+        return;
+      }
+      setRejecting(true);
+      try {
+        await dbFetch(`sops?id=eq.${selectedSOP.id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify({ 
+            status: 'draft',
+            rejection_comment: rejectComment,
+            rejected_by: profile.id,
+            rejected_at: new Date().toISOString()
+          }) 
+        });
+        // Notify assignee
+        if (selectedSOP.assigned_to) {
+          await dbFetch('notifications', {
+            method: 'POST',
+            body: JSON.stringify({
+              user_id: selectedSOP.assigned_to,
+              type: 'sop_rejected',
+              title: 'SOP Needs Revision ⚠️',
+              message: `Your SOP "${selectedSOP.title}" needs revision. Feedback: "${rejectComment}"`,
+              link: '/sops',
+              metadata: { sop_id: selectedSOP.id, comment: rejectComment }
+            })
+          });
+        }
+        setShowRejectModal(false);
+        setShowSOPViewer(false); 
+        setSelectedSOP(null); 
+        loadData();
+      } catch (error) {
+        console.error('Error rejecting SOP:', error);
+        alert('Failed to reject SOP');
+      } finally {
+        setRejecting(false);
+      }
+    };
+
+    const handleEdit = () => {
+      setShowSOPViewer(false);
+      setShowSOPBuilder(true);
+    };
+
     const status = STATUS_COLORS[selectedSOP?.status] || STATUS_COLORS.draft;
     const risk = RISK_COLORS[selectedSOP?.risk_level] || RISK_COLORS.medium;
+    const isPendingReview = selectedSOP?.status === 'pending_review';
+
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
@@ -1203,6 +1287,15 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
             </div>
             <button onClick={() => { setShowSOPViewer(false); setSelectedSOP(null); }}><X className="w-5 h-5" /></button>
           </div>
+
+          {/* Rejection feedback banner if previously rejected */}
+          {selectedSOP?.rejection_comment && selectedSOP?.status === 'draft' && (
+            <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm font-medium text-amber-800">⚠️ Previous Feedback:</p>
+              <p className="text-sm text-amber-700 mt-1">{selectedSOP.rejection_comment}</p>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto p-6">
             {selectedSOP?.description && <p className="text-gray-600 mb-4">{selectedSOP.description}</p>}
             {equipmentLinks.length > 0 && (
@@ -1229,14 +1322,59 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
               </div>
             )}
           </div>
+
           <div className="flex items-center justify-between p-4 border-t">
             <span className="text-sm text-gray-500">v{selectedSOP?.version || 1}</span>
             <div className="flex gap-2">
-              {selectedSOP?.status === 'published' && <button onClick={() => { setShowSOPViewer(false); setShowSOPExecute(true); }} className="px-4 py-2 bg-green-600 text-white rounded-lg"><Play className="w-4 h-4 inline mr-1" />Execute</button>}
-              {isManager && selectedSOP?.status === 'pending_review' && <button onClick={async () => { await dbFetch(`sops?id=eq.${selectedSOP.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'published', approved_by: profile.id, approved_at: new Date().toISOString() }) }); setShowSOPViewer(false); setSelectedSOP(null); loadData(); }} className="px-4 py-2 bg-green-600 text-white rounded-lg"><Check className="w-4 h-4 inline mr-1" />Approve</button>}
+              {/* Execute button for published SOPs */}
+              {selectedSOP?.status === 'published' && (
+                <button onClick={() => { setShowSOPViewer(false); setShowSOPExecute(true); }} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-1">
+                  <Play className="w-4 h-4" /> Execute
+                </button>
+              )}
+              
+              {/* Review actions for pending review */}
+              {isManager && isPendingReview && (
+                <>
+                  <button onClick={() => setShowRejectModal(true)} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg flex items-center gap-1 hover:bg-red-50">
+                    <X className="w-4 h-4" /> Reject
+                  </button>
+                  <button onClick={handleEdit} className="px-4 py-2 border rounded-lg flex items-center gap-1 hover:bg-gray-50">
+                    <Edit className="w-4 h-4" /> Edit
+                  </button>
+                  <button onClick={handleApprove} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-1 hover:bg-green-700">
+                    <Check className="w-4 h-4" /> Approve
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Reject Modal */}
+        {showRejectModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-2">Reject SOP</h3>
+              <p className="text-sm text-gray-600 mb-4">Please provide feedback so the author can improve the SOP.</p>
+              <textarea
+                value={rejectComment}
+                onChange={(e) => setRejectComment(e.target.value)}
+                placeholder="What needs to be changed or improved?"
+                className="w-full px-3 py-2 border rounded-lg resize-none"
+                rows={4}
+                autoFocus
+              />
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setShowRejectModal(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+                <button onClick={handleReject} disabled={rejecting || !rejectComment.trim()} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-1">
+                  {rejecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                  {rejecting ? 'Sending...' : 'Reject & Send Feedback'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
