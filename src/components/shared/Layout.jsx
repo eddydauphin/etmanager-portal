@@ -20,7 +20,8 @@ import {
   Network,
   ClipboardList,
   Rocket,
-  MessageSquare
+  MessageSquare,
+  ClipboardCheck
 } from 'lucide-react';
 
 // ============================================================================
@@ -38,6 +39,7 @@ const ALL_CAPABILITIES = {
   profiles: { icon: FileText, label: 'Profiles', path: '/profiles', description: 'Manage competency profiles' },
   development: { icon: ClipboardList, label: 'Development Center', path: '/development', description: 'Manage development activities' },
   training: { icon: GraduationCap, label: 'Training', path: '/training', description: 'Manage training modules' },
+  sops: { icon: ClipboardCheck, label: 'SOPs', path: '/sops', description: 'Standard Operating Procedures' },
   reports: { icon: BarChart3, label: 'Reports', path: '/reports', description: 'View analytics and reports' },
   settings: { icon: Settings, label: 'Settings', path: '/settings', description: 'Account settings' },
   // Trainee-specific
@@ -71,37 +73,37 @@ export function getDefaultCapabilities(role) {
       return {
         dashboard: true, chat: true, clients: true, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true, hierarchy_settings: true
+        sops: true, reports: true, settings: true, hierarchy_settings: true
       };
     case 'client_admin':
       return {
         dashboard: true, chat: true, clients: false, users: true, expert_network: true,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true, hierarchy_settings: true
+        sops: true, reports: true, settings: true, hierarchy_settings: true
       };
     case 'category_admin':
       return {
         dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true, hierarchy_settings: false
+        sops: true, reports: true, settings: true, hierarchy_settings: false
       };
     case 'site_admin':
       return {
         dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true, hierarchy_settings: false
+        sops: true, reports: true, settings: true, hierarchy_settings: false
       };
     case 'team_lead':
       return {
         dashboard: true, chat: true, clients: false, users: true, expert_network: false,
         development_center: true, competencies: true, profiles: true, development: true, training: true,
-        reports: true, settings: true
+        sops: true, reports: true, settings: true
       };
     case 'trainee':
       return {
         dashboard: true, chat: true, clients: false, users: false, expert_network: false,
         competencies: false, profiles: false, development: false, training: true,
-        reports: false, settings: true, my_progress: true, my_training: true
+        sops: false, reports: false, settings: true, my_progress: true, my_training: true
       };
     default:
       return { dashboard: true, chat: true, settings: true };
@@ -190,9 +192,10 @@ function Layout() {
     const items = [];
 
     // Define menu order - Chat added after dashboard for all roles
+    // SOPs added between training and reports
     const menuOrder = role === 'trainee' 
-      ? ['dashboard', 'chat', 'my_progress', 'my_training', 'settings']
-      : ['dashboard', 'chat', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'reports', 'settings'];
+      ? ['dashboard', 'chat', 'my_progress', 'my_training', 'sops', 'settings']
+      : ['dashboard', 'chat', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'sops', 'reports', 'settings'];
 
     // Super admin also gets clients
     if (role === 'super_admin') {
