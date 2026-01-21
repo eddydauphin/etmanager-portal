@@ -205,6 +205,7 @@ export default function SOPsPage() {
   const [executions, setExecutions] = useState([]);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [pendingSignoffs, setPendingSignoffs] = useState([]);
+  const [myAssignedSOPs, setMyAssignedSOPs] = useState([]);
   
   // UI state
   const [selectedCatalog, setSelectedCatalog] = useState(null);
@@ -235,18 +236,20 @@ export default function SOPsPage() {
     if (!clientId) return;
     setLoading(true);
     try {
-      const [catalogsData, equipmentData, sopsData, usersData, myExecutions] = await Promise.all([
+      const [catalogsData, equipmentData, sopsData, usersData, myExecutions, assignedToMe] = await Promise.all([
         dbFetch(`sop_catalogs?client_id=eq.${clientId}&order=display_order,name`),
         dbFetch(`sop_equipment?client_id=eq.${clientId}&is_active=eq.true&order=name`),
         dbFetch(`sops?client_id=eq.${clientId}&order=sop_number`),
         dbFetch(`profiles?client_id=eq.${clientId}&is_active=eq.true&select=id,full_name,role`),
-        dbFetch(`sop_executions?client_id=eq.${clientId}&executed_by=eq.${profile.id}&order=started_at.desc&limit=50`)
+        dbFetch(`sop_executions?client_id=eq.${clientId}&executed_by=eq.${profile.id}&order=started_at.desc&limit=50`),
+        dbFetch(`sops?client_id=eq.${clientId}&assigned_to=eq.${profile.id}&status=in.(draft,pending_review)&order=due_date`)
       ]);
       setCatalogs(catalogsData || []);
       setEquipment(equipmentData || []);
       setSops(sopsData || []);
       setUsers(usersData || []);
       setExecutions(myExecutions || []);
+      setMyAssignedSOPs(assignedToMe || []);
       
       if (isManager) {
         const [reviews, signoffs] = await Promise.all([
@@ -551,6 +554,25 @@ export default function SOPsPage() {
           await dbFetch('sop_equipment_links', { method: 'POST', body: JSON.stringify({ sop_id: sopId, equipment_id: eqId, linked_by: profile.id })});
         }
 
+        // Send notification if SOP is assigned to someone (wrapped in try-catch to not affect SOP save)
+        if (sopData.assigned_to && sopData.assigned_to !== selectedSOP?.assigned_to) {
+          try {
+            await dbFetch('notifications', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: sopData.assigned_to,
+                type: 'sop_assigned',
+                title: 'SOP Development Assigned',
+                message: `${profile.full_name} has assigned you to develop SOP: "${sopData.title}"${sopData.due_date ? ` - Due: ${new Date(sopData.due_date).toLocaleDateString()}` : ''}`,
+                link: '/sops',
+                metadata: { sop_id: sopId, assigned_by: profile.id, due_date: sopData.due_date }
+              })
+            });
+          } catch (notifError) {
+            console.warn('Failed to send notification, but SOP saved successfully:', notifError);
+          }
+        }
+
         setShowSOPBuilder(false); setSelectedSOP(null); loadData();
       } catch (error) { console.error('Error saving SOP:', error); alert('Failed to save SOP'); }
       finally { setSaving(false); }
@@ -789,7 +811,15 @@ export default function SOPsPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-        {[{ key: 'repository', label: '📚 Repository' }, { key: 'executions', label: '▶️ My Executions' }, ...(isManager ? [{ key: 'pending_review', label: '⏳ Pending Review', badge: pendingReviews.length }, { key: 'pending_signoff', label: '✍️ Sign-off', badge: pendingSignoffs.length }] : [])].map(tab => (
+        {[
+          { key: 'repository', label: '📚 Repository' }, 
+          { key: 'my_assignments', label: '📋 My Assignments', badge: myAssignedSOPs.length },
+          { key: 'executions', label: '▶️ My Executions' }, 
+          ...(isManager ? [
+            { key: 'pending_review', label: '⏳ Pending Review', badge: pendingReviews.length }, 
+            { key: 'pending_signoff', label: '✍️ Sign-off', badge: pendingSignoffs.length }
+          ] : [])
+        ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${activeTab === tab.key ? 'bg-white shadow-sm' : 'hover:bg-gray-200'}`}>
             {tab.label}{tab.badge > 0 && <span className="bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{tab.badge}</span>}
           </button>
@@ -825,6 +855,79 @@ export default function SOPsPage() {
             {filteredSOPs.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{filteredSOPs.map(sop => <SOPCard key={sop.id} sop={sop} />)}</div> : <div className="bg-white rounded-xl border p-12 text-center"><FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">No SOPs Found</h3><p className="text-gray-500">{searchTerm || selectedCatalog ? 'Try adjusting filters' : 'Create your first SOP'}</p></div>}
           </div>
         </div>
+      )}
+
+      {/* My Assignments Tab */}
+      {activeTab === 'my_assignments' && (
+        myAssignedSOPs.length > 0 ? (
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-800">📋 You have <strong>{myAssignedSOPs.length}</strong> SOP{myAssignedSOPs.length > 1 ? 's' : ''} assigned to you for development.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myAssignedSOPs.map(sop => {
+                const status = STATUS_COLORS[sop.status] || STATUS_COLORS.draft;
+                const risk = RISK_COLORS[sop.risk_level] || RISK_COLORS.medium;
+                const isOverdue = sop.due_date && new Date(sop.due_date) < new Date();
+                const assignedBy = users.find(u => u.id === sop.assigned_by);
+                const owner = users.find(u => u.id === sop.owner_id);
+                return (
+                  <div key={sop.id} className={`bg-white border rounded-lg p-4 ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <span className="text-xs font-mono text-gray-500">{sop.sop_number || 'NEW'}</span>
+                        <h3 className="font-semibold text-gray-900">{sop.title}</h3>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded ${status.bg} ${status.text}`}>{status.label}</span>
+                    </div>
+                    
+                    {sop.description && <p className="text-sm text-gray-600 mb-3 line-clamp-2">{sop.description}</p>}
+                    
+                    <div className="space-y-2 text-sm">
+                      {sop.due_date && (
+                        <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                          <Clock className="w-4 h-4" />
+                          <span>Due: {new Date(sop.due_date).toLocaleDateString()}</span>
+                          {isOverdue && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">OVERDUE</span>}
+                        </div>
+                      )}
+                      {assignedBy && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <User className="w-4 h-4" />
+                          <span>Assigned by: {assignedBy.full_name}</span>
+                        </div>
+                      )}
+                      {owner && owner.id !== sop.assigned_by && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Approver: {owner.full_name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${risk.bg} ${risk.text}`}>{risk.label} Risk</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-4 pt-3 border-t">
+                      <button onClick={() => { setSelectedSOP(sop); setShowSOPViewer(true); }} className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center justify-center gap-1">
+                        <Eye className="w-4 h-4" /> View
+                      </button>
+                      <button onClick={() => { setSelectedSOP(sop); setShowSOPBuilder(true); }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center justify-center gap-1">
+                        <Edit className="w-4 h-4" /> Edit
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border p-12 text-center">
+            <CheckCircle className="w-12 h-12 text-green-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No SOPs Assigned</h3>
+            <p className="text-gray-500">You don't have any SOPs assigned for development.</p>
+          </div>
+        )
       )}
 
       {/* Executions Tab */}
