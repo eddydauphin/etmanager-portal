@@ -9,7 +9,7 @@ import {
   AlertTriangle, Volume2, X, Check, Loader2,
   Building2, RefreshCw, Send, Camera,
   ChevronLeft, Trash2, Save, PlusCircle, User,
-  Sparkles, Upload, Image
+  Sparkles, Upload, Image, MoreVertical
 } from 'lucide-react';
 
 // ============================================================================
@@ -616,10 +616,71 @@ export default function SOPsPage() {
 
   // SOP Card Component
   const SOPCard = ({ sop }) => {
+    const [showMenu, setShowMenu] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const status = STATUS_COLORS[sop.status] || STATUS_COLORS.draft;
     const risk = RISK_COLORS[sop.risk_level] || RISK_COLORS.medium;
+    
+    // Check if current user can edit this SOP
+    const canEdit = isManager || sop.owner_id === profile.id || sop.assigned_to === profile.id || sop.created_by === profile.id;
+    const canDelete = isManager || sop.created_by === profile.id || sop.owner_id === profile.id;
+    const canSubmit = canEdit && sop.status === 'draft';
+    const isOverdue = sop.due_date && new Date(sop.due_date) < new Date() && sop.status === 'draft';
+
+    const handleDelete = async () => {
+      if (!confirm(`Are you sure you want to delete "${sop.title}"? This cannot be undone.`)) return;
+      setDeleting(true);
+      try {
+        // Delete related records first
+        await dbFetch(`sop_steps?sop_id=eq.${sop.id}`, { method: 'DELETE' });
+        await dbFetch(`sop_equipment_links?sop_id=eq.${sop.id}`, { method: 'DELETE' });
+        await dbFetch(`sops?id=eq.${sop.id}`, { method: 'DELETE' });
+        loadData();
+      } catch (error) {
+        console.error('Error deleting SOP:', error);
+        alert('Failed to delete SOP');
+      } finally {
+        setDeleting(false);
+        setShowMenu(false);
+      }
+    };
+
+    const handleSubmitForReview = async () => {
+      try {
+        await dbFetch(`sops?id=eq.${sop.id}`, { 
+          method: 'PATCH', 
+          body: JSON.stringify({ 
+            status: 'pending_review',
+            submitted_at: new Date().toISOString(),
+            submitted_by: profile.id
+          }) 
+        });
+        // Notify owner for review
+        if (sop.owner_id && sop.owner_id !== profile.id) {
+          try {
+            await dbFetch('notifications', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_id: sop.owner_id,
+                type: 'sop_submitted',
+                title: 'SOP Ready for Review',
+                message: `${profile.full_name} has submitted SOP "${sop.title}" for your review`,
+                link: '/sops',
+                metadata: { sop_id: sop.id }
+              })
+            });
+          } catch (e) { console.warn('Notification failed:', e); }
+        }
+        loadData();
+      } catch (error) {
+        console.error('Error submitting SOP:', error);
+        alert('Failed to submit SOP');
+      }
+      setShowMenu(false);
+    };
+
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+      <div className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
@@ -628,13 +689,57 @@ export default function SOPsPage() {
             </div>
             <h3 className="font-semibold text-gray-900 line-clamp-2">{sop.title}</h3>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded ${status.bg} ${status.text}`}>{status.label}</span>
+          <div className="flex items-center gap-1">
+            <span className={`text-xs px-2 py-0.5 rounded ${status.bg} ${status.text}`}>{status.label}</span>
+            {/* Actions dropdown */}
+            {canEdit && (
+              <div className="relative">
+                <button onClick={() => setShowMenu(!showMenu)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-lg shadow-lg border py-1 min-w-[160px]">
+                      <button onClick={() => { setSelectedSOP(sop); setShowSOPBuilder(true); setShowMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
+                        <Edit className="w-4 h-4" /> Edit
+                      </button>
+                      {canSubmit && (
+                        <button onClick={handleSubmitForReview} className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2">
+                          <Send className="w-4 h-4" /> Submit for Review
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={handleDelete} disabled={deleting} className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50">
+                          <Trash2 className="w-4 h-4" /> {deleting ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Rejection feedback banner */}
+        {sop.rejection_comment && sop.status === 'draft' && (
+          <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+            <span className="font-medium text-amber-800">⚠️ Feedback:</span>
+            <span className="text-amber-700 ml-1">{sop.rejection_comment}</span>
+          </div>
+        )}
+
         {sop.assigned_to && (
           <div className="flex items-center gap-2 text-xs text-blue-600 mb-2">
             <User className="w-3 h-3" />
             <span>Assigned: {getUserName(sop.assigned_to)}</span>
-            {sop.due_date && <span className="text-gray-500">• Due: {new Date(sop.due_date).toLocaleDateString()}</span>}
+            {sop.due_date && (
+              <span className={isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}>
+                • Due: {new Date(sop.due_date).toLocaleDateString()}
+                {isOverdue && ' (OVERDUE)'}
+              </span>
+            )}
           </div>
         )}
         <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
@@ -647,7 +752,6 @@ export default function SOPsPage() {
           <div className="flex items-center gap-1">
             <button onClick={() => { setSelectedSOP(sop); setShowSOPViewer(true); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded" title="View"><Eye className="w-4 h-4" /></button>
             {sop.status === 'published' && <button onClick={() => { setSelectedSOP(sop); setShowSOPExecute(true); }} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Execute"><Play className="w-4 h-4" /></button>}
-            {isManager && <button onClick={() => { setSelectedSOP(sop); setShowSOPBuilder(true); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Edit"><Edit className="w-4 h-4" /></button>}
           </div>
         </div>
       </div>
