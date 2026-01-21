@@ -148,15 +148,45 @@ const MultiSelectCheckbox = ({ label, options, selected = [], onChange, grouped 
 };
 
 // ============================================================================
-// EQUIPMENT MULTI-SELECT COMPONENT
+// EQUIPMENT MULTI-SELECT COMPONENT - Searchable dropdown with add new
 // ============================================================================
-const EquipmentMultiSelect = ({ equipment, selected = [], onChange }) => {
+const EquipmentMultiSelect = ({ equipment, selected = [], onChange, onAddNew }) => {
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [showAddNew, setShowAddNew] = useState(false);
+  const [newEquipment, setNewEquipment] = useState({ name: '', code: '', site: '' });
+  const inputRef = React.useRef(null);
+
+  const filteredEquipment = equipment.filter(eq => 
+    eq.name.toLowerCase().includes(search.toLowerCase()) ||
+    (eq.code && eq.code.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const selectedEquipment = equipment.filter(eq => selected.includes(eq.id));
+
   const toggleEquipment = (id) => {
     if (selected.includes(id)) {
       onChange(selected.filter(s => s !== id));
     } else {
       onChange([...selected, id]);
     }
+    setSearch('');
+  };
+
+  const removeEquipment = (id) => {
+    onChange(selected.filter(s => s !== id));
+  };
+
+  const handleAddNew = async () => {
+    if (!newEquipment.name.trim()) return;
+    if (onAddNew) {
+      const newId = await onAddNew(newEquipment);
+      if (newId) {
+        onChange([...selected, newId]);
+      }
+    }
+    setNewEquipment({ name: '', code: '', site: '' });
+    setShowAddNew(false);
   };
 
   return (
@@ -164,28 +194,120 @@ const EquipmentMultiSelect = ({ equipment, selected = [], onChange }) => {
       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
         <Building2 className="w-4 h-4" /> Applicable Equipment
       </label>
-      <div className="max-h-48 overflow-y-auto bg-white border rounded-lg p-2 space-y-1">
-        {equipment.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No equipment defined. Create equipment first.</p>
-        ) : equipment.map(eq => (
-          <label key={eq.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-colors ${selected.includes(eq.id) ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100 hover:bg-gray-50'}`}>
-            <input 
-              type="checkbox" 
-              checked={selected.includes(eq.id)} 
-              onChange={() => toggleEquipment(eq.id)} 
-              className="w-4 h-4 rounded text-blue-600 border-gray-300" 
+      
+      {/* Selected tags */}
+      {selectedEquipment.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {selectedEquipment.map(eq => (
+            <span key={eq.id} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+              <Building2 className="w-3 h-3" />
+              {eq.name}
+              {eq.code && <span className="text-blue-500">({eq.code})</span>}
+              <button onClick={() => removeEquipment(eq.id)} className="ml-1 hover:bg-blue-200 rounded-full p-0.5">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="relative">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setIsOpen(true); }}
+              onFocus={() => setIsOpen(true)}
+              placeholder="Search equipment..."
+              className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium">{eq.name}</span>
-              {eq.code && <span className="text-xs text-gray-500 ml-2">({eq.code})</span>}
+          </div>
+          <button 
+            onClick={() => setShowAddNew(true)}
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" /> Add New
+          </button>
+        </div>
+
+        {/* Dropdown */}
+        {isOpen && (search || filteredEquipment.length > 0) && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+            <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white rounded-lg shadow-lg border max-h-48 overflow-y-auto">
+              {filteredEquipment.length === 0 ? (
+                <div className="p-3 text-sm text-gray-500 text-center">
+                  No equipment found. <button onClick={() => { setShowAddNew(true); setNewEquipment({ ...newEquipment, name: search }); }} className="text-blue-600 hover:underline">Add "{search}"?</button>
+                </div>
+              ) : (
+                filteredEquipment.map(eq => (
+                  <button
+                    key={eq.id}
+                    onClick={() => toggleEquipment(eq.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-50 ${selected.includes(eq.id) ? 'bg-blue-50' : ''}`}
+                  >
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.includes(eq.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                      {selected.includes(eq.id) && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <Building2 className="w-4 h-4 text-gray-400" />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">{eq.name}</span>
+                      {eq.code && <span className="text-xs text-gray-500 ml-2">({eq.code})</span>}
+                    </div>
+                    {eq.site && <span className="text-xs text-gray-400">{eq.site}</span>}
+                  </button>
+                ))
+              )}
             </div>
-            {eq.site && <span className="text-xs text-gray-400">{eq.site}</span>}
-          </label>
-        ))}
+          </>
+        )}
       </div>
-      {selected.length > 0 && (
-        <p className="text-xs text-blue-600 mt-2 font-medium">✓ {selected.length} equipment selected</p>
+
+      {/* Add New Modal */}
+      {showAddNew && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add New Equipment</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Name *</label>
+                <input 
+                  value={newEquipment.name} 
+                  onChange={(e) => setNewEquipment({ ...newEquipment, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="e.g., Spray Dryer"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Code</label>
+                <input 
+                  value={newEquipment.code} 
+                  onChange={(e) => setNewEquipment({ ...newEquipment, code: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="e.g., SD-02"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Site/Location</label>
+                <input 
+                  value={newEquipment.site} 
+                  onChange={(e) => setNewEquipment({ ...newEquipment, site: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="e.g., Zealand"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowAddNew(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+              <button onClick={handleAddNew} disabled={!newEquipment.name.trim()} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50">Add Equipment</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -698,6 +820,33 @@ export default function SOPsPage() {
       setSteps(newSteps);
     };
 
+    // Add new equipment inline
+    const handleAddEquipment = async (newEq) => {
+      try {
+        const result = await dbFetch('sop_equipment?select=id', {
+          method: 'POST',
+          body: JSON.stringify({
+            client_id: clientId,
+            name: newEq.name,
+            code: newEq.code || null,
+            site: newEq.site || null,
+            is_active: true,
+            created_by: profile.id
+          })
+        });
+        if (result?.[0]?.id) {
+          // Refresh equipment list
+          const updatedEquipment = await dbFetch(`sop_equipment?client_id=eq.${clientId}&is_active=eq.true&order=name`);
+          setEquipment(updatedEquipment || []);
+          return result[0].id;
+        }
+      } catch (error) {
+        console.error('Error adding equipment:', error);
+        alert('Failed to add equipment');
+      }
+      return null;
+    };
+
     const handleSave = async (publish = false) => {
       if (!sopData.title.trim()) return alert('Title is required');
       if (steps.length === 0) return alert('Add at least one step');
@@ -915,7 +1064,7 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
                     <div><label className="block text-sm font-medium mb-1">Due Date</label><input type="date" value={sopData.due_date} onChange={(e) => setSopData({...sopData, due_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-white" /></div>
                   </div>
                 </div>
-                <EquipmentMultiSelect equipment={equipment} selected={selectedEquipmentIds} onChange={setSelectedEquipmentIds} />
+                <EquipmentMultiSelect equipment={equipment} selected={selectedEquipmentIds} onChange={setSelectedEquipmentIds} onAddNew={handleAddEquipment} />
                 <label className="flex items-center gap-2"><input type="checkbox" checked={sopData.requires_supervisor_signoff} onChange={(e) => setSopData({...sopData, requires_supervisor_signoff: e.target.checked})} className="rounded" /><span className="text-sm">Requires supervisor sign-off</span></label>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={sopData.has_audio} onChange={(e) => setSopData({...sopData, has_audio: e.target.checked})} className="rounded" /><span className="text-sm">✅ Enable audio narration (ElevenLabs)</span></label>
               </div>
