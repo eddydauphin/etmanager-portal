@@ -951,6 +951,73 @@ export default function SOPsPage() {
       return null;
     };
 
+    // Save assignment only (Step 1) - for when assigning to someone else
+    const handleSaveAssignment = async () => {
+      if (!sopData.title.trim()) return alert('Title is required');
+      if (!sopData.assigned_to) return alert('Please select someone to assign');
+      
+      setSaving(true);
+      try {
+        let sopId = selectedSOP?.id;
+        const sopPayload = {
+          title: sopData.title,
+          description: sopData.description,
+          catalog_id: sopData.catalog_id || null,
+          risk_level: sopData.risk_level,
+          owner_id: sopData.owner_id,
+          assigned_to: sopData.assigned_to,
+          assigned_by: profile.id,
+          assigned_at: new Date().toISOString(),
+          due_date: sopData.due_date || null,
+          requires_supervisor_signoff: sopData.requires_supervisor_signoff,
+          review_frequency_months: sopData.review_frequency_months,
+          has_audio: sopData.has_audio,
+          client_id: clientId,
+          status: 'draft'
+        };
+
+        if (sopId) {
+          await dbFetch(`sops?id=eq.${sopId}`, { method: 'PATCH', body: JSON.stringify(sopPayload) });
+        } else {
+          sopPayload.created_by = profile.id;
+          const result = await dbFetch('sops?select=id', { method: 'POST', body: JSON.stringify(sopPayload) });
+          sopId = result?.[0]?.id;
+        }
+
+        if (!sopId) throw new Error('Failed to save SOP');
+
+        // Save equipment links
+        await dbFetch(`sop_equipment_links?sop_id=eq.${sopId}`, { method: 'DELETE' });
+        for (const eqId of selectedEquipmentIds) {
+          await dbFetch('sop_equipment_links', { method: 'POST', body: JSON.stringify({ sop_id: sopId, equipment_id: eqId, linked_by: profile.id })});
+        }
+
+        // Send notification to assignee
+        const assigneeName = users.find(u => u.id === sopData.assigned_to)?.full_name || 'User';
+        await dbFetch('notifications', {
+          method: 'POST',
+          body: JSON.stringify({
+            user_id: sopData.assigned_to,
+            type: 'sop_assigned',
+            title: 'SOP Development Assigned',
+            message: `${profile.full_name} has assigned you to develop SOP: "${sopData.title}"${sopData.due_date ? ` - Due: ${new Date(sopData.due_date).toLocaleDateString()}` : ''}`,
+            link: '/sops',
+            metadata: { sop_id: sopId, assigned_by: profile.id, due_date: sopData.due_date }
+          })
+        });
+
+        setShowSOPBuilder(false);
+        setSelectedSOP(null);
+        loadData();
+        alert(`SOP assigned to ${assigneeName}. They will be notified.`);
+      } catch (error) {
+        console.error('Error saving assignment:', error);
+        alert('Failed to save assignment');
+      } finally {
+        setSaving(false);
+      }
+    };
+
     const handleSave = async (publish = false) => {
       if (!sopData.title.trim()) return alert('Title is required');
       if (steps.length === 0) return alert('Add at least one step');
@@ -1264,13 +1331,28 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
           <div className="flex items-center justify-between p-4 border-t">
             <button onClick={() => step > 1 ? setStep(step - 1) : (setShowSOPBuilder(false), setSelectedSOP(null))} className="px-4 py-2 border rounded-lg flex items-center gap-1"><ChevronLeft className="w-4 h-4" /> {step === 1 ? 'Cancel' : 'Back'}</button>
             <div className="flex gap-2">
+              {/* Step 1: Show "Assign & Save" if assigning to someone else, otherwise "Next" */}
+              {step === 1 && (
+                <>
+                  {sopData.assigned_to && sopData.assigned_to !== profile.id ? (
+                    <button onClick={() => handleSaveAssignment()} disabled={saving || !sopData.title.trim()} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-1 disabled:opacity-50">
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      {saving ? 'Saving...' : 'Assign & Save'}
+                    </button>
+                  ) : (
+                    <button onClick={() => setStep(2)} disabled={!sopData.title.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Next <ChevronRight className="w-4 h-4 inline" /></button>
+                  )}
+                </>
+              )}
+              {/* Step 2: Next to review */}
+              {step === 2 && <button onClick={() => setStep(3)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Next <ChevronRight className="w-4 h-4 inline" /></button>}
+              {/* Step 3: Save or Submit */}
               {step === 3 && (
                 <>
                   <button onClick={() => handleSave(false)} disabled={saving} className="px-4 py-2 border rounded-lg"><Save className="w-4 h-4 inline mr-1" />Save Draft</button>
                   <button onClick={() => handleSave(true)} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded-lg"><Send className="w-4 h-4 inline mr-1" />Submit for Review</button>
                 </>
               )}
-              {step < 3 && <button onClick={() => setStep(step + 1)} disabled={step === 1 && !sopData.title.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Next <ChevronRight className="w-4 h-4 inline" /></button>}
             </div>
           </div>
         </div>
