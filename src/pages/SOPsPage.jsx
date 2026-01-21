@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { supabase } from '../lib/supabase';
 import { 
   ClipboardCheck, Search, Plus, ChevronRight, ChevronDown,
   Folder, FolderOpen, FileText, Play,
   Eye, Edit, QrCode, Clock, CheckCircle,
   AlertTriangle, Volume2, X, Check, Loader2,
   Building2, RefreshCw, Send, Camera,
-  ChevronLeft, Trash2, Save, PlusCircle, User
+  ChevronLeft, Trash2, Save, PlusCircle, User,
+  Sparkles, Upload, Image
 } from 'lucide-react';
 
 // ============================================================================
@@ -188,6 +190,210 @@ const EquipmentMultiSelect = ({ equipment, selected = [], onChange }) => {
     </div>
   );
 };
+
+// ============================================================================
+// SMART PICKER COMPONENT - Compact, fun, mobile-friendly
+// ============================================================================
+const SmartPicker = ({ label, icon, options, selected = [], onChange, grouped = false, color = 'blue' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const categories = grouped ? [...new Set(Object.values(options).map(o => o.category))].filter(Boolean) : [];
+  
+  const toggleItem = (code) => {
+    if (selected.includes(code)) {
+      onChange(selected.filter(s => s !== code));
+    } else {
+      onChange([...selected, code]);
+    }
+  };
+
+  const removeItem = (code) => {
+    onChange(selected.filter(s => s !== code));
+  };
+
+  const colorClasses = {
+    blue: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', button: 'bg-blue-100 hover:bg-blue-200 text-blue-700' },
+    amber: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', button: 'bg-amber-100 hover:bg-amber-200 text-amber-700' }
+  };
+  const colors = colorClasses[color] || colorClasses.blue;
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap items-center gap-2">
+        {selected.map(code => (
+          <span key={code} className={`inline-flex items-center gap-1 px-2 py-1 ${colors.bg} ${colors.border} border rounded-full text-sm`}>
+            <span>{options[code]?.emoji}</span>
+            <span className={colors.text}>{options[code]?.name}</span>
+            <button onClick={() => removeItem(code)} className="ml-1 hover:bg-white rounded-full p-0.5"><X className="w-3 h-3" /></button>
+          </span>
+        ))}
+        <button onClick={() => setIsOpen(!isOpen)} className={`inline-flex items-center gap-1 px-3 py-1.5 ${colors.button} rounded-full text-sm font-medium transition-colors`}>
+          {icon} {selected.length === 0 ? label : '+'}
+        </button>
+      </div>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute left-0 top-full mt-2 z-20 bg-white rounded-xl shadow-lg border p-3 min-w-[280px] max-w-[350px] max-h-[280px] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2 pb-2 border-b">
+              <span className="font-medium text-sm">{label}</span>
+              <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+            </div>
+            {grouped && categories.length > 0 ? (
+              <div className="space-y-3">
+                {categories.map(category => (
+                  <div key={category}>
+                    <p className="text-xs font-semibold text-gray-400 uppercase mb-1">{category}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(options).filter(([_, opt]) => opt.category === category).map(([code, opt]) => (
+                        <button key={code} onClick={() => toggleItem(code)} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all ${selected.includes(code) ? `${colors.bg} ${colors.border} border-2 ${colors.text} font-medium` : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
+                          <span>{opt.emoji}</span><span>{opt.name}</span>{selected.includes(code) && <Check className="w-3 h-3" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(options).map(([code, opt]) => (
+                  <button key={code} onClick={() => toggleItem(code)} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all ${selected.includes(code) ? `${colors.bg} ${colors.border} border-2 ${colors.text} font-medium` : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
+                    <span>{opt.emoji}</span><span>{opt.name}</span>{selected.includes(code) && <Check className="w-3 h-3" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selected.length > 0 && (
+              <div className="mt-3 pt-2 border-t flex justify-between items-center">
+                <span className="text-xs text-gray-500">{selected.length} selected</span>
+                <button onClick={() => setIsOpen(false)} className={`px-3 py-1 ${colors.button} rounded-lg text-sm font-medium`}>Done</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// STEP EDITOR COMPONENT - Camera, Upload & AI Generation
+// ============================================================================
+const StepEditor = ({ step, index, sopTitle, sopDescription, onUpdate, onRemove, clientId }) => {
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const fileInputRef = React.useRef(null);
+  const cameraInputRef = React.useRef(null);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Please select an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('Image must be less than 5MB'); return; }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `sop-step-${Date.now()}.${fileExt}`;
+      const filePath = `${clientId}/sop-images/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(filePath, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
+      onUpdate('image_url', publicUrl);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleGenerateNarrative = async () => {
+    if (!step.title?.trim()) { alert('Please enter a step title first'); return; }
+    setGenerating(true);
+    try {
+      const safetyContext = (step.safety_warnings || []).map(w => SAFETY_WARNINGS[w]?.name).filter(Boolean).join(', ');
+      const ppeContext = (step.ppe_required || []).map(p => PPE_TYPES[p]?.name).filter(Boolean).join(', ');
+      const prompt = `You are an expert SOP writer for manufacturing. Generate clear instructions for:\n\nSOP: ${sopTitle}\nStep ${index + 1}: ${step.title}\n${safetyContext ? `Safety: ${safetyContext}` : ''}\n${ppeContext ? `PPE: ${ppeContext}` : ''}\n\nWrite 2-4 sentences of clear, actionable instructions. Use active voice. No bullets.`;
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: 300 })
+      });
+      if (!response.ok) throw new Error('AI generation failed');
+      const data = await response.json();
+      const generatedText = data.choices?.[0]?.message?.content || data.content || '';
+      if (generatedText) onUpdate('instruction_text', generatedText.trim());
+    } catch (error) {
+      console.error('Error generating narrative:', error);
+      alert('Failed to generate. Try again or write manually.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-xl p-4 bg-white shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">{index + 1}</span>
+          <input value={step.title || ''} onChange={(e) => onUpdate('title', e.target.value)} className="font-semibold text-lg bg-transparent border-none focus:outline-none placeholder-gray-400 flex-1" placeholder="Step title..." />
+        </div>
+        <button onClick={onRemove} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 className="w-5 h-5" /></button>
+      </div>
+
+      {/* Image */}
+      <div className="mb-4">
+        {step.image_url ? (
+          <div className="relative inline-block">
+            <img src={step.image_url} alt={`Step ${index + 1}`} className="max-h-32 rounded-lg border" />
+            <button onClick={() => onUpdate('image_url', null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow"><X className="w-3 h-3" /></button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button onClick={() => cameraInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-50">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />} 📷 Photo
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-50">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} 📁 Upload
+            </button>
+          </div>
+        )}
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+      </div>
+
+      {/* Instructions with AI */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-medium text-gray-700">Instructions</label>
+          <button onClick={handleGenerateNarrative} disabled={generating || !step.title?.trim()} className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg text-xs font-medium hover:from-purple-600 hover:to-indigo-600 disabled:opacity-50 shadow-sm" title={!step.title?.trim() ? 'Enter title first' : 'AI generate'}>
+            {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} {generating ? 'Writing...' : '✨ AI Write'}
+          </button>
+        </div>
+        <textarea value={step.instruction_text || ''} onChange={(e) => onUpdate('instruction_text', e.target.value)} className="w-full px-4 py-3 border rounded-xl text-sm resize-none focus:ring-2 focus:ring-blue-500" rows={3} placeholder="Describe what the operator should do..." />
+      </div>
+
+      {/* Smart PPE & Safety Pickers */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <SmartPicker label="Add PPE" icon="🧤" options={PPE_TYPES} selected={step.ppe_required || []} onChange={(val) => onUpdate('ppe_required', val)} grouped={true} color="blue" />
+        <SmartPicker label="Add Warning" icon="⚠️" options={SAFETY_WARNINGS} selected={step.safety_warnings || []} onChange={(val) => onUpdate('safety_warnings', val)} grouped={false} color="amber" />
+      </div>
+
+      {/* Toggle Pills */}
+      <div className="flex flex-wrap gap-2 pt-3 border-t">
+        <button onClick={() => onUpdate('requires_photo', !step.requires_photo)} className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm transition-all ${step.requires_photo ? 'bg-green-100 text-green-700 border-2 border-green-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          📷 Photo required {step.requires_photo && <Check className="w-3 h-3" />}
+        </button>
+        <button onClick={() => onUpdate('requires_comment', !step.requires_comment)} className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm transition-all ${step.requires_comment ? 'bg-green-100 text-green-700 border-2 border-green-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          💬 Comment required {step.requires_comment && <Check className="w-3 h-3" />}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ============================================================================
 // PART 2 - MAIN COMPONENT (paste after Part 1)
 // ============================================================================
@@ -615,19 +821,16 @@ export default function SOPsPage() {
                 ) : (
                   <div className="space-y-4">
                     {steps.map((s, idx) => (
-                      <div key={s.id || idx} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-center justify-between mb-3"><span className="font-semibold">Step {idx + 1}</span><button onClick={() => removeStep(idx)} className="text-red-500 p-1"><Trash2 className="w-4 h-4" /></button></div>
-                        <div className="space-y-3">
-                          <div><label className="block text-xs font-medium mb-1">Title (optional)</label><input value={s.title || ''} onChange={(e) => updateStep(idx, 'title', e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                          <div><label className="block text-xs font-medium mb-1">Instruction *</label><textarea value={s.instruction_text || ''} onChange={(e) => updateStep(idx, 'instruction_text', e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" rows={2} /></div>
-                          <MultiSelectCheckbox label="⚠️ Safety Warnings" options={SAFETY_WARNINGS} selected={s.safety_warnings || []} onChange={(val) => updateStep(idx, 'safety_warnings', val)} />
-                          <MultiSelectCheckbox label="🧤 PPE Required" options={PPE_TYPES} selected={s.ppe_required || []} onChange={(val) => updateStep(idx, 'ppe_required', val)} grouped={true} />
-                          <div className="flex gap-4 pt-2">
-                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={s.requires_photo} onChange={(e) => updateStep(idx, 'requires_photo', e.target.checked)} className="rounded" />📷 Requires photo</label>
-                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={s.requires_comment} onChange={(e) => updateStep(idx, 'requires_comment', e.target.checked)} className="rounded" />💬 Requires comment</label>
-                          </div>
-                        </div>
-                      </div>
+                      <StepEditor 
+                        key={s.id || idx}
+                        step={s}
+                        index={idx}
+                        sopTitle={sopData.title}
+                        sopDescription={sopData.description}
+                        onUpdate={(field, value) => updateStep(idx, field, value)}
+                        onRemove={() => removeStep(idx)}
+                        clientId={clientId}
+                      />
                     ))}
                   </div>
                 )}
