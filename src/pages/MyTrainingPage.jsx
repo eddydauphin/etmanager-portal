@@ -335,6 +335,17 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
 
       {/* Slide Content */}
       <div className="p-6 min-h-[400px]">
+        {/* Slide Image */}
+        {slide?.image_url && (
+          <div className="mb-6 flex justify-center">
+            <img 
+              src={slide.image_url} 
+              alt={slide.title}
+              className="max-h-64 rounded-lg border border-gray-200 shadow-sm"
+            />
+          </div>
+        )}
+        
         <ul className="space-y-4">
           {keyPoints.map((point, index) => (
             <li key={index} className="flex items-start gap-3">
