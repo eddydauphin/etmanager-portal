@@ -1067,19 +1067,31 @@ export default function TrainingModulesPage() {
 
     setUploadingSlideImage(slideId);
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      // Handle pasted images which may not have proper file names
+      const fileExt = file.type.split('/')[1] || 'png'; // Get extension from MIME type
       const fileName = `slide-${slideId}-${Date.now()}.${fileExt}`;
-      const filePath = `${currentProfile?.client_id || 'default'}/training-slides/${fileName}`;
+      const clientId = currentProfile?.client_id || 'default';
+      const filePath = `${clientId}/training-slides/${fileName}`;
+      
+      console.log('Uploading to:', filePath, 'File type:', file.type, 'Size:', file.size);
       
       const { error: uploadError } = await supabase.storage
         .from('uploads')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: true
+        });
       
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
       
       const { data: { publicUrl } } = supabase.storage
         .from('uploads')
         .getPublicUrl(filePath);
+      
+      console.log('Upload successful, URL:', publicUrl);
       
       // Update slide with image URL
       await handleUpdateSlide(slideId, { image_url: publicUrl });
@@ -1088,7 +1100,7 @@ export default function TrainingModulesPage() {
       setEditingSlideId(slideId);
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Failed to upload image');
+      alert('Failed to upload image: ' + (error.message || 'Unknown error'));
     } finally {
       setUploadingSlideImage(null);
     }
@@ -1110,19 +1122,31 @@ export default function TrainingModulesPage() {
 
     setUploadingNewSlideImage(index);
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      // Handle pasted images which may not have proper file names
+      const fileExt = file.type.split('/')[1] || 'png'; // Get extension from MIME type
       const fileName = `new-slide-${index}-${Date.now()}.${fileExt}`;
-      const filePath = `${currentProfile?.client_id || 'default'}/training-slides/${fileName}`;
+      const clientId = currentProfile?.client_id || 'default';
+      const filePath = `${clientId}/training-slides/${fileName}`;
       
-      const { error: uploadError } = await supabase.storage
+      console.log('Uploading to:', filePath, 'File type:', file.type, 'Size:', file.size);
+      
+      const { error: uploadError, data } = await supabase.storage
         .from('uploads')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: true
+        });
       
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
       
       const { data: { publicUrl } } = supabase.storage
         .from('uploads')
         .getPublicUrl(filePath);
+      
+      console.log('Upload successful, URL:', publicUrl);
       
       // Update generatedSlides with image URL
       const updated = [...generatedSlides];
@@ -1130,7 +1154,7 @@ export default function TrainingModulesPage() {
       setGeneratedSlides(updated);
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Failed to upload image');
+      alert('Failed to upload image: ' + (error.message || 'Unknown error'));
     } finally {
       setUploadingNewSlideImage(null);
     }
@@ -2349,29 +2373,24 @@ export default function TrainingModulesPage() {
                               </button>
                             </div>
                           ) : (
-                            <div
-                              tabIndex={0}
-                              onPaste={(e) => {
-                                const items = e.clipboardData?.items;
-                                if (items) {
-                                  for (let i = 0; i < items.length; i++) {
-                                    if (items[i].type.startsWith('image/')) {
-                                      const file = items[i].getAsFile();
-                                      if (file) handleNewSlideImageUpload(index, file);
-                                      break;
+                            <div className="relative">
+                              {/* Paste area - clicking focuses for paste, doesn't open file picker */}
+                              <div
+                                tabIndex={0}
+                                onPaste={(e) => {
+                                  const items = e.clipboardData?.items;
+                                  if (items) {
+                                    for (let i = 0; i < items.length; i++) {
+                                      if (items[i].type.startsWith('image/')) {
+                                        const file = items[i].getAsFile();
+                                        if (file) handleNewSlideImageUpload(index, file);
+                                        break;
+                                      }
                                     }
                                   }
-                                }
-                              }}
-                              className="relative"
-                            >
-                              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-colors focus-within:border-blue-500 focus-within:bg-blue-50">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => handleNewSlideImageUpload(index, e.target.files?.[0])}
-                                />
+                                }}
+                                className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-text hover:bg-gray-50 hover:border-blue-400 focus:border-blue-500 focus:bg-blue-50 focus:outline-none transition-colors"
+                              >
                                 {uploadingNewSlideImage === index ? (
                                   <div className="flex items-center gap-2 text-blue-600">
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -2379,13 +2398,21 @@ export default function TrainingModulesPage() {
                                   </div>
                                 ) : (
                                   <>
-                                    <div className="flex items-center gap-2 text-gray-400">
-                                      <Upload className="w-5 h-5" />
-                                      <span className="text-sm">Upload or paste image</span>
-                                    </div>
-                                    <span className="text-xs text-gray-400 mt-1">Ctrl+V to paste screenshot</span>
+                                    <span className="text-sm text-gray-500">📋 Click here & paste (Ctrl+V)</span>
+                                    <span className="text-xs text-gray-400 mt-1">or use the upload button →</span>
                                   </>
                                 )}
+                              </div>
+                              {/* Upload button - separate from paste area */}
+                              <label className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs cursor-pointer hover:bg-blue-700">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleNewSlideImageUpload(index, e.target.files?.[0])}
+                                />
+                                <Upload className="w-3 h-3" />
+                                Upload
                               </label>
                             </div>
                           )}
@@ -3338,29 +3365,24 @@ export default function TrainingModulesPage() {
                                       </button>
                                     </div>
                                   ) : (
-                                    <div
-                                      tabIndex={0}
-                                      onPaste={(e) => {
-                                        const items = e.clipboardData?.items;
-                                        if (items) {
-                                          for (let i = 0; i < items.length; i++) {
-                                            if (items[i].type.startsWith('image/')) {
-                                              const file = items[i].getAsFile();
-                                              if (file) handleSlideImageUpload(slide.id, file);
-                                              break;
+                                    <div className="relative">
+                                      {/* Paste area - clicking focuses for paste, doesn't open file picker */}
+                                      <div
+                                        tabIndex={0}
+                                        onPaste={(e) => {
+                                          const items = e.clipboardData?.items;
+                                          if (items) {
+                                            for (let i = 0; i < items.length; i++) {
+                                              if (items[i].type.startsWith('image/')) {
+                                                const file = items[i].getAsFile();
+                                                if (file) handleSlideImageUpload(slide.id, file);
+                                                break;
+                                              }
                                             }
                                           }
-                                        }
-                                      }}
-                                      className="relative"
-                                    >
-                                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-colors focus-within:border-blue-500 focus-within:bg-blue-50">
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          className="hidden"
-                                          onChange={(e) => handleSlideImageUpload(slide.id, e.target.files?.[0])}
-                                        />
+                                        }}
+                                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-text hover:bg-gray-50 hover:border-blue-400 focus:border-blue-500 focus:bg-blue-50 focus:outline-none transition-colors"
+                                      >
                                         {uploadingSlideImage === slide.id ? (
                                           <div className="flex items-center gap-2 text-blue-600">
                                             <Loader2 className="w-5 h-5 animate-spin" />
@@ -3368,11 +3390,21 @@ export default function TrainingModulesPage() {
                                           </div>
                                         ) : (
                                           <>
-                                            <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                                            <span className="text-sm text-gray-500">Click to upload or paste image</span>
-                                            <span className="text-xs text-gray-400 mt-1">Ctrl+V to paste screenshot</span>
+                                            <span className="text-sm text-gray-500">📋 Click here & paste (Ctrl+V)</span>
+                                            <span className="text-xs text-gray-400 mt-1">or use the upload button →</span>
                                           </>
                                         )}
+                                      </div>
+                                      {/* Upload button - separate from paste area */}
+                                      <label className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded text-sm cursor-pointer hover:bg-blue-700">
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => handleSlideImageUpload(slide.id, e.target.files?.[0])}
+                                        />
+                                        <Upload className="w-4 h-4" />
+                                        Upload
                                       </label>
                                     </div>
                                   )}
