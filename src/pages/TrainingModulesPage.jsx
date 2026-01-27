@@ -257,7 +257,7 @@ export default function TrainingModulesPage() {
 
   const loadAssignedUsers = async (moduleId) => {
     try {
-      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles!user_training_user_id_fkey(id,full_name,email)`);
+      const data = await dbFetch(`user_training?module_id=eq.${moduleId}&select=*,profiles(id,full_name,email)`);
       setAssignedUsers(data || []);
     } catch (error) {
       console.error('Error loading assigned users:', error);
@@ -707,7 +707,8 @@ export default function TrainingModulesPage() {
             slide_number: index + 1,
             title: slide.title,
             content: { key_points: slide.key_points },
-            audio_script: slide.audio_script
+            audio_script: slide.audio_script,
+            image_url: slide.image_url || null
           }));
 
           await dbFetch('module_slides', {
@@ -788,7 +789,8 @@ export default function TrainingModulesPage() {
                 slide_number: index + 1,
                 title: slide.title,
                 content: { key_points: slide.key_points },
-                audio_script: slide.audio_script
+                audio_script: slide.audio_script,
+                image_url: slide.image_url || null
               }));
 
               await dbFetch('module_slides', {
@@ -1046,6 +1048,91 @@ export default function TrainingModulesPage() {
       setEditingSlideId(null);
     } catch (error) {
       console.error('Error updating slide:', error);
+    }
+  };
+
+  // Upload image for slide (Edit mode)
+  const [uploadingSlideImage, setUploadingSlideImage] = useState(null);
+  
+  const handleSlideImageUpload = async (slideId, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { 
+      alert('Please select an image file'); 
+      return; 
+    }
+    if (file.size > 5 * 1024 * 1024) { 
+      alert('Image must be less than 5MB'); 
+      return; 
+    }
+
+    setUploadingSlideImage(slideId);
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `slide-${slideId}-${Date.now()}.${fileExt}`;
+      const filePath = `${currentProfile?.client_id || 'default'}/training-slides/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('uploads')
+        .upload(filePath, file);
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(filePath);
+      
+      // Update slide with image URL
+      await handleUpdateSlide(slideId, { image_url: publicUrl });
+      
+      // Keep slide expanded after upload
+      setEditingSlideId(slideId);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image');
+    } finally {
+      setUploadingSlideImage(null);
+    }
+  };
+
+  // Upload image for slide during creation (generatedSlides)
+  const [uploadingNewSlideImage, setUploadingNewSlideImage] = useState(null);
+  
+  const handleNewSlideImageUpload = async (index, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { 
+      alert('Please select an image file'); 
+      return; 
+    }
+    if (file.size > 5 * 1024 * 1024) { 
+      alert('Image must be less than 5MB'); 
+      return; 
+    }
+
+    setUploadingNewSlideImage(index);
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `new-slide-${index}-${Date.now()}.${fileExt}`;
+      const filePath = `${currentProfile?.client_id || 'default'}/training-slides/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('uploads')
+        .upload(filePath, file);
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(filePath);
+      
+      // Update generatedSlides with image URL
+      const updated = [...generatedSlides];
+      updated[index] = { ...updated[index], image_url: publicUrl };
+      setGeneratedSlides(updated);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image');
+    } finally {
+      setUploadingNewSlideImage(null);
     }
   };
 
@@ -2239,6 +2326,50 @@ export default function TrainingModulesPage() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+
+                        {/* Slide Image Upload */}
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">🖼️ Slide Image (optional)</label>
+                          {slide.image_url ? (
+                            <div className="relative inline-block">
+                              <img 
+                                src={slide.image_url} 
+                                alt={slide.title} 
+                                className="max-h-32 rounded-lg border border-gray-200"
+                              />
+                              <button 
+                                onClick={() => {
+                                  const updated = [...generatedSlides];
+                                  updated[index] = { ...updated[index], image_url: null };
+                                  setGeneratedSlides(updated);
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleNewSlideImageUpload(index, e.target.files?.[0])}
+                              />
+                              {uploadingNewSlideImage === index ? (
+                                <div className="flex items-center gap-2 text-blue-600">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span className="text-sm">Uploading...</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 text-gray-400">
+                                  <Upload className="w-5 h-5" />
+                                  <span className="text-sm">Upload illustration</span>
+                                </div>
+                              )}
+                            </label>
+                          )}
+                        </div>
                         
                         <div className="mb-3">
                           <label className="block text-xs font-medium text-gray-500 mb-1">Key Points</label>
@@ -3157,6 +3288,7 @@ export default function TrainingModulesPage() {
                                   {slide.slide_number || index + 1}
                                 </span>
                                 <span className="font-medium text-gray-700">{slide.title}</span>
+                                {slide.image_url && <span className="text-xs text-green-600 ml-2">🖼️</span>}
                               </div>
                               <button
                                 onClick={() => setEditingSlideId(editingSlideId === slide.id ? null : slide.id)}
@@ -3168,6 +3300,47 @@ export default function TrainingModulesPage() {
                             
                             {editingSlideId === slide.id ? (
                               <div className="p-4 space-y-3">
+                                {/* Slide Image Upload */}
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">Slide Image</label>
+                                  {slide.image_url ? (
+                                    <div className="relative inline-block">
+                                      <img 
+                                        src={slide.image_url} 
+                                        alt={slide.title} 
+                                        className="max-h-40 rounded-lg border border-gray-200"
+                                      />
+                                      <button 
+                                        onClick={() => handleUpdateSlide(slide.id, { image_url: null })}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => handleSlideImageUpload(slide.id, e.target.files?.[0])}
+                                      />
+                                      {uploadingSlideImage === slide.id ? (
+                                        <div className="flex items-center gap-2 text-blue-600">
+                                          <Loader2 className="w-5 h-5 animate-spin" />
+                                          <span className="text-sm">Uploading...</span>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                                          <span className="text-sm text-gray-500">Click to upload image</span>
+                                          <span className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</span>
+                                        </>
+                                      )}
+                                    </label>
+                                  )}
+                                </div>
+
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                                   <input
@@ -3199,6 +3372,14 @@ export default function TrainingModulesPage() {
                               </div>
                             ) : (
                               <div className="p-4">
+                                {/* Show image thumbnail in collapsed view */}
+                                {slide.image_url && (
+                                  <img 
+                                    src={slide.image_url} 
+                                    alt={slide.title} 
+                                    className="max-h-24 rounded-lg border border-gray-200 mb-3"
+                                  />
+                                )}
                                 {slide.content?.key_points && slide.content.key_points.length > 0 ? (
                                   <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
                                     {slide.content.key_points.map((point, i) => (
