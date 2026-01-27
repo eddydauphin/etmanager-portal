@@ -2327,7 +2327,7 @@ export default function TrainingModulesPage() {
                           </button>
                         </div>
 
-                        {/* Slide Image Upload */}
+                        {/* Slide Image Upload with Paste Support */}
                         <div className="mb-3">
                           <label className="block text-xs font-medium text-gray-500 mb-1">🖼️ Slide Image (optional)</label>
                           {slide.image_url ? (
@@ -2349,25 +2349,45 @@ export default function TrainingModulesPage() {
                               </button>
                             </div>
                           ) : (
-                            <label className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleNewSlideImageUpload(index, e.target.files?.[0])}
-                              />
-                              {uploadingNewSlideImage === index ? (
-                                <div className="flex items-center gap-2 text-blue-600">
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span className="text-sm">Uploading...</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 text-gray-400">
-                                  <Upload className="w-5 h-5" />
-                                  <span className="text-sm">Upload illustration</span>
-                                </div>
-                              )}
-                            </label>
+                            <div
+                              tabIndex={0}
+                              onPaste={(e) => {
+                                const items = e.clipboardData?.items;
+                                if (items) {
+                                  for (let i = 0; i < items.length; i++) {
+                                    if (items[i].type.startsWith('image/')) {
+                                      const file = items[i].getAsFile();
+                                      if (file) handleNewSlideImageUpload(index, file);
+                                      break;
+                                    }
+                                  }
+                                }
+                              }}
+                              className="relative"
+                            >
+                              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-colors focus-within:border-blue-500 focus-within:bg-blue-50">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleNewSlideImageUpload(index, e.target.files?.[0])}
+                                />
+                                {uploadingNewSlideImage === index ? (
+                                  <div className="flex items-center gap-2 text-blue-600">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span className="text-sm">Uploading...</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-2 text-gray-400">
+                                      <Upload className="w-5 h-5" />
+                                      <span className="text-sm">Upload or paste image</span>
+                                    </div>
+                                    <span className="text-xs text-gray-400 mt-1">Ctrl+V to paste screenshot</span>
+                                  </>
+                                )}
+                              </label>
+                            </div>
                           )}
                         </div>
                         
@@ -3318,26 +3338,43 @@ export default function TrainingModulesPage() {
                                       </button>
                                     </div>
                                   ) : (
-                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => handleSlideImageUpload(slide.id, e.target.files?.[0])}
-                                      />
-                                      {uploadingSlideImage === slide.id ? (
-                                        <div className="flex items-center gap-2 text-blue-600">
-                                          <Loader2 className="w-5 h-5 animate-spin" />
-                                          <span className="text-sm">Uploading...</span>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                                          <span className="text-sm text-gray-500">Click to upload image</span>
-                                          <span className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</span>
-                                        </>
-                                      )}
-                                    </label>
+                                    <div
+                                      tabIndex={0}
+                                      onPaste={(e) => {
+                                        const items = e.clipboardData?.items;
+                                        if (items) {
+                                          for (let i = 0; i < items.length; i++) {
+                                            if (items[i].type.startsWith('image/')) {
+                                              const file = items[i].getAsFile();
+                                              if (file) handleSlideImageUpload(slide.id, file);
+                                              break;
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      className="relative"
+                                    >
+                                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-colors focus-within:border-blue-500 focus-within:bg-blue-50">
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => handleSlideImageUpload(slide.id, e.target.files?.[0])}
+                                        />
+                                        {uploadingSlideImage === slide.id ? (
+                                          <div className="flex items-center gap-2 text-blue-600">
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            <span className="text-sm">Uploading...</span>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                                            <span className="text-sm text-gray-500">Click to upload or paste image</span>
+                                            <span className="text-xs text-gray-400 mt-1">Ctrl+V to paste screenshot</span>
+                                          </>
+                                        )}
+                                      </label>
+                                    </div>
                                   )}
                                 </div>
 
