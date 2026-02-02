@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import { supabase } from '../lib/supabase';
+import { jsPDF } from 'jspdf';
 import {
   BookOpen,
   Plus,
@@ -1003,18 +1004,7 @@ export default function TrainingModulesPage() {
         if (cData?.[0]) clientNamePdf = cData[0].name;
       }
       
-      // Dynamically load jsPDF
-      const jspdfScript = document.createElement('script');
-      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
-      document.head.appendChild(jspdfScript);
-      
-      await new Promise((resolve) => {
-        jspdfScript.onload = resolve;
-        // If already loaded
-        if (window.jspdf) resolve();
-      });
-      
-      const { jsPDF } = window.jspdf;
+      // Create PDF
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
       const margin = 20;
