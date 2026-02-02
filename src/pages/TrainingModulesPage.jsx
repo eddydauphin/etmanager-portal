@@ -1410,6 +1410,13 @@ export default function TrainingModulesPage() {
         method: 'PATCH',
         body: JSON.stringify(updates)
       });
+      // Touch parent module so updated_at gets refreshed via trigger
+      if (selectedModule?.id) {
+        await dbFetch(`training_modules?id=eq.${selectedModule.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ last_reviewed_at: new Date().toISOString() })
+        });
+      }
       // Update local state
       setEditSlides(prev => prev.map(s => s.id === slideId ? { ...s, ...updates } : s));
       setEditingSlideId(null);
@@ -2170,12 +2177,20 @@ export default function TrainingModulesPage() {
                   </div>
                 </div>
                 
-                {/* Metadata: Created, Last Review, Owner */}
+                {/* Metadata: Created, Last Updated, Last Review */}
                 <div className="pt-3 mt-3 border-t border-gray-100 space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-400">Created:</span>
                     <span className="text-gray-600">
                       {module.created_at ? new Date(module.created_at).toLocaleDateString() : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Last updated:</span>
+                    <span className="text-gray-600">
+                      {module.updated_at 
+                        ? new Date(module.updated_at).toLocaleDateString() 
+                        : '—'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
@@ -2187,9 +2202,9 @@ export default function TrainingModulesPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Owner:</span>
+                    <span className="text-gray-400">Author:</span>
                     <span className="text-gray-600 truncate max-w-[120px]">
-                      {module.owner?.full_name || module.creator?.full_name || '—'}
+                      {module.creator?.full_name || '—'}
                     </span>
                   </div>
                 </div>
