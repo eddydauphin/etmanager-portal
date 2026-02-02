@@ -32,6 +32,7 @@ import {
   RotateCcw,
   Archive,
   Send,
+  Download,
   Loader2
 } from 'lucide-react';
 
@@ -969,6 +970,387 @@ export default function TrainingModulesPage() {
     setOpenDropdown(null);
   };
 
+  // Export PDF
+  const [exportingPdf, setExportingPdf] = useState(false);
+  
+  const handleExportPdf = async (module) => {
+    setExportingPdf(module.id);
+    setOpenDropdown(null);
+    
+    try {
+      // Load full data
+      const slides = await dbFetch(`module_slides?module_id=eq.${module.id}&order=slide_number.asc`);
+      const questions = await dbFetch(`module_questions?module_id=eq.${module.id}&order=sort_order.asc`);
+      
+      // Get owner name
+      let ownerName = 'Unknown';
+      if (module.owner_id) {
+        const ownerData = await dbFetch(`profiles?id=eq.${module.owner_id}&select=full_name`);
+        if (ownerData?.[0]) ownerName = ownerData[0].full_name;
+      }
+      
+      // Get creator name
+      let creatorName = 'Unknown';
+      if (module.created_by) {
+        const creatorData = await dbFetch(`profiles?id=eq.${module.created_by}&select=full_name`);
+        if (creatorData?.[0]) creatorName = creatorData[0].full_name;
+      }
+      
+      // Get client name
+      let clientNamePdf = '';
+      if (module.client_id) {
+        const clientData = await dbFetch(`profiles?client_id=eq.${module.client_id}&select=clients(name)`);
+        if (clientData?.[0]?.clients?.name) clientNamePdf = clientData[0].clients.name;
+        else {
+          const cData = await dbFetch(`clients?id=eq.${module.client_id}&select=name`);
+          if (cData?.[0]) clientNamePdf = cData[0].name;
+        }
+      }
+      
+      // Dynamically load jsPDF
+      const jspdfScript = document.createElement('script');
+      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
+      document.head.appendChild(jspdfScript);
+      
+      await new Promise((resolve) => {
+        jspdfScript.onload = resolve;
+        // If already loaded
+        if (window.jspdf) resolve();
+      });
+      
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const margin = 20;
+      const contentWidth = pageWidth - margin * 2;
+      let y = 0;
+      
+      const addPageIfNeeded = (neededSpace) => {
+        if (y + neededSpace > 270) {
+          doc.addPage();
+          y = 20;
+          return true;
+        }
+        return false;
+      };
+      
+      // Helper to draw text wrapped
+      const drawWrappedText = (text, x, startY, maxWidth, fontSize, color = [51, 51, 51]) => {
+        doc.setFontSize(fontSize);
+        doc.setTextColor(...color);
+        const lines = doc.splitTextToSize(text, maxWidth);
+        lines.forEach((line, i) => {
+          addPageIfNeeded(fontSize * 0.5);
+          doc.text(line, x, startY + i * (fontSize * 0.5));
+        });
+        return startY + lines.length * (fontSize * 0.5);
+      };
+      
+      // ============ COVER PAGE ============
+      // Blue header band
+      doc.setFillColor(37, 99, 235);
+      doc.rect(0, 0, pageWidth, 80, 'F');
+      
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(28);
+      const titleLines = doc.splitTextToSize(module.title || 'Training Module', contentWidth);
+      titleLines.forEach((line, i) => {
+        doc.text(line, margin, 35 + i * 12);
+      });
+      
+      // Subtitle / Description
+      if (module.description) {
+        doc.setFontSize(12);
+        doc.setTextColor(200, 220, 255);
+        const descLines = doc.splitTextToSize(module.description, contentWidth);
+        descLines.slice(0, 2).forEach((line, i) => {
+          doc.text(line, margin, 55 + titleLines.length * 8 + i * 6);
+        });
+      }
+      
+      // Document Info Box
+      y = 100;
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(margin, y, contentWidth, 60, 3, 3, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, y, contentWidth, 60, 3, 3, 'S');
+      
+      // Info rows
+      const infoStartY = y + 12;
+      const labelX = margin + 8;
+      const valueX = margin + 55;
+      
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Owner:', labelX, infoStartY);
+      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(10);
+      doc.text(ownerName, valueX, infoStartY);
+      
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Created by:', labelX, infoStartY + 10);
+      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(10);
+      doc.text(creatorName, valueX, infoStartY + 10);
+      
+      if (clientNamePdf) {
+        doc.setFontSize(9);
+        doc.setTextColor(107, 114, 128);
+        doc.text('Organization:', labelX, infoStartY + 20);
+        doc.setTextColor(17, 24, 39);
+        doc.setFontSize(10);
+        doc.text(clientNamePdf, valueX, infoStartY + 20);
+      }
+      
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Published:', labelX, infoStartY + 30);
+      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(10);
+      doc.text(
+        module.published_at 
+          ? new Date(module.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : module.created_at 
+          ? new Date(module.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : 'N/A',
+        valueX, infoStartY + 30
+      );
+      
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Last Review:', labelX, infoStartY + 40);
+      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(10);
+      doc.text(
+        module.last_reviewed_at 
+          ? new Date(module.last_reviewed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          : 'Never',
+        valueX, infoStartY + 40
+      );
+      
+      // Stats
+      y = 175;
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text(`Status: ${(module.status || 'draft').toUpperCase()}`, labelX, y);
+      doc.text(`Slides: ${slides?.length || 0}`, labelX + 50, y);
+      doc.text(`Quiz Questions: ${questions?.length || 0}`, labelX + 100, y);
+      if (module.pass_score) {
+        doc.text(`Pass Score: ${module.pass_score}%`, labelX, y + 8);
+      }
+      
+      // Footer
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text('Generated from E&T Manager', margin, 285);
+      doc.text(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }), pageWidth - margin, 285, { align: 'right' });
+      
+      // ============ SLIDES ============
+      if (slides && slides.length > 0) {
+        doc.addPage();
+        y = 20;
+        
+        // Section header
+        doc.setFillColor(37, 99, 235);
+        doc.rect(margin, y, contentWidth, 10, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.text(`Training Slides (${slides.length})`, margin + 5, y + 7);
+        y += 18;
+        
+        for (let s = 0; s < slides.length; s++) {
+          const slide = slides[s];
+          const keyPoints = typeof slide.content === 'string' 
+            ? JSON.parse(slide.content)?.key_points || [] 
+            : slide.content?.key_points || [];
+          
+          // Estimate space needed
+          const estimatedHeight = 25 + (keyPoints.length * 7) + (slide.image_url ? 55 : 0);
+          addPageIfNeeded(estimatedHeight);
+          
+          // Slide number badge
+          doc.setFillColor(37, 99, 235);
+          doc.circle(margin + 4, y + 4, 4, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(9);
+          doc.text(String(s + 1), margin + 4, y + 5.5, { align: 'center' });
+          
+          // Slide title
+          doc.setTextColor(17, 24, 39);
+          doc.setFontSize(13);
+          doc.text(slide.title || `Slide ${s + 1}`, margin + 12, y + 6);
+          y += 12;
+          
+          // Slide image
+          if (slide.image_url) {
+            try {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = slide.image_url;
+              });
+              
+              // Calculate dimensions to fit
+              const maxImgWidth = contentWidth - 10;
+              const maxImgHeight = 50;
+              let imgW = img.naturalWidth;
+              let imgH = img.naturalHeight;
+              const ratio = Math.min(maxImgWidth / imgW, maxImgHeight / imgH);
+              imgW = imgW * ratio;
+              imgH = imgH * ratio;
+              
+              addPageIfNeeded(imgH + 5);
+              
+              // Create canvas to convert to data URL
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              const imgData = canvas.toDataURL('image/jpeg', 0.85);
+              
+              doc.addImage(imgData, 'JPEG', margin + 5, y, imgW, imgH);
+              y += imgH + 5;
+            } catch (imgErr) {
+              console.warn('Could not load slide image:', imgErr);
+              doc.setFontSize(8);
+              doc.setTextColor(156, 163, 175);
+              doc.text('[Image could not be loaded]', margin + 5, y + 3);
+              y += 8;
+            }
+          }
+          
+          // Key points
+          keyPoints.forEach((point, pi) => {
+            addPageIfNeeded(7);
+            doc.setFillColor(219, 234, 254);
+            doc.circle(margin + 7, y + 1.5, 2.5, 'F');
+            doc.setTextColor(37, 99, 235);
+            doc.setFontSize(8);
+            doc.text(String(pi + 1), margin + 7, y + 2.7, { align: 'center' });
+            
+            doc.setTextColor(55, 65, 81);
+            doc.setFontSize(10);
+            const pointLines = doc.splitTextToSize(point, contentWidth - 18);
+            pointLines.forEach((line, li) => {
+              addPageIfNeeded(5);
+              doc.text(line, margin + 14, y + 2.5 + li * 5);
+            });
+            y += pointLines.length * 5 + 3;
+          });
+          
+          // Separator between slides
+          if (s < slides.length - 1) {
+            y += 3;
+            doc.setDrawColor(229, 231, 235);
+            doc.setLineWidth(0.3);
+            doc.line(margin, y, margin + contentWidth, y);
+            y += 6;
+          }
+        }
+      }
+      
+      // ============ QUIZ ============
+      if (questions && questions.length > 0) {
+        doc.addPage();
+        y = 20;
+        
+        // Section header
+        doc.setFillColor(16, 185, 129);
+        doc.rect(margin, y, contentWidth, 10, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.text(`Quiz Questions (${questions.length})`, margin + 5, y + 7);
+        y += 18;
+        
+        if (module.pass_score) {
+          doc.setFontSize(9);
+          doc.setTextColor(107, 114, 128);
+          doc.text(`Pass Score: ${module.pass_score}%`, margin, y);
+          y += 8;
+        }
+        
+        questions.forEach((q, qi) => {
+          const optionsCount = q.options?.length || 0;
+          addPageIfNeeded(20 + optionsCount * 7);
+          
+          // Question number
+          doc.setFillColor(16, 185, 129);
+          doc.circle(margin + 4, y + 4, 4, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(9);
+          doc.text(String(qi + 1), margin + 4, y + 5.5, { align: 'center' });
+          
+          // Question text
+          doc.setTextColor(17, 24, 39);
+          doc.setFontSize(11);
+          const qLines = doc.splitTextToSize(q.question_text || '', contentWidth - 15);
+          qLines.forEach((line, li) => {
+            doc.text(line, margin + 12, y + 5 + li * 5.5);
+          });
+          y += qLines.length * 5.5 + 8;
+          
+          // Options
+          q.options?.forEach((option, oi) => {
+            addPageIfNeeded(7);
+            const isCorrect = option.startsWith(q.correct_answer);
+            const letter = String.fromCharCode(65 + oi); // A, B, C, D
+            
+            if (isCorrect) {
+              doc.setFillColor(220, 252, 231);
+              doc.roundedRect(margin + 10, y - 3, contentWidth - 12, 7, 1, 1, 'F');
+            }
+            
+            doc.setFontSize(9);
+            doc.setTextColor(isCorrect ? 22 : 107, isCorrect ? 163 : 114, isCorrect ? 74 : 128);
+            doc.text(`${letter}.`, margin + 12, y + 1);
+            
+            doc.setTextColor(isCorrect ? 22 : 55, isCorrect ? 163 : 65, isCorrect ? 74 : 81);
+            doc.setFontSize(10);
+            const optLines = doc.splitTextToSize(option, contentWidth - 25);
+            optLines.forEach((line, li) => {
+              doc.text(line, margin + 20, y + 1 + li * 5);
+            });
+            y += optLines.length * 5 + 3;
+          });
+          
+          y += 5;
+          
+          // Separator
+          if (qi < questions.length - 1) {
+            doc.setDrawColor(229, 231, 235);
+            doc.setLineWidth(0.3);
+            doc.line(margin, y, margin + contentWidth, y);
+            y += 6;
+          }
+        });
+      }
+      
+      // Add page numbers to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(8);
+        doc.setTextColor(156, 163, 175);
+        doc.text(`Page ${p} of ${totalPages}`, pageWidth / 2, 290, { align: 'center' });
+      }
+      
+      // Save
+      const fileName = `${(module.title || 'training-module').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      doc.save(fileName);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF: ' + (error.message || 'Unknown error'));
+    } finally {
+      setExportingPdf(null);
+    }
+  };
+
   // Edit Module
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -1601,6 +1983,19 @@ export default function TrainingModulesPage() {
                       >
                         <Eye className="w-4 h-4" />
                         Preview
+                      </button>
+                      
+                      <button
+                        onClick={() => handleExportPdf(module)}
+                        disabled={exportingPdf === module.id}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {exportingPdf === module.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        {exportingPdf === module.id ? 'Generating PDF...' : 'Export PDF'}
                       </button>
                       
                       <button
@@ -2378,17 +2773,23 @@ export default function TrainingModulesPage() {
                               <div
                                 tabIndex={0}
                                 onPaste={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  console.log('Paste event on slide', index, e.clipboardData?.items);
                                   const items = e.clipboardData?.items;
                                   if (items) {
                                     for (let i = 0; i < items.length; i++) {
+                                      console.log('Item', i, items[i].type);
                                       if (items[i].type.startsWith('image/')) {
                                         const file = items[i].getAsFile();
+                                        console.log('Got file:', file);
                                         if (file) handleNewSlideImageUpload(index, file);
                                         break;
                                       }
                                     }
                                   }
                                 }}
+                                onClick={(e) => e.currentTarget.focus()}
                                 className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-text hover:bg-gray-50 hover:border-blue-400 focus:border-blue-500 focus:bg-blue-50 focus:outline-none transition-colors"
                               >
                                 {uploadingNewSlideImage === index ? (
@@ -2409,7 +2810,11 @@ export default function TrainingModulesPage() {
                                   type="file"
                                   accept="image/*"
                                   className="hidden"
-                                  onChange={(e) => handleNewSlideImageUpload(index, e.target.files?.[0])}
+                                  onChange={(e) => {
+                                    console.log('File input change on slide', index, e.target.files?.[0]);
+                                    handleNewSlideImageUpload(index, e.target.files?.[0]);
+                                    e.target.value = ''; // Reset input so same file can be selected again
+                                  }}
                                 />
                                 <Upload className="w-3 h-3" />
                                 Upload
@@ -2713,6 +3118,16 @@ export default function TrainingModulesPage() {
                         </span>
                         <h4 className="font-medium text-gray-900">{slide.title}</h4>
                       </div>
+                      {/* Slide Image */}
+                      {slide.image_url && (
+                        <div className="mb-3">
+                          <img 
+                            src={slide.image_url} 
+                            alt={slide.title} 
+                            className="max-h-48 rounded-lg border border-gray-200"
+                          />
+                        </div>
+                      )}
                       {slide.content?.key_points && (
                         <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
                           {slide.content.key_points.map((point, i) => (
