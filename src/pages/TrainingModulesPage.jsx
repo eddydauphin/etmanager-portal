@@ -983,13 +983,6 @@ export default function TrainingModulesPage() {
       const slides = await dbFetch(`module_slides?module_id=eq.${module.id}&order=slide_number.asc`);
       const questions = await dbFetch(`module_questions?module_id=eq.${module.id}&order=sort_order.asc`);
       
-      // Get owner name
-      let ownerName = 'Unknown';
-      if (module.owner_id) {
-        const ownerData = await dbFetch(`profiles?id=eq.${module.owner_id}&select=full_name`);
-        if (ownerData?.[0]) ownerName = ownerData[0].full_name;
-      }
-      
       // Get creator name
       let creatorName = 'Unknown';
       if (module.created_by) {
@@ -1066,44 +1059,50 @@ export default function TrainingModulesPage() {
       const infoStartY = y + 12;
       const labelX = margin + 8;
       const valueX = margin + 55;
+      const dateFmt = { year: 'numeric', month: 'long', day: 'numeric' };
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text('Owner:', labelX, infoStartY);
+      doc.text('Created by:', labelX, infoStartY);
       doc.setTextColor(17, 24, 39);
       doc.setFontSize(10);
-      doc.text(ownerName, valueX, infoStartY);
-      
-      doc.setFontSize(9);
-      doc.setTextColor(107, 114, 128);
-      doc.text('Created by:', labelX, infoStartY + 10);
-      doc.setTextColor(17, 24, 39);
-      doc.setFontSize(10);
-      doc.text(creatorName, valueX, infoStartY + 10);
+      doc.text(creatorName, valueX, infoStartY);
       
       if (clientNamePdf) {
         doc.setFontSize(9);
         doc.setTextColor(107, 114, 128);
-        doc.text('Organization:', labelX, infoStartY + 20);
+        doc.text('Organization:', labelX, infoStartY + 10);
         doc.setTextColor(17, 24, 39);
         doc.setFontSize(10);
-        doc.text(clientNamePdf, valueX, infoStartY + 20);
+        doc.text(clientNamePdf, valueX, infoStartY + 10);
       }
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text('Published:', labelX, infoStartY + 30);
+      doc.text('Published:', labelX, infoStartY + 20);
       doc.setTextColor(17, 24, 39);
       doc.setFontSize(10);
       doc.text(
         module.published_at 
-          ? new Date(module.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          ? new Date(module.published_at).toLocaleDateString('en-US', dateFmt)
           : module.created_at 
-          ? new Date(module.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          ? new Date(module.created_at).toLocaleDateString('en-US', dateFmt)
+          : 'N/A',
+        valueX, infoStartY + 20
+      );
+      
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text('Last Updated:', labelX, infoStartY + 30);
+      doc.setTextColor(17, 24, 39);
+      doc.setFontSize(10);
+      doc.text(
+        module.updated_at 
+          ? new Date(module.updated_at).toLocaleDateString('en-US', dateFmt)
           : 'N/A',
         valueX, infoStartY + 30
       );
-      
+
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
       doc.text('Last Review:', labelX, infoStartY + 40);
@@ -1111,7 +1110,7 @@ export default function TrainingModulesPage() {
       doc.setFontSize(10);
       doc.text(
         module.last_reviewed_at 
-          ? new Date(module.last_reviewed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+          ? new Date(module.last_reviewed_at).toLocaleDateString('en-US', dateFmt)
           : 'Never',
         valueX, infoStartY + 40
       );
