@@ -999,12 +999,8 @@ export default function TrainingModulesPage() {
       // Get client name
       let clientNamePdf = '';
       if (module.client_id) {
-        const clientData = await dbFetch(`profiles?client_id=eq.${module.client_id}&select=clients(name)`);
-        if (clientData?.[0]?.clients?.name) clientNamePdf = clientData[0].clients.name;
-        else {
-          const cData = await dbFetch(`clients?id=eq.${module.client_id}&select=name`);
-          if (cData?.[0]) clientNamePdf = cData[0].name;
-        }
+        const cData = await dbFetch(`clients?id=eq.${module.client_id}&select=name`);
+        if (cData?.[0]) clientNamePdf = cData[0].name;
       }
       
       // Dynamically load jsPDF
