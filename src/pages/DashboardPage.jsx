@@ -223,7 +223,7 @@ function useLayoutPreferences(userId) {
 }
 
 // Stat Card Component
-function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick, info }) {
+function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, onClick, info, avgScore }) {
   const [showInfo, setShowInfo] = useState(false);
   
   const colorClasses = {
@@ -319,6 +319,20 @@ function StatCard({ title, value, subtitle, icon: Icon, color = 'blue', trend, o
           <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
           {subtitle && (
             <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+          )}
+          {avgScore !== undefined && avgScore !== null && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Avg Score:</span>
+                <span className={`text-sm font-bold ${
+                  avgScore >= 80 ? 'text-green-600' : 
+                  avgScore >= 60 ? 'text-amber-600' : 
+                  'text-red-600'
+                }`}>
+                  {avgScore}%
+                </span>
+              </div>
+            </div>
           )}
         </div>
         <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
@@ -5394,6 +5408,7 @@ function TraineeDashboard() {
     trainingPending: 0,
     trainingCompleted: 0,
     trainingTotal: 0,
+    trainingAvgScore: 0,
     coachingActive: 0,
     sessionsAsCoach: 0,
     sessionsToReview: 0,
@@ -5433,6 +5448,12 @@ function TraineeDashboard() {
       const trainingPending = training?.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'assigned').length || 0;
       const trainingCompleted = training?.filter(t => t.status === 'passed' || t.status === 'completed').length || 0;
       const trainingTotal = training?.length || 0;
+      
+      // Calculate average score from completed training
+      const completedTraining = training?.filter(t => t.status === 'passed' || t.status === 'completed') || [];
+      const trainingAvgScore = completedTraining.length > 0
+        ? Math.round(completedTraining.reduce((sum, t) => sum + (t.score || 0), 0) / completedTraining.length)
+        : 0;
 
       // Coaching (where I'm the trainee) - Learn through Others
       const coaching = await dbFetch(`development_activities?select=id,status,title,validated_at&trainee_id=eq.${profile.id}&type=eq.coaching`);
@@ -5503,6 +5524,7 @@ function TraineeDashboard() {
         trainingPending,
         trainingCompleted,
         trainingTotal,
+        trainingAvgScore,
         coachingActive: activeCoaching,
         sessionsAsCoach,
         sessionsToReview,
@@ -5557,6 +5579,7 @@ function TraineeDashboard() {
             color="amber"
             onClick={() => navigate('/my-training')}
             info="Learning through structured courses and e-learning modules. Completed vs total assigned."
+            avgScore={stats.trainingCompleted > 0 ? stats.trainingAvgScore : null}
           />
           <StatCard 
             title="Learn by Doing" 
