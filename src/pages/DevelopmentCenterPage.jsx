@@ -937,6 +937,21 @@ export default function DevelopmentCenterPage() {
         throw new Error('Competency name is required');
       }
       
+      // CRITICAL VALIDATION: Ensure at least one development method is selected
+      // Check if user selected a template OR training option
+      const hasTemplate = wizardData.template_id && wizardData.template_id !== '';
+      const hasTraining = wizardData.trainingOption !== 'none';
+      const hasAssignments = wizardData.assignments && wizardData.assignments.length > 0;
+      
+      // Only validate if there are assignments (gaps to close)
+      if (hasAssignments) {
+        const hasGaps = wizardData.assignments.some(a => (a.current_level || 0) < a.target_level);
+        
+        if (hasGaps && !hasTemplate && !hasTraining) {
+          throw new Error('Development method required: Please select a template (coaching/task) OR assign/generate training materials. Users need a way to close their competency gaps.');
+        }
+      }
+      
       let competencyId = editingCompetency?.id;
       
       // Create/Update Competency
@@ -2295,6 +2310,11 @@ export default function DevelopmentCenterPage() {
                         <div>
                           <p className="font-medium text-gray-900">No training module yet</p>
                           <p className="text-sm text-gray-500">Will assign training later</p>
+                          {!wizardData.template_id && (
+                            <p className="text-sm text-red-600 mt-1 font-medium">
+                              ⚠️ A template must be selected above if choosing this option
+                            </p>
+                          )}
                         </div>
                       </label>
                       
