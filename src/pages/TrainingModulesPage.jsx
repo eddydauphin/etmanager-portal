@@ -589,9 +589,9 @@ export default function TrainingModulesPage() {
       return;
     }
 
-    // Validate file size (max 4MB - Vercel limit)
-    if (file.size > 4 * 1024 * 1024) {
-      setFormError('File size must be less than 4MB');
+    // Validate file size (max 10MB - Vercel limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setFormError('File size must be less than 10MB');
       return;
     }
 
@@ -1434,8 +1434,8 @@ export default function TrainingModulesPage() {
       alert('Please select an image file'); 
       return; 
     }
-    if (file.size > 5 * 1024 * 1024) { 
-      alert('Image must be less than 5MB'); 
+    if (file.size > 10 * 1024 * 1024) { 
+      alert('Image must be less than 10MB'); 
       return; 
     }
 
@@ -1489,8 +1489,8 @@ export default function TrainingModulesPage() {
       alert('Please select an image file'); 
       return; 
     }
-    if (file.size > 5 * 1024 * 1024) { 
-      alert('Image must be less than 5MB'); 
+    if (file.size > 10 * 1024 * 1024) { 
+      alert('Image must be less than 10MB'); 
       return; 
     }
 
@@ -2626,7 +2626,7 @@ export default function TrainingModulesPage() {
                                 <div>
                                   <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                                   <p className="text-sm text-gray-600">Click to select a file</p>
-                                  <p className="text-xs text-gray-400">PDF only (max 4MB)</p>
+                                  <p className="text-xs text-gray-400">PDF only (max 10MB)</p>
                                 </div>
                               )}
                             </div>
