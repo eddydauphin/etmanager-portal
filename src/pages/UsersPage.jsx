@@ -239,25 +239,6 @@ export default function UsersPage() {
     return password;
   };
 
-  // Log credentials to email_log table for reference
-  const logCredentials = async (email, password, fullName, createdBy) => {
-    try {
-      await dbFetch('email_log', {
-        method: 'POST',
-        body: JSON.stringify({
-          recipient_email: email,
-          subject: 'New User Account Created',
-          body: `Account created for ${fullName}\nEmail: ${email}\nTemporary Password: ${password}\nUser must change password on first login.`,
-          status: 'logged',
-          sent_at: new Date().toISOString(),
-          created_by: createdBy
-        })
-      });
-    } catch (error) {
-      console.error('Error logging credentials:', error);
-    }
-  };
-
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -312,88 +293,56 @@ export default function UsersPage() {
         }, 1000);
         
       } else {
-        // Create new user via Supabase Auth
-        // Note: signUp auto-logs in the new user, so we need to restore the admin session after
+        // Create new user server-side (api/create-user.js) with the Supabase
+        // admin API. Calling supabase.auth.signUp() from the browser replaces
+        // the admin's session with the new user's and logs the admin out.
         const tempPassword = generateTempPassword();
-        
-        // Store current session before creating user
-        const { data: currentSession } = await supabase.auth.getSession();
-        
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: tempPassword,
-          options: {
-            data: {
-              full_name: formData.full_name
-            }
-          }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error('Your session has expired. Please sign in again.');
+        }
+
+        const response = await fetch('/api/create-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            full_name: formData.full_name,
+            role: formData.role,
+            client_id: formData.role === 'super_admin' ? null : formData.client_id,
+            reports_to_id: formData.role === 'trainee' ? (formData.reports_to_id || null) : null,
+            employee_number: formData.employee_number || null,
+            department: formData.department || null,
+            line: formData.line || null,
+            hire_date: formData.hire_date || null,
+            site: formData.site || null,
+            capabilities: formData.capabilities || getDefaultCapabilities(formData.role),
+            password: tempPassword
+          })
         });
 
-        if (authError) {
-          if (authError.message.includes('already registered')) {
-            throw new Error('A user with this email already exists');
-          }
-          throw authError;
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to create user (${response.status})`);
         }
 
-        if (authData.user) {
-          // Update the profile with all fields
-          await dbFetch(`profiles?id=eq.${authData.user.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              full_name: formData.full_name,
-              role: formData.role,
-              client_id: formData.role === 'super_admin' ? null : formData.client_id,
-              reports_to_id: formData.role === 'trainee' ? (formData.reports_to_id || null) : null,
-              employee_number: formData.employee_number || null,
-              department: formData.department || null,
-              line: formData.line || null,
-              hire_date: formData.hire_date || null,
-              site: formData.site || null,
-              
-              capabilities: formData.capabilities || getDefaultCapabilities(formData.role),
-              must_change_password: true,
-              is_active: true
-            })
-          });
-          
-          // Restore admin session - sign out and reload
-          await supabase.auth.signOut();
-          
-          // Re-authenticate the admin
-          if (currentSession?.session?.access_token) {
-            await supabase.auth.setSession({
-              access_token: currentSession.session.access_token,
-              refresh_token: currentSession.session.refresh_token
-            });
-          } else {
-            // Force page reload to restore session from storage
-            window.location.reload();
-            return;
-          }
-          
-          // Log credentials for reference
-          await logCredentials(
-            formData.email, 
-            tempPassword, 
-            formData.full_name,
-            currentUser?.id
-          );
-          
-          // Store credentials and show credentials modal
-          setNewUserCredentials({
-            email: formData.email,
-            password: tempPassword,
-            fullName: formData.full_name
-          });
-          
-          // Close form modal, open credentials modal
-          setShowModal(false);
-          setShowCredentialsModal(true);
-          
-          // Reload users
-          loadUsers();
-        }
+        // Store credentials and show credentials modal
+        setNewUserCredentials({
+          email: formData.email,
+          password: tempPassword,
+          fullName: formData.full_name
+        });
+
+        // Close form modal, open credentials modal
+        setShowModal(false);
+        setShowCredentialsModal(true);
+
+        // Reload users
+        loadUsers();
       }
 
     } catch (error) {
