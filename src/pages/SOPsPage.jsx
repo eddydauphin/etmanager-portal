@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import { supabase } from '../lib/supabase';
+import SOPPrintSheet from '../components/SOPPrintSheet';
 import { 
   ClipboardCheck, Search, Plus, ChevronRight, ChevronDown,
   Folder, FolderOpen, FileText, Play,
@@ -1394,6 +1395,7 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectComment, setRejectComment] = useState('');
     const [rejecting, setRejecting] = useState(false);
+    const [showPrintSheet, setShowPrintSheet] = useState(false);
 
     useEffect(() => {
       if (selectedSOP?.id) {
@@ -1535,6 +1537,14 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
           <div className="flex items-center justify-between p-4 border-t">
             <span className="text-sm text-gray-500">v{selectedSOP?.version || 1}</span>
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowPrintSheet(true)}
+                disabled={loading}
+                className="px-4 py-2 border rounded-lg flex items-center gap-1 hover:bg-gray-50 disabled:opacity-50"
+                title="Open the standard printed format"
+              >
+                <FileText className="w-4 h-4" /> Standard format
+              </button>
               {/* Execute button for published SOPs */}
               {selectedSOP?.status === 'published' && (
                 <button onClick={() => { setShowSOPViewer(false); setShowSOPExecute(true); }} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-1">
@@ -1559,6 +1569,24 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
             </div>
           </div>
         </div>
+
+        {showPrintSheet && (
+          <SOPPrintSheet
+            sop={selectedSOP}
+            steps={sopSteps}
+            equipment={equipmentLinks.map(l => ({ id: l.equipment_id, name: l.sop_equipment?.name, code: l.sop_equipment?.code }))}
+            catalogName={catalogs.find(c => c.id === selectedSOP?.catalog_id)?.name}
+            clientName={clients.find(c => c.id === clientId)?.name}
+            ownerName={getUserName(selectedSOP?.owner_id)}
+            authorName={getUserName(selectedSOP?.assigned_to)}
+            approverName={selectedSOP?.approved_by ? getUserName(selectedSOP.approved_by) : null}
+            ppeTypes={PPE_TYPES}
+            safetyWarnings={SAFETY_WARNINGS}
+            riskColors={RISK_COLORS}
+            statusColors={STATUS_COLORS}
+            onClose={() => setShowPrintSheet(false)}
+          />
+        )}
 
         {/* Reject Modal */}
         {showRejectModal && (

@@ -18,6 +18,7 @@ import TrainingModulesPage from './pages/TrainingModulesPage';
 import DevelopmentActivitiesPage from './pages/DevelopmentActivitiesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
+import UserDetailPage from './pages/UserDetailPage';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
@@ -143,6 +144,11 @@ function AppRoutes() {
         <Route path="users" element={
           <ProtectedRoute requiredCapability="users">
             <UsersPage />
+          </ProtectedRoute>
+        } />
+        <Route path="users/:id" element={
+          <ProtectedRoute requiredCapability="users">
+            <UserDetailPage />
           </ProtectedRoute>
         } />
 

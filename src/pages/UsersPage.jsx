@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { dbFetch } from '../lib/db';
@@ -667,7 +668,7 @@ export default function UsersPage() {
                               {user.full_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}
                             </div>
                             <div>
-                              <div className="font-medium text-gray-900">{user.full_name || 'No name'}</div>
+                              <Link to={`/users/${user.id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline">{user.full_name || 'No name'}</Link>
                               <div className="text-sm text-gray-500">{user.email}</div>
                               {user.employee_number && (
                                 <div className="text-xs text-gray-400 flex items-center gap-1">

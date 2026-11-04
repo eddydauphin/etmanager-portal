@@ -96,3 +96,13 @@ tbody tr {
 .badge-gray {
   @apply bg-gray-100 text-gray-800;
 }
+
+/* SOP standard-format sheet: on paper, show only the sheet */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body * { visibility: hidden; }
+  .sop-print-overlay { position: static !important; background: none !important; overflow: visible !important; }
+  .sop-print-root, .sop-print-root * { visibility: visible; }
+  .sop-print-root { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+  .sop-print-root img { break-inside: avoid; }
+}

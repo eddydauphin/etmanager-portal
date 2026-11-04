@@ -1,1 +1,1 @@
-export { TraineeDetailPage as default } from './PlaceholderPages';
+export { default } from './UserDetailPage';
