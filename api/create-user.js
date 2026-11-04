@@ -12,8 +12,94 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const CREATOR_ROLES = ['super_admin', 'client_admin', 'site_admin', 'team_lead'];
-const VALID_ROLES = ['super_admin', 'client_admin', 'site_admin', 'team_lead', 'trainee'];
+const VALID_ROLES = ['super_admin', 'client_admin', 'category_admin', 'site_admin', 'team_lead', 'trainee'];
+
+// Which roles each creator role may create. Mirrors the role options the
+// Users page shows each role, enforced here so the client cannot widen it.
+const CREATABLE_ROLES = {
+  super_admin: VALID_ROLES,
+  client_admin: ['client_admin', 'category_admin', 'site_admin', 'team_lead', 'trainee'],
+  category_admin: ['team_lead', 'trainee'],
+  site_admin: ['trainee'],
+  team_lead: ['trainee']
+};
+
+const CAPABILITY_KEYS = [
+  'dashboard', 'chat', 'clients', 'users', 'expert_network', 'development_center',
+  'competencies', 'profiles', 'development', 'training', 'sops', 'reports',
+  'settings', 'hierarchy_settings', 'my_progress', 'my_training'
+];
+
+// Same defaults as getDefaultCapabilities() in src/components/shared/Layout.jsx
+function defaultCapabilities(role) {
+  switch (role) {
+    case 'super_admin':
+      return {
+        dashboard: true, chat: true, clients: true, users: true, expert_network: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
+        sops: true, reports: true, settings: true, hierarchy_settings: true
+      };
+    case 'client_admin':
+      return {
+        dashboard: true, chat: true, clients: false, users: true, expert_network: true,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
+        sops: true, reports: true, settings: true, hierarchy_settings: true
+      };
+    case 'category_admin':
+      return {
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
+        sops: true, reports: true, settings: true, hierarchy_settings: false
+      };
+    case 'site_admin':
+      return {
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
+        sops: true, reports: true, settings: true, hierarchy_settings: false
+      };
+    case 'team_lead':
+      return {
+        dashboard: true, chat: true, clients: false, users: true, expert_network: false,
+        development_center: true, competencies: true, profiles: true, development: true, training: true,
+        sops: true, reports: true, settings: true
+      };
+    case 'trainee':
+      return {
+        dashboard: true, chat: true, clients: false, users: false, expert_network: false,
+        competencies: false, profiles: false, development: false, training: true,
+        sops: false, reports: false, settings: true, my_progress: true, my_training: true
+      };
+    default:
+      return { dashboard: true, chat: true, settings: true };
+  }
+}
+
+// Validate a caller-supplied capabilities object. A creator may only grant
+// capabilities they hold themselves; anything else is rejected.
+function sanitizeCapabilities(requested, role, caller) {
+  const defaults = defaultCapabilities(role);
+  if (requested === undefined || requested === null) return defaults;
+  if (typeof requested !== 'object' || Array.isArray(requested)) {
+    return { error: 'capabilities must be an object of booleans' };
+  }
+  const callerCaps = caller.role === 'super_admin'
+    ? defaultCapabilities('super_admin')
+    : (caller.capabilities || defaultCapabilities(caller.role));
+  const out = {};
+  for (const [key, value] of Object.entries(requested)) {
+    if (!CAPABILITY_KEYS.includes(key)) {
+      return { error: `Unknown capability: ${key}` };
+    }
+    if (typeof value !== 'boolean') {
+      return { error: `Capability ${key} must be true or false` };
+    }
+    if (value && !callerCaps[key]) {
+      return { error: `You cannot grant the ${key} capability` };
+    }
+    out[key] = value;
+  }
+  return out;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -53,7 +139,7 @@ export default async function handler(req, res) {
 
   const { data: caller, error: callerProfileError } = await admin
     .from('profiles')
-    .select('id, role, client_id')
+    .select('id, role, client_id, is_active, capabilities')
     .eq('id', callerAuth.user.id)
     .single();
 
@@ -61,7 +147,12 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Caller profile not found' });
   }
 
-  if (!CREATOR_ROLES.includes(caller.role)) {
+  if (caller.is_active === false) {
+    return res.status(403).json({ error: 'Your account is deactivated' });
+  }
+
+  const creatable = CREATABLE_ROLES[caller.role];
+  if (!creatable) {
     return res.status(403).json({ error: 'You are not allowed to create users' });
   }
 
@@ -87,6 +178,9 @@ export default async function handler(req, res) {
   if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({ error: `Invalid role: ${role}` });
   }
+  if (!creatable.includes(role)) {
+    return res.status(403).json({ error: `A ${caller.role} cannot create a ${role}` });
+  }
   if (!password || password.length < 8) {
     return res.status(400).json({ error: 'A temporary password of at least 8 characters is required' });
   }
@@ -97,15 +191,34 @@ export default async function handler(req, res) {
   }
 
   // 3. Scope rules: nobody below super_admin may create outside their own client
-  if (caller.role !== 'super_admin') {
-    if (role === 'super_admin') {
-      return res.status(403).json({ error: 'Only a super admin can create super admins' });
-    }
-    if (targetClientId !== caller.client_id) {
-      return res.status(403).json({ error: 'You can only create users in your own client' });
-    }
-    if (caller.role === 'team_lead' && role !== 'trainee') {
-      return res.status(403).json({ error: 'Team leads can only create trainees' });
+  if (caller.role !== 'super_admin' && targetClientId !== caller.client_id) {
+    return res.status(403).json({ error: 'You can only create users in your own client' });
+  }
+
+  const caps = sanitizeCapabilities(capabilities, role, caller);
+  if (caps.error) {
+    return res.status(400).json({ error: caps.error });
+  }
+
+  // reports_to_id: team leads always get their own trainees; otherwise it must
+  // be an active team_lead in the same client as the new user.
+  let managerId = null;
+  if (role === 'trainee') {
+    if (caller.role === 'team_lead') {
+      managerId = caller.id;
+    } else if (reports_to_id) {
+      const { data: manager } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('id', reports_to_id)
+        .eq('role', 'team_lead')
+        .eq('is_active', true)
+        .eq('client_id', targetClientId)
+        .maybeSingle();
+      if (!manager) {
+        return res.status(400).json({ error: 'reports_to_id must be an active team lead in the same client' });
+      }
+      managerId = manager.id;
     }
   }
 
@@ -135,15 +248,13 @@ export default async function handler(req, res) {
     full_name,
     role,
     client_id: targetClientId,
-    reports_to_id: role === 'trainee'
-      ? (caller.role === 'team_lead' ? caller.id : (reports_to_id || null))
-      : null,
+    reports_to_id: managerId,
     employee_number: employee_number || null,
     department: department || null,
     line: line || null,
     hire_date: hire_date || null,
     site: site || null,
-    capabilities: capabilities || null,
+    capabilities: caps,
     must_change_password: true,
     is_active: true
   };
