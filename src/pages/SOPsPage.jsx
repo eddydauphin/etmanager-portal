@@ -524,11 +524,34 @@ export default function SOPsPage() {
   const [stats, setStats] = useState({ published: 0, drafts: 0, pendingReview: 0, reviewDue: 0 });
   
   const isManager = ['super_admin', 'client_admin', 'site_admin', 'category_admin', 'team_lead'].includes(profile?.role);
-  const clientId = profile?.client_id;
+  const isSuperAdmin = profile?.role === 'super_admin';
+
+  // Super admins are not attached to a client, so they choose which client's
+  // SOPs to work on. Everyone else is scoped to their own client.
+  const [clients, setClients] = useState([]);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const clientId = profile?.client_id || selectedClientId || null;
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await dbFetch('clients?select=id,name&order=name.asc');
+        if (cancelled) return;
+        setClients(data || []);
+        if (!selectedClientId && data?.length) setSelectedClientId(data[0].id);
+      } catch (error) {
+        console.error('Error loading clients:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperAdmin]);
 
   // Load all data
   const loadData = useCallback(async () => {
-    if (!clientId) return;
+    if (!clientId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [catalogsData, equipmentData, sopsData, usersData, myExecutions, assignedToMe] = await Promise.all([
@@ -1646,6 +1669,19 @@ Write 2-3 sentences of clear, actionable instructions. Use active voice. No bull
         <div><h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><ClipboardCheck className="w-7 h-7 text-blue-600" />Standard Operating Procedures</h1><p className="text-gray-600">Create, manage, and execute SOPs</p></div>
         {isManager && (
           <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <select
+                value={selectedClientId}
+                onChange={(e) => { setSelectedClientId(e.target.value); setSelectedCatalog(null); setSelectedEquipment(null); }}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                title="Client"
+              >
+                {clients.length === 0 && <option value="">No clients</option>}
+                {clients.map(client => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            )}
             <button onClick={() => { setEditingCatalog(null); setShowCatalogModal(true); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><Folder className="w-4 h-4" /> New Catalog</button>
             <button onClick={() => { setEditingEquipment(null); setShowEquipmentModal(true); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><Building2 className="w-4 h-4" /> New Equipment</button>
             <button onClick={() => { setSelectedSOP(null); setShowSOPBuilder(true); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"><Plus className="w-4 h-4" /> Create SOP</button>
