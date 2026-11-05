@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { dbFetch } from '../lib/db';
 import { getDefaultCapabilities, getAvailableCapabilitiesForRole } from '../components/shared/Layout';
+import { DEFAULT_CLIENT_ID, SINGLE_CLIENT } from '../lib/features';
 import {
   Users,
   Plus,
@@ -43,7 +44,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(DEFAULT_CLIENT_ID || 'all');
   const [statusFilter, setStatusFilter] = useState('all');
   
   // Modal states
@@ -64,7 +65,7 @@ export default function UsersPage() {
     email: '',
     full_name: '',
     role: 'trainee',
-    client_id: '',
+    client_id: DEFAULT_CLIENT_ID || '',
     reports_to_id: '',
     employee_number: '',
     department: '',
@@ -186,7 +187,7 @@ export default function UsersPage() {
       email: '',
       full_name: '',
       role: defaultRole,
-      client_id: (currentProfile?.role === 'client_admin' || currentProfile?.role === 'site_admin' || currentProfile?.role === 'team_lead') ? currentProfile.client_id : '',
+      client_id: (currentProfile?.role === 'client_admin' || currentProfile?.role === 'site_admin' || currentProfile?.role === 'team_lead') ? currentProfile.client_id : (DEFAULT_CLIENT_ID || ''),
       reports_to_id: defaultReportsTo,
       employee_number: '',
       department: '',
@@ -250,16 +251,16 @@ export default function UsersPage() {
     try {
       // Validation
       if (!formData.email || !formData.full_name) {
-        throw new Error('Email and full name are required');
+        throw new Error('L’e-mail et le nom complet sont obligatoires');
       }
 
       if (!formData.email.includes('@')) {
-        throw new Error('Please enter a valid email address');
+        throw new Error('Saisissez une adresse e-mail valide');
       }
 
       // Role validation for non-super-admin users
       if (formData.role !== 'super_admin' && !formData.client_id) {
-        throw new Error('Client assignment is required for Client Admins and Trainees');
+        throw new Error('Un client est obligatoire pour les admins client et les apprenants');
       }
 
       if (editingUser) {
@@ -285,7 +286,7 @@ export default function UsersPage() {
           body: JSON.stringify(updateData)
         });
 
-        setFormSuccess('User updated successfully!');
+        setFormSuccess('Personne mise à jour.');
         
         // Reload and close modal after delay
         setTimeout(() => {
@@ -301,7 +302,7 @@ export default function UsersPage() {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
-          throw new Error('Your session has expired. Please sign in again.');
+          throw new Error('Votre session a expiré. Reconnectez-vous.');
         }
 
         const response = await fetch('/api/create-user', {
@@ -328,7 +329,7 @@ export default function UsersPage() {
 
         const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(result.error || `Failed to create user (${response.status})`);
+          throw new Error(result.error || `Création impossible (${response.status})`);
         }
 
         // Store credentials and show credentials modal
@@ -348,7 +349,7 @@ export default function UsersPage() {
 
     } catch (error) {
       console.error('Error saving user:', error);
-      setFormError(error.message || 'Failed to save user');
+      setFormError(error.message || 'Enregistrement impossible');
     } finally {
       setSubmitting(false);
     }
@@ -361,7 +362,7 @@ export default function UsersPage() {
       setCopiedField(field);
       setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      console.error('Copie impossible :', err);
     }
   };
 
@@ -414,10 +415,10 @@ export default function UsersPage() {
 
       setShowResetPasswordModal(false);
       setUserToResetPassword(null);
-      alert('Password reset email sent successfully!');
+      alert('E-mail de réinitialisation envoyé.');
     } catch (error) {
       console.error('Error resetting password:', error);
-      alert('Failed to send reset email: ' + error.message);
+      alert('Envoi de l’e-mail impossible : ' + error.message);
     }
   };
 
@@ -573,7 +574,7 @@ export default function UsersPage() {
             </div>
 
             {/* Client Filter - Only for Super Admin */}
-            {currentProfile?.role === 'super_admin' && (
+            {currentProfile?.role === 'super_admin' && !SINGLE_CLIENT && (
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <select
@@ -626,8 +627,8 @@ export default function UsersPage() {
               <h3 className="text-lg font-medium text-gray-900 mb-1">Aucune personne trouvée</h3>
               <p className="text-gray-500">
                 {searchTerm || roleFilter !== 'all' || clientFilter !== 'all' || statusFilter !== 'all'
-                  ? 'Try adjusting your filters'
-                  : 'Add your first user to get started'}
+                  ? 'Modifiez vos filtres'
+                  : 'Ajoutez une première personne pour commencer'}
               </p>
             </div>
           ) : (
@@ -668,7 +669,7 @@ export default function UsersPage() {
                               {user.full_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}
                             </div>
                             <div>
-                              <Link to={`/users/${user.id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline">{user.full_name || 'No name'}</Link>
+                              <Link to={`/users/${user.id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline">{user.full_name || 'Sans nom'}</Link>
                               <div className="text-sm text-gray-500">{user.email}</div>
                               {user.employee_number && (
                                 <div className="text-xs text-gray-400 flex items-center gap-1">
@@ -689,7 +690,7 @@ export default function UsersPage() {
                           {user.client_id ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-700">
                               <Building2 className="w-3.5 h-3.5" />
-                              {clients.find(c => c.id === user.client_id)?.name || 'Unknown'}
+                              {clients.find(c => c.id === user.client_id)?.name || 'Inconnu'}
                             </span>
                           ) : (
                             <span className="text-gray-400">—</span>
@@ -771,7 +772,7 @@ export default function UsersPage() {
         {/* Results Count */}
         {filteredUsers.length > 0 && (
           <div className="text-sm text-gray-500 text-center">
-            Showing {filteredUsers.length} of {users.length} users
+            Affichage de {filteredUsers.length} of {users.length} users
           </div>
         )}
       </div>
@@ -787,7 +788,7 @@ export default function UsersPage() {
                   {editingUser ? <Edit2 className="w-5 h-5 text-blue-600" /> : <Plus className="w-5 h-5 text-blue-600" />}
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {editingUser ? 'Edit User' : 'Create New User'}
+                  {editingUser ? 'Edit User' : 'Nouvelle personne'}
                 </h2>
               </div>
               <button
@@ -819,7 +820,7 @@ export default function UsersPage() {
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email Address *
+                  Adresse e-mail *
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -841,7 +842,7 @@ export default function UsersPage() {
               {/* Full Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Full Name *
+                  Nom complet *
                 </label>
                 <input
                   type="text"
@@ -856,7 +857,7 @@ export default function UsersPage() {
               {/* Role Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role *
+                  Rôle *
                 </label>
                 <div className="space-y-2">
                   {/* Super Admin - Only visible to Super Admins */}
@@ -867,7 +868,7 @@ export default function UsersPage() {
                         name="role"
                         value="super_admin"
                         checked={formData.role === 'super_admin'}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value, client_id: '', reports_to_id: '', capabilities: getDefaultCapabilities(e.target.value) })}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value, client_id: DEFAULT_CLIENT_ID || '', reports_to_id: '', capabilities: getDefaultCapabilities(e.target.value) })}
                         className="sr-only"
                       />
                       <ShieldCheck className={`w-5 h-5 ${formData.role === 'super_admin' ? 'text-purple-600' : 'text-gray-400'}`} />
@@ -973,10 +974,10 @@ export default function UsersPage() {
               </div>
 
               {/* Client Selection - Only shown if not Super Admin role */}
-              {formData.role !== 'super_admin' && (
+              {formData.role !== 'super_admin' && !SINGLE_CLIENT && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Organization *
+                    Organisation *
                   </label>
                   <div className="relative">
                     <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1066,7 +1067,7 @@ export default function UsersPage() {
                       {/* Employee Number */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Employee #
+                          Matricule
                         </label>
                         <div className="relative">
                           <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1268,12 +1269,12 @@ export default function UsersPage() {
                   {submitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      {editingUser ? 'Updating...' : 'Creating...'}
+                      {editingUser ? 'Updating...' : 'Création…'}
                     </>
                   ) : (
                     <>
                       <Check className="w-5 h-5" />
-                      {editingUser ? 'Update User' : 'Create User'}
+                      {editingUser ? 'Enregistrer' : 'Créer la personne'}
                     </>
                   )}
                 </button>
@@ -1345,7 +1346,7 @@ export default function UsersPage() {
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-6">
                 <p className="text-sm text-blue-700">
-                  <strong>Note:</strong> La personne devra changer son mot de passe à la première connexion.
+                  <strong>Note :</strong> La personne devra changer son mot de passe à la première connexion.
                 </p>
               </div>
 
@@ -1375,8 +1376,7 @@ export default function UsersPage() {
                 Désactiver cette personne ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Voulez-vous vraiment désactiver <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
-                They will no longer be able to log in.
+                Voulez-vous vraiment désactiver <strong>{userToDelete.full_name || userToDelete.email}</strong> ? Cette personne ne pourra plus se connecter.
               </p>
               <div className="flex gap-3">
                 <button

@@ -241,13 +241,13 @@ export default function DevelopmentActivitiesPage() {
 
     try {
       if (!formData.trainee_id) {
-        throw new Error('Please select a trainee');
+        throw new Error('Choisissez un apprenant');
       }
       if (!formData.title) {
-        throw new Error('Please enter a title');
+        throw new Error('Saisissez un titre');
       }
       if (formData.type === 'coaching' && !formData.coach_id) {
-        throw new Error('Please select a coach for coaching activities');
+        throw new Error('Choisissez un coach pour les actions de coaching');
       }
 
       const activityData = {
@@ -428,7 +428,7 @@ export default function DevelopmentActivitiesPage() {
 
   const getUserName = (userId) => {
     const user = users.find(u => u.id === userId);
-    return user?.full_name || 'Unknown';
+    return user?.full_name || 'Inconnu';
   };
 
   const getCompetencyName = (competencyId) => {
@@ -582,8 +582,8 @@ export default function DevelopmentActivitiesPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune action trouvée</h3>
           <p className="text-gray-500 mb-4">
             {activities.length === 0 
-              ? "Start by assigning development activities to your team"
-              : "No activities match your current filters"}
+              ? "Commencez par assigner des actions de développement à votre équipe"
+              : "Aucune action ne correspond aux filtres"}
           </p>
           {activities.length === 0 && (
             <button
@@ -626,27 +626,27 @@ export default function DevelopmentActivitiesPage() {
                     <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <UserCheck className="w-4 h-4" />
-                        <span>Trainee: {getUserName(activity.trainee_id)}</span>
+                        <span>Apprenant : {getUserName(activity.trainee_id)}</span>
                       </div>
                       
                       {activity.coach_id && (
                         <div className="flex items-center gap-1">
                           <Users className="w-4 h-4" />
-                          <span>Coach: {getUserName(activity.coach_id)}</span>
+                          <span>Coach : {getUserName(activity.coach_id)}</span>
                         </div>
                       )}
                       
                       {activity.due_date && (
                         <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
                           <Calendar className="w-4 h-4" />
-                          <span>Due: {new Date(activity.due_date).toLocaleDateString()}</span>
+                          <span>Échéance : {new Date(activity.due_date).toLocaleDateString()}</span>
                         </div>
                       )}
                       
                       {activity.competency_id && (
                         <div className="flex items-center gap-1">
                           <Target className="w-4 h-4" />
-                          <span>{getCompetencyName(activity.competency_id)} → Level {activity.target_level}</span>
+                          <span>{getCompetencyName(activity.competency_id)} → Niveau {activity.target_level}</span>
                         </div>
                       )}
                     </div>
@@ -701,7 +701,7 @@ export default function DevelopmentActivitiesPage() {
                   onChange={(e) => handleTemplateSelect(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                 >
-                  <option value="">-- Select a template --</option>
+                  <option value="">-- Choisir un modèle --</option>
                   {templates.map(template => (
                     <option key={template.id} value={template.id}>
                       {template.name} ({template.type})
@@ -713,13 +713,13 @@ export default function DevelopmentActivitiesPage() {
               {/* Activity Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Activity Type *
+                  Type d’action *
                 </label>
                 <div className="flex gap-4">
                   {[
-                    { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Learn from others' },
-                    { value: 'task', label: 'Tâche', icon: Briefcase, desc: 'Learn by doing' },
-                    { value: 'training', label: 'Formation', icon: BookOpen, desc: 'Formal learning' }
+                    { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Apprendre par les autres' },
+                    { value: 'task', label: 'Tâche', icon: Briefcase, desc: 'Mise en pratique' },
+                    { value: 'training', label: 'Formation', icon: BookOpen, desc: 'Formation' }
                   ].map(type => {
                     const Icon = type.icon;
                     return (
@@ -751,7 +751,7 @@ export default function DevelopmentActivitiesPage() {
               {/* Trainee Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assign To (Trainee) *
+                  Assigner à (apprenant) *
                 </label>
                 <select
                   value={formData.trainee_id}
@@ -759,7 +759,7 @@ export default function DevelopmentActivitiesPage() {
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                   required
                 >
-                  <option value="">-- Select trainee --</option>
+                  <option value="">-- Choisir un apprenant --</option>
                   {users.filter(u => u.role === 'trainee' || u.role === 'team_lead').map(user => (
                     <option key={user.id} value={user.id}>{user.full_name} ({user.email})</option>
                   ))}
@@ -770,7 +770,7 @@ export default function DevelopmentActivitiesPage() {
               {formData.type === 'coaching' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Coach/Mentor *
+                    Coach / Mentor *
                   </label>
                   <select
                     value={formData.coach_id}
@@ -778,7 +778,7 @@ export default function DevelopmentActivitiesPage() {
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                     required
                   >
-                    <option value="">-- Select coach --</option>
+                    <option value="">-- Choisir un coach --</option>
                     {users.filter(u => u.id !== formData.trainee_id).map(user => (
                       <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
                     ))}
@@ -789,7 +789,7 @@ export default function DevelopmentActivitiesPage() {
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title *
+                  Titre *
                 </label>
                 <input
                   type="text"
@@ -854,7 +854,7 @@ export default function DevelopmentActivitiesPage() {
                     onChange={(e) => setFormData({ ...formData, competency_id: e.target.value })}
                     className="flex-1 px-4 py-2 border border-gray-200 rounded-lg"
                   >
-                    <option value="">-- No linked competency --</option>
+                    <option value="">-- Aucune compétence liée --</option>
                     {competencies.map(comp => (
                       <option key={comp.id} value={comp.id}>
                         {comp.name} {comp.category && `(${comp.category})`}
@@ -867,11 +867,11 @@ export default function DevelopmentActivitiesPage() {
                       onChange={(e) => setFormData({ ...formData, target_level: parseInt(e.target.value) })}
                       className="w-32 px-4 py-2 border border-gray-200 rounded-lg"
                     >
-                      <option value={1}>Level 1</option>
-                      <option value={2}>Level 2</option>
-                      <option value={3}>Level 3</option>
-                      <option value={4}>Level 4</option>
-                      <option value={5}>Level 5</option>
+                      <option value={1}>Niveau 1</option>
+                      <option value={2}>Niveau 2</option>
+                      <option value={3}>Niveau 3</option>
+                      <option value={4}>Niveau 4</option>
+                      <option value={5}>Niveau 5</option>
                     </select>
                   )}
                 </div>
@@ -949,7 +949,7 @@ export default function DevelopmentActivitiesPage() {
               {/* Status & Actions */}
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-500">Status:</span>
+                  <span className="text-sm text-gray-500">Statut :</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedActivity.status, selectedActivity.due_date)}`}>
                     {selectedActivity.status.replace('_', ' ')}
                   </span>
@@ -1003,14 +1003,14 @@ export default function DevelopmentActivitiesPage() {
                   <p className="font-medium">
                     {selectedActivity.due_date 
                       ? new Date(selectedActivity.due_date).toLocaleDateString() 
-                      : 'No due date'}
+                      : 'Sans échéance'}
                   </p>
                 </div>
                 {selectedActivity.competency_id && (
                   <div>
                     <p className="text-sm text-gray-500">Compétence liée</p>
                     <p className="font-medium">
-                      {getCompetencyName(selectedActivity.competency_id)} → Level {selectedActivity.target_level}
+                      {getCompetencyName(selectedActivity.competency_id)} → Niveau {selectedActivity.target_level}
                     </p>
                   </div>
                 )}
@@ -1041,7 +1041,7 @@ export default function DevelopmentActivitiesPage() {
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
-                  Feedback & Progress ({feedback.length})
+                  Retours et avancement ({feedback.length})
                 </h3>
                 
                 {/* Add Feedback */}

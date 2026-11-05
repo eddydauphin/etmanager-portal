@@ -127,7 +127,7 @@ export default function ChatPage() {
         channel_id: ch.id,
         sender_id: user.id,
         sender_type: 'ai',
-        content: `👋 Hello ${firstName}! I'm your private AI Assistant powered by Claude.\n\nI can help you with:\n• **Check activities** - "What do I have pending?"\n• **Coaching** - "Request coaching on shift handover"\n• **Training** - "Show my trainings"\n• **Messages** - "Send Jean: Meeting at 2pm"\n• **Team** - "How is my team doing?"\n\nJust ask naturally! 🚀`,
+        content: `👋 Bonjour ${firstName} ! Je suis votre assistant IA. Je peux vous aider à : • **Vérifier vos actions** - « Qu’est-ce qui est en attente ? » • **Coaching** - « Demander un coaching sur la passation de poste » • **Formations** - « Montre mes formations » • **Messages** - « Envoyer à Jean : réunion à 14h » • **Équipe** - « Comment va mon équipe ? » Demandez simplement ! 🚀`,
         content_type: 'text'
       });
     }
@@ -216,12 +216,12 @@ export default function ChatPage() {
       });
       
       if (error) {
-        console.error('AI Error:', error);
+        console.error('Erreur IA :', error);
         await supabase.from('chat_messages').insert({
           channel_id: activeChannel.id,
           sender_id: user.id,
           sender_type: 'ai',
-          content: "❌ I encountered an error. Please try again.",
+          content: "❌ Une erreur est survenue. Réessayez.",
           content_type: 'text'
         });
       }
@@ -237,12 +237,12 @@ export default function ChatPage() {
       }
       
     } catch (error) {
-      console.error('AI Error:', error);
+      console.error('Erreur IA :', error);
       await supabase.from('chat_messages').insert({
         channel_id: activeChannel.id,
         sender_id: user.id,
         sender_type: 'ai',
-        content: "❌ I encountered an error. Please try again.",
+        content: "❌ Une erreur est survenue. Réessayez.",
         content_type: 'text'
       });
     } finally {
@@ -283,7 +283,7 @@ export default function ChatPage() {
     setShowNewModal(false);
   };
 
-  const getChName = (ch) => ch.type === 'ai_assistant' ? (profile.role === 'super_admin' ? ch.name : 'Assistant IA') : ch.type === 'group' ? (ch.name || 'Group') : 'Direct Message';
+  const getChName = (ch) => ch.type === 'ai_assistant' ? (profile.role === 'super_admin' ? ch.name : 'Assistant IA') : ch.type === 'group' ? (ch.name || 'Groupe') : 'Message direct';
   const getChIcon = (type) => type === 'ai_assistant' ? <Bot className="w-5 h-5 text-purple-500" /> : type === 'group' ? <Users className="w-5 h-5 text-blue-500" /> : <MessageSquare className="w-5 h-5 text-green-500" />;
   const formatTime = (ts) => { const d = new Date(ts); const now = new Date(); const diff = Math.floor((now - d) / 86400000); return diff === 0 ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : diff < 7 ? d.toLocaleDateString([], { weekday: 'short' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
@@ -351,7 +351,7 @@ export default function ChatPage() {
           </div>
           <div className="p-4 bg-white border-t">
             <form onSubmit={sendMessage} className="flex items-center gap-3">
-              <input ref={inputRef} value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder={activeChannel.type === 'ai_assistant' ? "Ask me anything..." : "Type a message..."} className="flex-1 px-4 py-2 bg-gray-100 rounded-full" disabled={sendingMessage || aiThinking} />
+              <input ref={inputRef} value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder={activeChannel.type === 'ai_assistant' ? "Posez votre question…" : "Écrivez un message…"} className="flex-1 px-4 py-2 bg-gray-100 rounded-full" disabled={sendingMessage || aiThinking} />
               <button type="submit" disabled={!newMessage.trim() || sendingMessage || aiThinking} className={`p-3 rounded-full ${newMessage.trim() && !sendingMessage && !aiThinking ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}><Send className="w-5 h-5" /></button>
             </form>
           </div>

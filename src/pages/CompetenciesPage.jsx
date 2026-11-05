@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { DEFAULT_CLIENT_ID, SINGLE_CLIENT } from '../lib/features';
 import {
   Target,
   Plus,
@@ -270,7 +271,7 @@ export default function CompetenciesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [tagFilter, setTagFilter] = useState('all'); // Renamed from tagFilter
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(DEFAULT_CLIENT_ID || 'all');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   
   // Modal states
@@ -290,7 +291,7 @@ export default function CompetenciesPage() {
     name: '',
     description: '',
     tag_ids: [], // Changed from tag_id to support multiple tags
-    client_ids: [],
+    client_ids: DEFAULT_CLIENT_ID ? [DEFAULT_CLIENT_ID] : [],
     owner_id: '',                    // NEW: Competency owner (expert/coach)
     training_developer_id: '',       // NEW: Who creates training materials
     level_1_description: 'Awareness - Can recognize the topic',
@@ -594,10 +595,10 @@ export default function CompetenciesPage() {
 
       setShowNominationModal(false);
       loadExistingNominations(); // Refresh nominations
-      alert(`${nominationData.user_name} has been nominated for the Expert Network. Awaiting approval.`);
+      alert(`${nominationData.user_name} a été nommé(e) au réseau d’experts. En attente d’approbation.`);
     } catch (error) {
       console.error('Error submitting nomination:', error);
-      setNominationError(error.message || 'Failed to submit nomination');
+      setNominationError(error.message || 'Envoi de la nomination impossible');
     } finally {
       setNominating(false);
     }
@@ -802,7 +803,7 @@ export default function CompetenciesPage() {
     
     setValidating(true);
     try {
-      console.log('Validating competency:', competencyToValidate.id, 'to level:', validateForm.achieved_level);
+      console.log('Validating competency:', competencyToValidate.id, 'au niveau :', validateForm.achieved_level);
       
       // Update user_competencies record - only update columns that exist
       const updateResult = await dbFetch(`user_competencies?id=eq.${competencyToValidate.id}`, {
@@ -821,7 +822,7 @@ export default function CompetenciesPage() {
         body: JSON.stringify({
           type: 'coaching',
           title: `Validation: ${competencyToAssign?.name || 'Competency'}`,
-          description: validateForm.notes || `Competency validated at Level ${validateForm.achieved_level}`,
+          description: validateForm.notes || `Compétence validée au niveau ${validateForm.achieved_level}`,
           trainee_id: competencyToValidate.user_id,
           assigned_by: currentProfile.id,
           coach_id: currentProfile.id,
@@ -864,12 +865,12 @@ export default function CompetenciesPage() {
 
     try {
       if (assignFormData.user_ids.length === 0) {
-        throw new Error('Please select at least one user');
+        throw new Error('Choisissez au moins une personne');
       }
       
       // Require development method if not already competent
       if (assignFormData.current_level === 0 && !assignFormData.development_method) {
-        throw new Error('Please select a development method');
+        throw new Error('Choisissez une méthode de développement');
       }
 
       const coachId = assignFormData.coach_id || null;
@@ -912,8 +913,8 @@ export default function CompetenciesPage() {
             method: 'POST',
             body: JSON.stringify({
               type: 'coaching',
-              title: `Initial Validation: ${competencyToAssign.name}`,
-              description: `Competency validated at Level ${currentLevel} (prior experience)`,
+              title: `Validation initiale : ${competencyToAssign.name}`,
+              description: `Compétence validée au niveau ${currentLevel} (expérience antérieure)`,
               trainee_id: userId,
               assigned_by: currentProfile.id,
               coach_id: currentProfile.id,
@@ -960,9 +961,9 @@ export default function CompetenciesPage() {
                   body: JSON.stringify({
                     type: 'training',
                     title: `E-Learning: ${competencyToAssign.name}`,
-                    description: `Complete ${modulesToAssign.length} training module(s) for ${competencyToAssign.name}`,
-                    objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name} through e-learning`,
-                    success_criteria: `Complete all assigned training modules and pass assessments`,
+                    description: `Complete ${modulesToAssign.length} formation(s) pour ${competencyToAssign.name}`,
+                    objectives: `Atteindre le niveau ${targetLevel} in ${competencyToAssign.name} par e-learning`,
+                    success_criteria: `Suivre les formations assignées et réussir les évaluations`,
                     trainee_id: userId,
                     assigned_by: currentProfile.id,
                     coach_id: coachId,
@@ -984,9 +985,9 @@ export default function CompetenciesPage() {
                 body: JSON.stringify({
                   type: 'coaching',
                   title: `Coaching: ${competencyToAssign.name}`,
-                  description: `Coaching session for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
-                  objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name}`,
-                  success_criteria: `Trainee demonstrates competency at Level ${targetLevel} and is validated by coach`,
+                  description: `Séance de coaching pour développer ${competencyToAssign.name} compétence au niveau ${targetLevel}`,
+                  objectives: `Atteindre le niveau ${targetLevel} in ${competencyToAssign.name}`,
+                  success_criteria: `L’apprenant démontre la compétence au niveau ${targetLevel} et est validé par le coach`,
                   trainee_id: userId,
                   assigned_by: currentProfile.id,
                   coach_id: coachId,
@@ -1006,10 +1007,10 @@ export default function CompetenciesPage() {
                 method: 'POST',
                 body: JSON.stringify({
                   type: 'task',
-                  title: `On-the-Job Training: ${competencyToAssign.name}`,
-                  description: `Hands-on learning for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
-                  objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name} through practical experience`,
-                  success_criteria: `Demonstrate competency through supervised practical work`,
+                  title: `Formation sur le poste : ${competencyToAssign.name}`,
+                  description: `Mise en pratique pour développer ${competencyToAssign.name} compétence au niveau ${targetLevel}`,
+                  objectives: `Atteindre le niveau ${targetLevel} in ${competencyToAssign.name} par la pratique`,
+                  success_criteria: `Démontrer la compétence par la pratique supervisée`,
                   trainee_id: userId,
                   assigned_by: currentProfile.id,
                   coach_id: coachId, // Supervisor
@@ -1030,8 +1031,8 @@ export default function CompetenciesPage() {
                 body: JSON.stringify({
                   type: 'task',
                   title: `Self-Study: ${competencyToAssign.name}`,
-                  description: `Independent learning for developing ${competencyToAssign.name} competency to Level ${targetLevel}`,
-                  objectives: `Achieve Level ${targetLevel} in ${competencyToAssign.name} through self-directed study`,
+                  description: `Apprentissage autonome pour développer ${competencyToAssign.name} compétence au niveau ${targetLevel}`,
+                  objectives: `Atteindre le niveau ${targetLevel} in ${competencyToAssign.name} through self-directed study`,
                   success_criteria: `Complete self-study materials and demonstrate competency`,
                   trainee_id: userId,
                   assigned_by: currentProfile.id,
@@ -1054,7 +1055,7 @@ export default function CompetenciesPage() {
       // Show success (could add toast here)
     } catch (error) {
       console.error('Error assigning competency:', error);
-      setAssignError(error.message || 'Failed to assign competency');
+      setAssignError(error.message || 'Assignation impossible');
     } finally {
       setAssigning(false);
     }
@@ -1067,10 +1068,10 @@ export default function CompetenciesPage() {
 
     try {
       if (!formData.name) {
-        throw new Error('Competency name is required');
+        throw new Error('Le nom de la compétence est obligatoire');
       }
       if (formData.client_ids.length === 0) {
-        throw new Error('At least one client is required');
+        throw new Error('Au moins un client est obligatoire');
       }
 
       const payload = {
@@ -1205,7 +1206,7 @@ export default function CompetenciesPage() {
       setShowModal(false);
     } catch (error) {
       console.error('Error saving competency:', error);
-      setFormError(error.message || 'Failed to save competency');
+      setFormError(error.message || 'Enregistrement impossible');
     } finally {
       setSubmitting(false);
     }
@@ -1239,7 +1240,7 @@ export default function CompetenciesPage() {
 
     try {
       if (!tagFormData.name) {
-        throw new Error('Tag name is required');
+        throw new Error('Le nom de l’étiquette est obligatoire');
       }
 
       const payload = {
@@ -1265,7 +1266,7 @@ export default function CompetenciesPage() {
       setShowTagModal(false);
     } catch (error) {
       console.error('Error saving tag:', error);
-      setFormError(error.message || 'Failed to save tag');
+      setFormError(error.message || 'Enregistrement impossible');
     } finally {
       setSubmitting(false);
     }
@@ -1306,7 +1307,7 @@ export default function CompetenciesPage() {
       setEditingTag(null);
     } catch (error) {
       console.error('Error deleting tag:', error);
-      alert('Failed to delete tag: ' + (error?.message || 'Unknown error'));
+      alert('Suppression impossible : ' + (error?.message || 'Erreur inconnue'));
       setShowDeleteTagModal(false);
     } finally {
       setSubmitting(false);
@@ -1481,7 +1482,7 @@ export default function CompetenciesPage() {
                 onClick={() => handleOpenTagModal()}
                 className="text-sm text-blue-600 hover:text-blue-700"
               >
-                + Manage Tags
+                + Gérer les étiquettes
               </button>
             )}
           </div>
@@ -1567,8 +1568,8 @@ export default function CompetenciesPage() {
                   <h2 className="text-lg font-semibold text-gray-900">Référentiel de compétences</h2>
                   <p className="text-sm text-gray-500">
                     {selectedChartTags.length === 0 
-                      ? 'Showing all competencies'
-                      : `Showing ${selectedChartTags.length} selected categor${selectedChartTags.length === 1 ? 'y' : 'ies'}`
+                      ? 'Toutes les compétences'
+                      : `Affichage de ${selectedChartTags.length} selected categor${selectedChartTags.length === 1 ? 'y' : 'ies'}`
                     }
                   </p>
                 </div>
@@ -1614,10 +1615,10 @@ export default function CompetenciesPage() {
                       selectedChartTags.includes(comp.tag_id)
                     ).length > 8 && (
                       <p className="text-xs text-gray-400 text-center mt-2">
-                        Showing first 8 competencies. {competencies.filter(comp => 
+                        8 premières compétences affichées. {competencies.filter(comp => 
                           selectedChartTags.length === 0 || 
                           selectedChartTags.includes(comp.tag_id)
-                        ).length - 8} more not displayed.
+                        ).length - 8} autres non affichées.
                       </p>
                     )}
                   </>
@@ -1659,7 +1660,7 @@ export default function CompetenciesPage() {
           </div>
 
           {/* Client Filter (Super Admin only) */}
-          {isSuperAdmin && (
+          {isSuperAdmin && !SINGLE_CLIENT && (
             <div className="relative">
               <select
                 value={clientFilter}
@@ -1773,7 +1774,7 @@ export default function CompetenciesPage() {
               </div>
               
               <h3 className="font-semibold text-gray-900 mb-1">{comp.name}</h3>
-              <p className="text-sm text-gray-500 mb-3 line-clamp-2">{comp.description || 'No description'}</p>
+              <p className="text-sm text-gray-500 mb-3 line-clamp-2">{comp.description || 'Sans description'}</p>
               
               {/* Level Preview */}
               <div className="flex gap-1 mb-3">
@@ -1786,12 +1787,12 @@ export default function CompetenciesPage() {
               </div>
               
               <div className="flex items-center justify-between text-xs text-gray-500">
-                <span className="truncate max-w-[150px]" title={comp.client_names?.join(', ') || 'No clients'}>
+                <span className="truncate max-w-[150px]" title={comp.client_names?.join(', ') || 'Aucun client'}>
                   {comp.client_names?.length > 0 
                     ? comp.client_names.length === 1 
                       ? comp.client_names[0]
                       : `${comp.client_names[0]} +${comp.client_names.length - 1}`
-                    : 'No clients'}
+                    : 'Aucun client'}
                 </span>
                 <span className={`px-2 py-0.5 rounded-full ${comp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                   {comp.is_active ? 'Active' : 'Inactive'}
@@ -1835,7 +1836,7 @@ export default function CompetenciesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
-                    <span title={comp.client_names?.join(', ') || 'No clients'}>
+                    <span title={comp.client_names?.join(', ') || 'Aucun client'}>
                       {comp.client_names?.length > 0 
                         ? comp.client_names.length === 1 
                           ? comp.client_names[0]
@@ -1885,7 +1886,7 @@ export default function CompetenciesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingCompetency ? 'Edit Competency' : 'Add Competency'}
+                {editingCompetency ? 'Modifier la compétence' : 'Add Competency'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -1905,7 +1906,7 @@ export default function CompetenciesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name *
+                  Nom *
                 </label>
                 <input
                   type="text"
@@ -2013,6 +2014,7 @@ export default function CompetenciesPage() {
                 </select>
               </div>
 
+              {!SINGLE_CLIENT && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Clients *
@@ -2036,6 +2038,8 @@ export default function CompetenciesPage() {
                   ))}
                 </div>
               </div>
+              )}
+
 
               {/* Level Descriptions */}
               <div>
@@ -2150,7 +2154,7 @@ export default function CompetenciesPage() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Training Developer *</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Concepteur de formation *</label>
                           <select
                             value={formData.training_developer_assignment}
                             onChange={(e) => setFormData({ ...formData, training_developer_assignment: e.target.value })}
@@ -2280,7 +2284,7 @@ export default function CompetenciesPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {submitting ? 'Saving...' : editingCompetency ? 'Update' : 'Create'}
+                  {submitting ? 'Saving...' : editingCompetency ? 'Enregistrer' : 'Créer'}
                 </button>
               </div>
             </form>
@@ -2294,7 +2298,7 @@ export default function CompetenciesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingTag ? 'Edit Tag' : 'Create Tag'}
+                {editingTag ? 'Modifier l’étiquette' : 'Créer une étiquette'}
               </h2>
               <button
                 onClick={() => setShowTagModal(false)}
@@ -2343,14 +2347,14 @@ export default function CompetenciesPage() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Choisir une étiquette…</option>
-                    <option value="Safety">🛡️ Safety</option>
-                    <option value="Quality">✨ Quality</option>
-                    <option value="Cost">💰 Cost</option>
-                    <option value="Supply">📦 Supply</option>
-                    <option value="Technical">⚙️ Technical</option>
-                    <option value="Sustainability">🌱 Sustainability</option>
-                    <option value="Soft Skills">💬 Soft Skills</option>
-                    <option value="custom">➕ Add Custom...</option>
+                    <option value="Safety">🛡️ Sécurité</option>
+                    <option value="Quality">✨ Qualité</option>
+                    <option value="Cost">💰 Coûts</option>
+                    <option value="Supply">📦 Supply chain</option>
+                    <option value="Technical">⚙️ Technique</option>
+                    <option value="Sustainability">🌱 Développement durable</option>
+                    <option value="Soft Skills">💬 Savoir-être</option>
+                    <option value="custom">➕ Personnalisée…</option>
                   </select>
                 </div>
               )}
@@ -2360,7 +2364,7 @@ export default function CompetenciesPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-sm font-medium text-gray-700">
-                      Tag Name *
+                      Nom de l’étiquette *
                     </label>
                     {tagFormData.isCustom && !editingTag && (
                       <button
@@ -2368,7 +2372,7 @@ export default function CompetenciesPage() {
                         onClick={() => setTagFormData({ ...tagFormData, name: '', isCustom: false })}
                         className="text-xs text-blue-600 hover:underline"
                       >
-                        ← Back to list
+                        ← Retour à la liste
                       </button>
                     )}
                   </div>
@@ -2473,7 +2477,7 @@ export default function CompetenciesPage() {
                     disabled={submitting}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {submitting ? 'Saving...' : editingTag ? 'Update' : 'Create'}
+                    {submitting ? 'Saving...' : editingTag ? 'Enregistrer' : 'Créer'}
                   </button>
                 </div>
               </div>
@@ -2494,8 +2498,7 @@ export default function CompetenciesPage() {
                 Supprimer l’étiquette ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Voulez-vous vraiment supprimer <strong>{tagToDelete.name}</strong>? 
-                This will remove it from all competencies.
+                Voulez-vous vraiment supprimer <strong>{tagToDelete.name}</strong> ? Elle sera retirée de toutes les compétences.
               </p>
               <div className="flex gap-3">
                 <button
@@ -2513,7 +2516,7 @@ export default function CompetenciesPage() {
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
                 >
-                  {submitting ? 'Deleting...' : 'Delete'}
+                  {submitting ? 'Suppression…' : 'Delete'}
                 </button>
               </div>
             </div>
@@ -2533,8 +2536,7 @@ export default function CompetenciesPage() {
                 Supprimer la compétence ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Voulez-vous vraiment supprimer <strong>{competencyToDelete.name}</strong>? 
-                This action cannot be undone.
+                Voulez-vous vraiment supprimer <strong>{competencyToDelete.name}</strong> ? Cette action est irréversible.
               </p>
               <div className="flex gap-3">
                 <button
@@ -2624,8 +2626,8 @@ export default function CompetenciesPage() {
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   {assignFormData.current_level > 0 
-                    ? `Will be validated at Level ${assignFormData.current_level}` 
-                    : 'Select a development method below'}
+                    ? `Sera validé au niveau ${assignFormData.current_level}` 
+                    : 'Choisissez une méthode ci-dessous'}
                 </p>
               </div>
 
@@ -2633,7 +2635,7 @@ export default function CompetenciesPage() {
               {assignFormData.current_level === 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Development Method *
+                    Méthode de développement *
                   </label>
                   <div className="space-y-2">
                     {/* Coaching */}
@@ -2739,7 +2741,7 @@ export default function CompetenciesPage() {
                   {linkedTrainingModules.length > 0 ? (
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="text-xs text-blue-600 mb-2">
-                        The following modules are linked to this competency and will be assigned:
+                        Les formations suivantes sont liées à cette compétence et seront assignées :
                       </p>
                       <ul className="space-y-1">
                         {linkedTrainingModules.map(module => (
@@ -2770,14 +2772,14 @@ export default function CompetenciesPage() {
               {assignFormData.current_level === 0 && (assignFormData.development_method === 'coaching' || assignFormData.development_method === 'on_the_job') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {assignFormData.development_method === 'coaching' ? 'Coach' : 'Supervisor'} *
+                    {assignFormData.development_method === 'coaching' ? 'Coach' : 'Responsable'} *
                   </label>
                   <select
                     value={assignFormData.coach_id}
                     onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                   >
-                    <option value="">Select {assignFormData.development_method === 'coaching' ? 'coach' : 'supervisor'}...</option>
+                    <option value="">Choisir {assignFormData.development_method === 'coaching' ? 'coach' : 'supervisor'}...</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>{user.full_name}</option>
                     ))}
@@ -2788,7 +2790,7 @@ export default function CompetenciesPage() {
               {/* Select Users */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Users to Assign *
+                  Choisir les personnes *
                 </label>
                 
                 {loadingExisting ? (
@@ -2801,7 +2803,7 @@ export default function CompetenciesPage() {
                     {existingUserCompetencies.length > 0 && (
                       <div className="border-b border-gray-200">
                         <div className="px-3 py-2 bg-gray-100 text-xs font-medium text-gray-600 sticky top-0">
-                          Already Assigned ({existingUserCompetencies.length})
+                          Déjà assignées ({existingUserCompetencies.length})
                         </div>
                         {existingUserCompetencies.map(uc => {
                           const inNetwork = isUserInNetwork(uc.user_id, competencyToAssign.id);
@@ -2824,7 +2826,7 @@ export default function CompetenciesPage() {
                                   <p className="text-xs text-gray-500">
                                     L{uc.current_level || 0} → L{uc.target_level} 
                                     {uc.current_level >= uc.target_level && (
-                                      <span className="ml-1 text-green-600">✓ Achieved</span>
+                                      <span className="ml-1 text-green-600">✓ Atteint</span>
                                     )}
                                   </p>
                                 </div>
@@ -2837,7 +2839,7 @@ export default function CompetenciesPage() {
                                   </span>
                                 ) : nominationStatus === 'pending' ? (
                                   <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded">
-                                    ⏳ Pending
+                                    ⏳ En attente
                                   </span>
                                 ) : canRecommend ? (
                                   <button
@@ -2888,7 +2890,7 @@ export default function CompetenciesPage() {
                         <>
                           {existingUserCompetencies.length > 0 && (
                             <div className="px-3 py-2 bg-gray-100 text-xs font-medium text-gray-600 sticky top-0">
-                              Available to Assign ({availableUsers.length})
+                              Disponibles ({availableUsers.length})
                             </div>
                           )}
                           {availableUsers.map(user => (
@@ -2928,7 +2930,7 @@ export default function CompetenciesPage() {
                   </div>
                 )}
                 {assignFormData.user_ids.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} user(s) selected</p>
+                  <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} personne(s) sélectionnée(s)</p>
                 )}
               </div>
 
@@ -2968,7 +2970,7 @@ export default function CompetenciesPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                {assignFormData.current_level > 0 ? 'Assign & Validate' : 'Assign Competency'}
+                {assignFormData.current_level > 0 ? 'Assigner et valider' : 'Assigner la compétence'}
               </button>
             </div>
           </div>
@@ -3004,9 +3006,9 @@ export default function CompetenciesPage() {
               {/* Trainee Info */}
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-500">Apprenant</p>
-                <p className="font-medium">{competencyToValidate.user?.full_name || 'Unknown User'}</p>
+                <p className="font-medium">{competencyToValidate.user?.full_name || 'Personne inconnue'}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Current: Level {competencyToValidate.current_level || 0} → Target: Level {competencyToValidate.target_level}
+                  Actuel : niveau {competencyToValidate.current_level || 0} → Cible : niveau {competencyToValidate.target_level}
                 </p>
               </div>
 
@@ -3065,7 +3067,7 @@ export default function CompetenciesPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                Confirm Validation
+                Confirmer la validation
               </button>
             </div>
           </div>
@@ -3213,7 +3215,7 @@ export default function CompetenciesPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
               >
                 {nominating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Submit Nomination
+                Envoyer la nomination
               </button>
             </div>
           </div>

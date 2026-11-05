@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { DEFAULT_CLIENT_ID, SINGLE_CLIENT } from '../lib/features';
 import {
   Users,
   Plus,
@@ -37,7 +38,7 @@ export default function CompetencyProfilesPage() {
   const [trainees, setTrainees] = useState([]); // For profile assignment
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(DEFAULT_CLIENT_ID || 'all');
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -51,7 +52,7 @@ export default function CompetencyProfilesPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    client_id: '',
+    client_id: DEFAULT_CLIENT_ID || '',
     owner_id: '',                    // Profile owner (follows up & validates)
     competencies: [], // Array of { competency_id, default_target_level }
     training_modules: [] // Array of module IDs
@@ -232,7 +233,7 @@ export default function CompetencyProfilesPage() {
 
     try {
       if (assignFormData.user_ids.length === 0) {
-        throw new Error('Please select at least one user');
+        throw new Error('Choisissez au moins une personne');
       }
 
       const coachId = assignFormData.coach_id || profileToAssign.owner_id || null;
@@ -293,9 +294,9 @@ export default function CompetencyProfilesPage() {
               body: JSON.stringify({
                 type: 'coaching',
                 title: `Coaching: ${competencyName}`,
-                description: `Coaching session for developing ${competencyName} competency to Level ${pc.default_target_level || 3}`,
-                objectives: `Achieve Level ${pc.default_target_level || 3} in ${competencyName}`,
-                success_criteria: `Trainee demonstrates competency at Level ${pc.default_target_level || 3} and is validated by coach`,
+                description: `Séance de coaching pour développer ${competencyName} compétence au niveau ${pc.default_target_level || 3}`,
+                objectives: `Atteindre le niveau ${pc.default_target_level || 3} in ${competencyName}`,
+                success_criteria: `L’apprenant démontre la compétence au niveau ${pc.default_target_level || 3} et est validé par le coach`,
                 trainee_id: userId,
                 assigned_by: currentProfile.id,
                 coach_id: coachId,
@@ -339,7 +340,7 @@ export default function CompetencyProfilesPage() {
       await loadData(); // Reload to show updated assignments
     } catch (error) {
       console.error('Error assigning profile:', error);
-      setAssignError(error.message || 'Failed to assign profile');
+      setAssignError(error.message || 'Assignation du profil impossible');
     } finally {
       setAssigning(false);
     }
@@ -352,13 +353,13 @@ export default function CompetencyProfilesPage() {
 
     try {
       if (!formData.name) {
-        throw new Error('Profile name is required');
+        throw new Error('Le nom du profil est obligatoire');
       }
       if (!formData.client_id) {
-        throw new Error('Client is required');
+        throw new Error('Le client est obligatoire');
       }
       if (formData.competencies.length === 0 && formData.training_modules.length === 0) {
-        throw new Error('At least one competency or training module is required');
+        throw new Error('Au moins une compétence ou une formation est obligatoire');
       }
 
       const payload = {
@@ -433,7 +434,7 @@ export default function CompetencyProfilesPage() {
       setShowModal(false);
     } catch (error) {
       console.error('Error saving profile:', error);
-      setFormError(error.message || 'Failed to save profile');
+      setFormError(error.message || 'Enregistrement du profil impossible');
     } finally {
       setSubmitting(false);
     }
@@ -599,7 +600,7 @@ export default function CompetencyProfilesPage() {
             />
           </div>
           
-          {isSuperAdmin && (
+          {isSuperAdmin && !SINGLE_CLIENT && (
             <div className="relative">
               <select
                 value={clientFilter}
@@ -642,7 +643,7 @@ export default function CompetencyProfilesPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{profile.name}</h3>
-                    <p className="text-xs text-gray-500">{profile.clients?.name || 'No client'}</p>
+                    <p className="text-xs text-gray-500">{profile.clients?.name || 'Aucun client'}</p>
                   </div>
                 </div>
                 <div className="relative">
@@ -710,7 +711,7 @@ export default function CompetencyProfilesPage() {
                     <span
                       key={pc.competency_id}
                       className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600"
-                      title={`Target Level: ${pc.default_target_level}`}
+                      title={`Niveau cible : ${pc.default_target_level}`}
                     >
                       <span
                         className="w-1.5 h-1.5 rounded-full"
@@ -732,12 +733,12 @@ export default function CompetencyProfilesPage() {
               {(profile.owner || profile.profile_training_modules?.length > 0) && (
                 <div className="flex gap-4 text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
                   {profile.owner && (
-                    <span>Owner: <span className="text-gray-700">{profile.owner.full_name}</span></span>
+                    <span>Responsable : <span className="text-gray-700">{profile.owner.full_name}</span></span>
                   )}
                   {profile.profile_training_modules?.length > 0 && (
                     <span className="flex items-center gap-1">
                       <BookOpen className="w-3 h-3" />
-                      <span className="text-gray-700">{profile.profile_training_modules.length} training module{profile.profile_training_modules.length !== 1 ? 's' : ''}</span>
+                      <span className="text-gray-700">{profile.profile_training_modules.length} formation{profile.profile_training_modules.length !== 1 ? 's' : ''}</span>
                     </span>
                   )}
                 </div>
@@ -766,7 +767,7 @@ export default function CompetencyProfilesPage() {
                   <Briefcase className="w-5 h-5 text-blue-600" />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {editingProfile ? 'Edit Profile' : 'Create Profile'}
+                  {editingProfile ? 'Modifier le profil' : 'Create Profile'}
                 </h2>
               </div>
               <button
@@ -790,7 +791,7 @@ export default function CompetencyProfilesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Profile Name *
+                      Nom du profil *
                     </label>
                     <input
                       type="text"
@@ -801,6 +802,7 @@ export default function CompetencyProfilesPage() {
                     />
                   </div>
 
+                  {!SINGLE_CLIENT && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Client *
@@ -817,6 +819,8 @@ export default function CompetencyProfilesPage() {
                       ))}
                     </select>
                   </div>
+                  )}
+
 
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -894,7 +898,7 @@ export default function CompetencyProfilesPage() {
                             
                             {isSelected && (
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500">Target:</span>
+                                <span className="text-xs text-gray-500">Cible :</span>
                                 <div className="flex gap-1">
                                   {[1, 2, 3, 4, 5].map(level => (
                                     <button
@@ -938,7 +942,7 @@ export default function CompetencyProfilesPage() {
                               className="w-2 h-2 rounded-full"
                               style={{ backgroundColor: '#3B82F6' }}
                             />
-                            {comp?.name || 'Unknown'}
+                            {comp?.name || 'Inconnu'}
                             <span className="text-blue-600 font-medium">L{fc.default_target_level}</span>
                             <button
                               type="button"
@@ -1016,7 +1020,7 @@ export default function CompetencyProfilesPage() {
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-sm"
                           >
                             <BookOpen className="w-3.5 h-3.5" />
-                            {module?.title || 'Unknown'}
+                            {module?.title || 'Inconnu'}
                             <button
                               type="button"
                               onClick={() => toggleTrainingModule(moduleId)}
@@ -1046,7 +1050,7 @@ export default function CompetencyProfilesPage() {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : editingProfile ? 'Update Profile' : 'Create Profile'}
+                  {submitting ? 'Saving...' : editingProfile ? 'Enregistrer le profil' : 'Create Profile'}
                 </button>
               </div>
             </form>
@@ -1066,8 +1070,7 @@ export default function CompetencyProfilesPage() {
                 Supprimer le profil ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Voulez-vous vraiment supprimer <strong>{profileToDelete.name}</strong>? 
-                This will not affect users who already have these competencies assigned.
+                Voulez-vous vraiment supprimer <strong>{profileToDelete.name}</strong> ? Les personnes ayant déjà ces compétences ne sont pas affectées.
               </p>
               <div className="flex gap-3">
                 <button
@@ -1127,7 +1130,7 @@ export default function CompetencyProfilesPage() {
               {/* Profile Info */}
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  Cette action assignera <strong>{profileToAssign.profile_competencies?.length || 0} competencies</strong> to the selected users:
+                  Cette action assignera <strong>{profileToAssign.profile_competencies?.length || 0} competencies</strong> aux personnes sélectionnées :
                 </p>
                 <div className="flex flex-wrap gap-1 mt-2">
                   {profileToAssign.profile_competencies?.map(pc => (
@@ -1141,7 +1144,7 @@ export default function CompetencyProfilesPage() {
               {/* Select Users */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Users to Assign *
+                  Choisir les personnes *
                 </label>
                 <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
                   {trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').length === 0 ? (
@@ -1181,7 +1184,7 @@ export default function CompetencyProfilesPage() {
                   )}
                 </div>
                 {assignFormData.user_ids.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} user(s) selected</p>
+                  <p className="text-xs text-gray-500 mt-1">{assignFormData.user_ids.length} personne(s) sélectionnée(s)</p>
                 )}
               </div>
 
@@ -1195,7 +1198,7 @@ export default function CompetencyProfilesPage() {
                   onChange={(e) => setAssignFormData({ ...assignFormData, coach_id: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 >
-                  <option value="">Use profile owner ({profileToAssign.owner?.full_name || 'None'})</option>
+                  <option value="">Responsable du profil ({profileToAssign.owner?.full_name || 'Aucun'})</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>{user.full_name}</option>
                   ))}
@@ -1236,7 +1239,7 @@ export default function CompetencyProfilesPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                Assign Profile
+                Assigner le profil
               </button>
             </div>
           </div>

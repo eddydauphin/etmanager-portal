@@ -58,3 +58,11 @@ export function useFeatures() {
   }, []);
   return features;
 }
+
+/**
+ * Mode client unique. La plateforme ne sert qu'une organisation : les
+ * sélecteurs de client disparaissent et tout ce qui est créé ou filtré
+ * l'est pour ce client. Changer l'organisation : VITE_DEFAULT_CLIENT_ID.
+ */
+export const DEFAULT_CLIENT_ID = import.meta.env.VITE_DEFAULT_CLIENT_ID || '31943f28-53d9-4fe2-8797-071a6ac07eff'; // Savencia
+export const SINGLE_CLIENT = !!DEFAULT_CLIENT_ID;

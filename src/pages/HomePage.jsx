@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
+import { DEFAULT_CLIENT_ID, SINGLE_CLIENT } from '../lib/features';
 import {
   Users, GraduationCap, Rocket, Network, AlertTriangle, Loader2, ArrowRight, Target, BookOpen, UserPlus, Plus
 } from 'lucide-react';
@@ -105,7 +106,7 @@ function Shortcut({ icon: Icon, label, to }) {
 function ManagerHome({ profile }) {
   const isSuperAdmin = profile.role === 'super_admin';
   const [clients, setClients] = useState([]);
-  const [clientId, setClientId] = useState(profile.client_id || '');
+  const [clientId, setClientId] = useState(profile.client_id || DEFAULT_CLIENT_ID || '');
   const [data, setData] = useState({ people: [], trainings: [], activities: [], modules: [] });
   const [loading, setLoading] = useState(true);
 
@@ -154,7 +155,7 @@ function ManagerHome({ profile }) {
           <h1 className="text-2xl font-bold text-gray-900">Bonjour {firstName(profile.full_name)}</h1>
           <p className="text-gray-600">{loading ? 'Chargement…' : lateTrainings.length === 0 && openActivities.filter(isLate).length === 0 ? 'Rien en retard.' : `${lateTrainings.length + openActivities.filter(isLate).length} élément(s) en retard à traiter.`}</p>
         </div>
-        {isSuperAdmin && (
+        {isSuperAdmin && !SINGLE_CLIENT && (
           <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" aria-label="Client">
             <option value="">Tous les clients</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -167,7 +168,7 @@ function ManagerHome({ profile }) {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Kpi icon={Users} value={data.people.length} label={clientLabel ? `Personnes · ${clientLabel}` : 'Personnes'} to="/users" />
+            <Kpi icon={Users} value={data.people.length} label="Personnes" to="/users" />
             <Kpi icon={GraduationCap} value={openTrainings.length} label="Formations en cours" to="/training" />
             <Kpi icon={AlertTriangle} value={lateTrainings.length} label="Formations en retard" tone={lateTrainings.length ? 'text-red-600' : 'text-green-600'} to="/training" />
             <Kpi icon={Rocket} value={openActivities.length} label="Actions de coaching en cours" to="/training?onglet=coaching" />

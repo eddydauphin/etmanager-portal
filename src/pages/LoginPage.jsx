@@ -35,7 +35,7 @@ export default function LoginPage() {
       // Navigate to dashboard (AuthContext will handle redirect if password change needed)
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Failed to sign in');
+      setError(err.message || 'Connexion impossible');
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,7 @@ export default function LoginPage() {
 
       setResetSent(true);
     } catch (err) {
-      setResetError(err.message || 'Failed to send reset email');
+      setResetError(err.message || 'Envoi de l’e-mail impossible');
     } finally {
       setResetLoading(false);
     }
@@ -171,7 +171,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <p className="text-center text-sm text-gray-500 mt-6">
-            Need help? Contact{' '}
+            Besoin d’aide ? Contactez{' '}
             <a href="mailto:support@foodekconsulting.com" className="text-blue-600 hover:underline">
               support@foodekconsulting.com
             </a>
@@ -292,7 +292,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-gray-500 mt-6">
-          Need help? Contact{' '}
+          Besoin d’aide ? Contactez{' '}
           <a href="mailto:support@foodekconsulting.com" className="text-blue-600 hover:underline">
             support@foodekconsulting.com
           </a>

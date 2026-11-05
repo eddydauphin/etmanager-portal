@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { dbFetch } from '../lib/db';
+import { DEFAULT_CLIENT_ID, SINGLE_CLIENT } from '../lib/features';
 import {
   Network,
   Plus,
@@ -71,7 +72,7 @@ export default function ExpertNetworkPage() {
   const [activeTab, setActiveTab] = useState('networks');
   
   // Filter state
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(DEFAULT_CLIENT_ID || 'all');
   const [factoryFilter, setFactoryFilter] = useState('all');
   const [selectedNetwork, setSelectedNetwork] = useState(null);
   
@@ -88,7 +89,7 @@ export default function ExpertNetworkPage() {
   const [networkForm, setNetworkForm] = useState({
     name: '',
     description: '',
-    client_id: '',
+    client_id: DEFAULT_CLIENT_ID || '',
     competency_id: '',
     factory: '',
     line: '',
@@ -402,9 +403,11 @@ export default function ExpertNetworkPage() {
     const memberCount = getNetworkMembers(network.id).length;
     const actionCount = getNetworkActions(network.id).length;
     
-    let confirmMsg = `Are you sure you want to delete "${network.name}"?`;
+    let confirmMsg = `Voulez-vous vraiment supprimer « ${network.name}"?`;
     if (memberCount > 0 || actionCount > 0) {
-      confirmMsg += `\n\nThis will also delete:\n- ${memberCount} member(s)\n- ${actionCount} action plan(s)`;
+      confirmMsg += `
+
+Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d’action`;
     }
     
     if (!confirm(confirmMsg)) return;
@@ -419,7 +422,7 @@ export default function ExpertNetworkPage() {
       loadNetworks();
     } catch (error) {
       console.error('Error deleting network:', error);
-      alert('Failed to delete network: ' + error.message);
+      alert('Suppression impossible : ' + error.message);
     }
   };
 
@@ -430,11 +433,11 @@ export default function ExpertNetworkPage() {
 
     try {
       if (!networkForm.name || !networkForm.client_id) {
-        throw new Error('Name and client are required');
+        throw new Error('Le nom et le client sont obligatoires');
       }
 
       if (!networkForm.competency_id) {
-        throw new Error('Competency is required - each network must be linked to a competency');
+        throw new Error('La compétence est obligatoire : chaque réseau est lié à une compétence');
       }
 
       const data = {
@@ -507,7 +510,7 @@ export default function ExpertNetworkPage() {
 
     try {
       if (!memberForm.user_id || !memberForm.role) {
-        throw new Error('User and role are required');
+        throw new Error('La personne et le rôle sont obligatoires');
       }
 
       const data = {
@@ -543,7 +546,7 @@ export default function ExpertNetworkPage() {
   };
 
   const handleDeleteMember = async (memberId) => {
-    if (!confirm('Remove this member from the network?')) return;
+    if (!confirm('Retirer ce membre du réseau ?')) return;
     
     try {
       await dbFetch(`expert_network_members?id=eq.${memberId}`, {
@@ -575,7 +578,7 @@ export default function ExpertNetworkPage() {
     const network = networks.find(n => n.competency_id === nomination.competency_id);
     
     if (!network) {
-      alert('No network exists for this competency. Please create a network first.');
+      alert('Aucun réseau pour cette compétence. Créez-en un d’abord.');
       return;
     }
 
@@ -614,13 +617,13 @@ export default function ExpertNetworkPage() {
       loadNetworks();
     } catch (error) {
       console.error('Error approving nomination:', error);
-      alert('Failed to approve nomination: ' + error.message);
+      alert('Approbation impossible : ' + error.message);
     }
   };
 
   // Handle nomination rejection
   const handleRejectNomination = async (nomination) => {
-    const reason = prompt('Please provide a reason for rejection (optional):');
+    const reason = prompt('Motif du refus (facultatif) :');
     
     try {
       await dbFetch(`expert_nominations?id=eq.${nomination.id}`, {
@@ -636,7 +639,7 @@ export default function ExpertNetworkPage() {
       loadNominations();
     } catch (error) {
       console.error('Error rejecting nomination:', error);
-      alert('Failed to reject nomination: ' + error.message);
+      alert('Refus impossible : ' + error.message);
     }
   };
 
@@ -681,7 +684,7 @@ export default function ExpertNetworkPage() {
 
     try {
       if (!actionForm.title) {
-        throw new Error('Title is required');
+        throw new Error('Le titre est obligatoire');
       }
 
       const data = {
@@ -808,8 +811,8 @@ export default function ExpertNetworkPage() {
             <h1 className="text-2xl font-bold text-gray-900">Réseau d’experts</h1>
             <p className="text-gray-500 mt-1">
               {isViewOnly 
-                ? 'View knowledge networks and subject matter experts' 
-                : 'Manage knowledge networks and subject matter experts'}
+                ? 'Consulter les réseaux et les experts métier' 
+                : 'Réseaux de connaissances et experts métier'}
             </p>
           </div>
           {canCreateNetwork && (
@@ -916,13 +919,13 @@ export default function ExpertNetworkPage() {
                           </div>
                         </div>
                         <div className="ml-13 space-y-1 text-sm">
-                          <p><span className="text-gray-500">Competency:</span> <span className="font-medium">{nomination.competency?.name}</span></p>
-                          <p><span className="text-gray-500">Level:</span> <span className="font-medium text-purple-600">Level {nomination.current_level}</span></p>
-                          <p><span className="text-gray-500">Proposed Role:</span> <span className="font-medium capitalize">{nomination.proposed_role?.replace('_', ' ')}</span></p>
-                          {nomination.site_name && <p><span className="text-gray-500">Site:</span> <span className="font-medium">{nomination.site_name}</span></p>}
-                          <p><span className="text-gray-500">Nominated by:</span> <span className="font-medium">{nomination.nominator?.full_name}</span></p>
-                          <p><span className="text-gray-500">Date:</span> <span className="font-medium">{new Date(nomination.created_at).toLocaleDateString()}</span></p>
-                          {nomination.notes && <p><span className="text-gray-500">Notes:</span> {nomination.notes}</p>}
+                          <p><span className="text-gray-500">Compétence :</span> <span className="font-medium">{nomination.competency?.name}</span></p>
+                          <p><span className="text-gray-500">Niveau :</span> <span className="font-medium text-purple-600">Level {nomination.current_level}</span></p>
+                          <p><span className="text-gray-500">Rôle proposé :</span> <span className="font-medium capitalize">{nomination.proposed_role?.replace('_', ' ')}</span></p>
+                          {nomination.site_name && <p><span className="text-gray-500">Site :</span> <span className="font-medium">{nomination.site_name}</span></p>}
+                          <p><span className="text-gray-500">Nommé par :</span> <span className="font-medium">{nomination.nominator?.full_name}</span></p>
+                          <p><span className="text-gray-500">Date :</span> <span className="font-medium">{new Date(nomination.created_at).toLocaleDateString()}</span></p>
+                          {nomination.notes && <p><span className="text-gray-500">Notes :</span> {nomination.notes}</p>}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -1121,7 +1124,7 @@ export default function ExpertNetworkPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex flex-wrap gap-4">
             {/* Client Filter - Only for Super Admin */}
-            {currentProfile?.role === 'super_admin' && (
+            {currentProfile?.role === 'super_admin' && !SINGLE_CLIENT && (
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <select
@@ -1176,8 +1179,8 @@ export default function ExpertNetworkPage() {
             <h3 className="text-lg font-medium text-gray-900 mb-1">Aucun réseau trouvé</h3>
             <p className="text-gray-500 mb-4">
               {canCreateNetwork 
-                ? 'Create your first expert network to get started'
-                : 'No expert networks have been created yet'}
+                ? 'Créez un premier réseau d’experts pour commencer'
+                : 'Aucun réseau d’experts pour l’instant'}
             </p>
             {canCreateNetwork && (
               <button
@@ -1293,7 +1296,7 @@ export default function ExpertNetworkPage() {
                   <div className="p-4 border-b border-gray-100">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-gray-600">Maturité moyenne</span>
-                      <span className="text-sm text-gray-500">Target: {network.target_maturity}</span>
+                      <span className="text-sm text-gray-500">Cible : {network.target_maturity}</span>
                     </div>
                     <MaturityBar level={parseFloat(stats.avgMaturity)} target={network.target_maturity} />
                   </div>
@@ -1349,7 +1352,7 @@ export default function ExpertNetworkPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
-                {editingNetwork ? 'Edit Network' : 'Create Network'}
+                {editingNetwork ? 'Modifier le réseau' : 'Create Network'}
               </h2>
               <button
                 onClick={() => setShowNetworkModal(false)}
@@ -1368,7 +1371,7 @@ export default function ExpertNetworkPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Network Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom du réseau *</label>
                 <input
                   type="text"
                   value={networkForm.name}
@@ -1390,9 +1393,9 @@ export default function ExpertNetworkPage() {
                 />
               </div>
 
-              {currentProfile?.role === 'super_admin' && (
+              {currentProfile?.role === 'super_admin' && !SINGLE_CLIENT && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Organization *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Organisation *</label>
                   <select
                     value={networkForm.client_id}
                     onChange={(e) => setNetworkForm({ ...networkForm, client_id: e.target.value })}
@@ -1408,7 +1411,7 @@ export default function ExpertNetworkPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Linked Competency *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Compétence liée *</label>
                 <select
                   value={networkForm.competency_id}
                   onChange={(e) => setNetworkForm({ ...networkForm, competency_id: e.target.value })}
@@ -1478,7 +1481,7 @@ export default function ExpertNetworkPage() {
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : (editingNetwork ? 'Update' : 'Create')}
+                  {submitting ? 'Saving...' : (editingNetwork ? 'Enregistrer' : 'Créer')}
                 </button>
               </div>
             </form>
@@ -1493,7 +1496,7 @@ export default function ExpertNetworkPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {editingMember ? 'Edit Member' : 'Add Member'}
+                  {editingMember ? 'Modifier le membre' : 'Add Member'}
                 </h2>
                 <p className="text-sm text-gray-500">{selectedNetwork.name}</p>
               </div>
@@ -1514,7 +1517,7 @@ export default function ExpertNetworkPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Person *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Personne *</label>
                 <select
                   value={memberForm.user_id}
                   onChange={(e) => setMemberForm({ ...memberForm, user_id: e.target.value })}
@@ -1534,7 +1537,7 @@ export default function ExpertNetworkPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Rôle *</label>
                 <div className="space-y-2">
                   <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${memberForm.role === 'network_leader' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'}`}>
                     <input
@@ -1663,7 +1666,7 @@ export default function ExpertNetworkPage() {
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : (editingMember ? 'Update' : 'Add')}
+                  {submitting ? 'Saving...' : (editingMember ? 'Enregistrer' : 'Add')}
                 </button>
               </div>
             </form>
@@ -1678,7 +1681,7 @@ export default function ExpertNetworkPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {editingAction ? 'Edit Action' : 'Add Action'}
+                  {editingAction ? 'Modifier l’action' : 'Add Action'}
                 </h2>
                 <p className="text-sm text-gray-500">{selectedNetwork.name}</p>
               </div>
@@ -1699,7 +1702,7 @@ export default function ExpertNetworkPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Title *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Titre *</label>
                 <input
                   type="text"
                   value={actionForm.title}
@@ -1789,7 +1792,7 @@ export default function ExpertNetworkPage() {
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : (editingAction ? 'Update' : 'Add')}
+                  {submitting ? 'Saving...' : (editingAction ? 'Enregistrer' : 'Add')}
                 </button>
               </div>
             </form>
@@ -1830,7 +1833,7 @@ export default function ExpertNetworkPage() {
                       }}
                       className="text-sm text-blue-600 hover:text-blue-700"
                     >
-                      + Add Member
+                      + Ajouter un membre
                     </button>
                   </div>
                   
@@ -1899,7 +1902,7 @@ export default function ExpertNetworkPage() {
                       }}
                       className="text-sm text-blue-600 hover:text-blue-700"
                     >
-                      + Add Action
+                      + Ajouter une action
                     </button>
                   </div>
                   
@@ -1923,7 +1926,7 @@ export default function ExpertNetworkPage() {
                                 <div className="font-medium text-gray-900">{action.title}</div>
                                 <div className="text-sm text-gray-500 mt-0.5">
                                   {action.assigned_user?.full_name || 'Unassigned'}
-                                  {action.due_date && ` • Due: ${new Date(action.due_date).toLocaleDateString()}`}
+                                  {action.due_date && ` • Échéance : ${new Date(action.due_date).toLocaleDateString()}`}
                                 </div>
                               </div>
                               <span className={`text-xs font-medium ${getPriorityColor(action.priority)}`}>

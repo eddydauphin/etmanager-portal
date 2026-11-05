@@ -131,13 +131,13 @@ function TrainingCard({ training, onStart, onContinue }) {
           {module?.pass_score && (
             <span className="flex items-center gap-1">
               <Target className="w-4 h-4" />
-              Pass: {module.pass_score}%
+              Réussite : {module.pass_score}%
             </span>
           )}
           {dueDate && (
             <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
               <Calendar className="w-4 h-4" />
-              Due: {dueDate.toLocaleDateString()}
+              Échéance : {dueDate.toLocaleDateString()}
             </span>
           )}
         </div>
@@ -146,8 +146,8 @@ function TrainingCard({ training, onStart, onContinue }) {
         {status === 'in_progress' && training.attempts > 0 && (
           <div className="mb-4">
             <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>Best Score: {training.best_score || 0}%</span>
-              <span>Attempts: {training.attempts}/{module?.max_attempts || 3}</span>
+              <span>Meilleur score : {training.best_score || 0}%</span>
+              <span>Tentatives : {training.attempts}/{module?.max_attempts || 3}</span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div 
@@ -163,7 +163,7 @@ function TrainingCard({ training, onStart, onContinue }) {
           <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg mb-4">
             <Trophy className="w-8 h-8 text-green-500" />
             <div>
-              <p className="font-medium text-green-700">Score: {training.best_score}%</p>
+              <p className="font-medium text-green-700">Score : {training.best_score}%</p>
               <p className="text-sm text-green-600">
                 Completed {training.completed_at ? new Date(training.completed_at).toLocaleDateString() : ''}
               </p>
@@ -270,7 +270,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
         <div className="flex items-center justify-between text-white">
           <div>
-            <p className="text-blue-100 text-sm">Slide {currentSlide + 1} of {slides.length}</p>
+            <p className="text-blue-100 text-sm">Diapositive {currentSlide + 1} of {slides.length}</p>
             <h2 className="text-xl font-semibold">{slide?.title}</h2>
           </div>
           
@@ -285,7 +285,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
                     ? 'bg-white/20 hover:bg-white/30' 
                     : 'bg-red-500/30 hover:bg-red-500/40'
                 }`}
-                title={audioEnabled ? 'Disable audio narration' : 'Enable audio narration'}
+                title={audioEnabled ? 'Désactiver la narration audio' : 'Activer la narration audio'}
               >
                 {audioEnabled ? (
                   <Volume2 className="w-5 h-5" />
@@ -494,12 +494,12 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
             )}
           </div>
           <h2 className="text-3xl font-bold text-white mb-2">
-            {passed ? 'Congratulations!' : 'Keep Trying!'}
+            {passed ? 'Félicitations !' : 'Continuez !'}
           </h2>
           <p className="text-white/90 text-lg">
             {passed 
-              ? 'You have successfully passed this training module.'
-              : `You need ${passScore}% to pass. You can try again.`
+              ? 'Vous avez réussi cette formation.'
+              : `Il vous faut ${passScore}% pour réussir. Vous pouvez réessayer.`
             }
           </p>
         </div>
@@ -548,7 +548,7 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
                       <p className="text-sm text-gray-700 truncate">Q{index + 1}: {q.question_text}</p>
                       {!isCorrect && (
                         <p className="text-xs text-gray-500 mt-0.5">
-                          Correct: {q.correct_answer}
+                          Correctes : {q.correct_answer}
                         </p>
                       )}
                     </div>
@@ -573,7 +573,7 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
           </div>
           <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full">
             <Target className="w-4 h-4" />
-            <span className="text-sm font-medium">Pass: {passScore}%</span>
+            <span className="text-sm font-medium">Réussite : {passScore}%</span>
           </div>
         </div>
         {/* Progress bar */}
@@ -665,7 +665,7 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
             ) : (
               <CheckCircle className="w-4 h-4" />
             )}
-            Submit Quiz
+            Valider le quiz
           </button>
         ) : (
           <button
@@ -948,11 +948,11 @@ export default function MyTrainingPage() {
             </div>
             
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {selectedTraining.status === 'passed' ? 'Training Complete!' : 'Quiz Results'}
+              {selectedTraining.status === 'passed' ? 'Formation terminée !' : 'Résultats du quiz'}
             </h2>
             
             <p className="text-gray-500 mb-6">
-              Your best score: <span className="font-bold text-2xl text-gray-900">{selectedTraining.best_score}%</span>
+              Votre meilleur score : <span className="font-bold text-2xl text-gray-900">{selectedTraining.best_score}%</span>
             </p>
 
             <div className="flex justify-center gap-4">
@@ -970,7 +970,7 @@ export default function MyTrainingPage() {
                   className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  Try Again ({(selectedTraining.training_modules?.max_attempts || 3) - (selectedTraining.attempts || 0)} attempts left)
+                  Réessayer ({(selectedTraining.training_modules?.max_attempts || 3) - (selectedTraining.attempts || 0)} tentative(s) restante(s))
                 </button>
               )}
             </div>

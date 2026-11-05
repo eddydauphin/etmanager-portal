@@ -3,6 +3,7 @@ import { useAuth } from '../lib/AuthContext';
 import { dbFetch } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
+import { DEFAULT_CLIENT_ID, SINGLE_CLIENT } from '../lib/features';
 import {
   BookOpen,
   Plus,
@@ -49,7 +50,7 @@ export default function TrainingModulesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(DEFAULT_CLIENT_ID || 'all');
   
   // Assignment state
   const [assignedUsers, setAssignedUsers] = useState([]);
@@ -78,7 +79,7 @@ export default function TrainingModulesPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    client_ids: [],
+    client_ids: DEFAULT_CLIENT_ID ? [DEFAULT_CLIENT_ID] : [],
     competency_id: '',
     target_level: 3,
     pass_score: 80,
@@ -275,7 +276,7 @@ export default function TrainingModulesPage() {
       if (links && links.length > 0) {
         setLinkedCompetency({
           id: links[0].competency_id,
-          name: links[0].competencies?.name || 'Unknown',
+          name: links[0].competencies?.name || 'Inconnu',
           target_level: links[0].target_level || 3
         });
         // Load current levels for all users
@@ -383,19 +384,19 @@ export default function TrainingModulesPage() {
     // Validate based on competency mode
     if (competencyMode === 'existing') {
       if (!formData.title || formData.client_ids.length === 0 || !formData.competency_id) {
-        setFormError('Please fill in all required fields');
+        setFormError('Remplissez tous les champs obligatoires');
         return;
       }
     } else {
       // Creating new competency
       if (!formData.title || formData.client_ids.length === 0 || !formData.new_competency_name) {
-        setFormError('Please fill in all required fields including competency name');
+        setFormError('Remplissez tous les champs obligatoires, dont le nom de la compétence');
         return;
       }
     }
 
     if (formData.audio_languages.length === 0) {
-      setFormError('Please select at least one language');
+      setFormError('Choisissez au moins une langue');
       return;
     }
 
@@ -432,7 +433,7 @@ export default function TrainingModulesPage() {
         competencyId = competency?.id;
         
         if (!competencyId) {
-          throw new Error('Failed to create competency');
+          throw new Error('Création de la compétence impossible');
         }
         
         // Link competency to clients
@@ -487,7 +488,7 @@ export default function TrainingModulesPage() {
       console.log('==============================');
       
       if (!competency) {
-        throw new Error('Selected competency not found');
+        throw new Error('Compétence introuvable');
       }
       
       // Use first selected language for generation
@@ -495,11 +496,11 @@ export default function TrainingModulesPage() {
       const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'English';
       
       const levelDescriptions = {
-        1: competency?.level_1_description || 'Can recognize the topic',
-        2: competency?.level_2_description || 'Can explain concepts',
-        3: competency?.level_3_description || 'Can perform with supervision',
-        4: competency?.level_4_description || 'Works independently',
-        5: competency?.level_5_description || 'Can teach others'
+        1: competency?.level_1_description || 'Reconnaît le sujet',
+        2: competency?.level_2_description || 'Explique les concepts',
+        3: competency?.level_3_description || 'Réalise avec supervision',
+        4: competency?.level_4_description || 'Travaille en autonomie',
+        5: competency?.level_5_description || 'Peut former les autres'
       };
 
       // Generate slides
@@ -529,7 +530,7 @@ export default function TrainingModulesPage() {
 
       if (!slidesResponse.ok) {
         const error = await slidesResponse.json();
-        throw new Error(error.error || 'Failed to generate slides');
+        throw new Error(error.error || 'Génération des diapositives impossible');
       }
 
       const slidesData = await slidesResponse.json();
@@ -557,7 +558,7 @@ export default function TrainingModulesPage() {
 
       if (!quizResponse.ok) {
         const error = await quizResponse.json();
-        throw new Error(error.error || 'Failed to generate quiz');
+        throw new Error(error.error || 'Génération du quiz impossible');
       }
 
       const quizData = await quizResponse.json();
@@ -566,7 +567,7 @@ export default function TrainingModulesPage() {
       setCreateStep(2);
     } catch (error) {
       console.error('Error generating content:', error);
-      setFormError(error.message || 'Failed to generate content. Please try again.');
+      setFormError(error.message || 'Génération impossible. Réessayez.');
     } finally {
       setGenerating(false);
     }
@@ -585,13 +586,13 @@ export default function TrainingModulesPage() {
     const hasValidType = validTypes.includes(file.type);
 
     if (!hasValidExtension && !hasValidType) {
-      setFormError('Please upload a PDF file. PowerPoint and Word files must be converted to PDF first.');
+      setFormError('Importez un PDF. Les fichiers PowerPoint et Word doivent d’abord être convertis en PDF.');
       return;
     }
 
     // Validate file size (max 10MB - Vercel limit)
     if (file.size > 10 * 1024 * 1024) {
-      setFormError('File size must be less than 10MB');
+      setFormError('Le fichier doit faire moins de 10 Mo');
       return;
     }
 
@@ -602,17 +603,17 @@ export default function TrainingModulesPage() {
   // Process uploaded presentation
   const handleProcessUpload = async () => {
     if (!uploadedFile) {
-      setFormError('Please select a file to upload');
+      setFormError('Choisissez un fichier à importer');
       return;
     }
 
     if (!formData.title || formData.client_ids.length === 0 || !formData.competency_id) {
-      setFormError('Please fill in all required fields');
+      setFormError('Remplissez tous les champs obligatoires');
       return;
     }
 
     if (formData.audio_languages.length === 0) {
-      setFormError('Please select at least one language');
+      setFormError('Choisissez au moins une langue');
       return;
     }
 
@@ -666,7 +667,7 @@ export default function TrainingModulesPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to process presentation');
+        throw new Error(error.error || 'Traitement de la présentation impossible');
       }
 
       const result = await response.json();
@@ -680,7 +681,7 @@ export default function TrainingModulesPage() {
       setCreateStep(2);
     } catch (error) {
       console.error('Error processing upload:', error);
-      setFormError(error.message || 'Failed to process presentation. Please try again.');
+      setFormError(error.message || 'Traitement de la présentation impossible. Réessayez.');
     } finally {
       setProcessingFile(false);
       setUploadProgress(0);
@@ -769,7 +770,7 @@ export default function TrainingModulesPage() {
             });
 
             const moduleId = moduleResult[0]?.id;
-            if (!moduleId) throw new Error('Failed to create module');
+            if (!moduleId) throw new Error('Création de la formation impossible');
 
             // Link to competency
             if (formData.competency_id) {
@@ -826,7 +827,7 @@ export default function TrainingModulesPage() {
       setShowCreateModal(false);
     } catch (error) {
       console.error('Error saving module:', error);
-      setFormError('Failed to save module');
+      setFormError('Enregistrement de la formation impossible');
     } finally {
       setGenerating(false);
     }
@@ -882,10 +883,10 @@ export default function TrainingModulesPage() {
         })
       });
       await loadModules();
-      alert('Training module submitted for review!');
+      alert('Formation soumise pour relecture.');
     } catch (error) {
       console.error('Error submitting for review:', error);
-      alert('Failed to submit for review');
+      alert('Soumission impossible');
     }
     setOpenDropdown(null);
   };
@@ -984,7 +985,7 @@ export default function TrainingModulesPage() {
       const questions = await dbFetch(`module_questions?module_id=eq.${module.id}&order=sort_order.asc`);
       
       // Get creator name
-      let creatorName = 'Unknown';
+      let creatorName = 'Inconnu';
       if (module.created_by) {
         const creatorData = await dbFetch(`profiles?id=eq.${module.created_by}&select=full_name`);
         if (creatorData?.[0]) creatorName = creatorData[0].full_name;
@@ -1033,7 +1034,7 @@ export default function TrainingModulesPage() {
       // Title
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(28);
-      const titleLines = doc.splitTextToSize(module.title || 'Training Module', contentWidth);
+      const titleLines = doc.splitTextToSize(module.title || 'Formation', contentWidth);
       titleLines.forEach((line, i) => {
         doc.text(line, margin, 35 + i * 12);
       });
@@ -1063,7 +1064,7 @@ export default function TrainingModulesPage() {
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text('Created by:', labelX, infoStartY);
+      doc.text('Créé par :', labelX, infoStartY);
       doc.setTextColor(17, 24, 39);
       doc.setFontSize(10);
       doc.text(creatorName, valueX, infoStartY);
@@ -1071,7 +1072,7 @@ export default function TrainingModulesPage() {
       if (clientNamePdf) {
         doc.setFontSize(9);
         doc.setTextColor(107, 114, 128);
-        doc.text('Organization:', labelX, infoStartY + 10);
+        doc.text('Organisation :', labelX, infoStartY + 10);
         doc.setTextColor(17, 24, 39);
         doc.setFontSize(10);
         doc.text(clientNamePdf, valueX, infoStartY + 10);
@@ -1079,7 +1080,7 @@ export default function TrainingModulesPage() {
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text('Published:', labelX, infoStartY + 20);
+      doc.text('Publié le :', labelX, infoStartY + 20);
       doc.setTextColor(17, 24, 39);
       doc.setFontSize(10);
       doc.text(
@@ -1093,7 +1094,7 @@ export default function TrainingModulesPage() {
       
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text('Last Updated:', labelX, infoStartY + 30);
+      doc.text('Dernière mise à jour :', labelX, infoStartY + 30);
       doc.setTextColor(17, 24, 39);
       doc.setFontSize(10);
       doc.text(
@@ -1105,13 +1106,13 @@ export default function TrainingModulesPage() {
 
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text('Last Review:', labelX, infoStartY + 40);
+      doc.text('Dernière relecture :', labelX, infoStartY + 40);
       doc.setTextColor(17, 24, 39);
       doc.setFontSize(10);
       doc.text(
         module.last_reviewed_at 
           ? new Date(module.last_reviewed_at).toLocaleDateString('en-US', dateFmt)
-          : 'Never',
+          : 'Jamais',
         valueX, infoStartY + 40
       );
       
@@ -1119,17 +1120,17 @@ export default function TrainingModulesPage() {
       y = 175;
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128);
-      doc.text(`Status: ${(module.status || 'draft').toUpperCase()}`, labelX, y);
+      doc.text(`Statut : ${(module.status || 'draft').toUpperCase()}`, labelX, y);
       doc.text(`Slides: ${slides?.length || 0}`, labelX + 50, y);
-      doc.text(`Quiz Questions: ${questions?.length || 0}`, labelX + 100, y);
+      doc.text(`Questions du quiz : ${questions?.length || 0}`, labelX + 100, y);
       if (module.pass_score) {
-        doc.text(`Pass Score: ${module.pass_score}%`, labelX, y + 8);
+        doc.text(`Score de réussite : ${module.pass_score}%`, labelX, y + 8);
       }
       
       // Footer
       doc.setFontSize(8);
       doc.setTextColor(156, 163, 175);
-      doc.text('Generated from E&T Manager', margin, 285);
+      doc.text('Généré depuis E&T Manager', margin, 285);
       doc.text(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }), pageWidth - margin, 285, { align: 'right' });
       
       // ============ SLIDES ============
@@ -1142,7 +1143,7 @@ export default function TrainingModulesPage() {
         doc.rect(margin, y, contentWidth, 10, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(14);
-        doc.text(`Training Slides (${slides.length})`, margin + 5, y + 7);
+        doc.text(`Diapositives (${slides.length})`, margin + 5, y + 7);
         y += 18;
         
         for (let s = 0; s < slides.length; s++) {
@@ -1165,7 +1166,7 @@ export default function TrainingModulesPage() {
           // Slide title
           doc.setTextColor(17, 24, 39);
           doc.setFontSize(13);
-          doc.text(slide.title || `Slide ${s + 1}`, margin + 12, y + 6);
+          doc.text(slide.title || `Diapositive ${s + 1}`, margin + 12, y + 6);
           y += 12;
           
           // Slide image
@@ -1204,7 +1205,7 @@ export default function TrainingModulesPage() {
               console.warn('Could not load slide image:', imgErr);
               doc.setFontSize(8);
               doc.setTextColor(156, 163, 175);
-              doc.text('[Image could not be loaded]', margin + 5, y + 3);
+              doc.text('[Image non chargée]', margin + 5, y + 3);
               y += 8;
             }
           }
@@ -1249,13 +1250,13 @@ export default function TrainingModulesPage() {
         doc.rect(margin, y, contentWidth, 10, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(14);
-        doc.text(`Quiz Questions (${questions.length})`, margin + 5, y + 7);
+        doc.text(`Questions du quiz (${questions.length})`, margin + 5, y + 7);
         y += 18;
         
         if (module.pass_score) {
           doc.setFontSize(9);
           doc.setTextColor(107, 114, 128);
-          doc.text(`Pass Score: ${module.pass_score}%`, margin, y);
+          doc.text(`Score de réussite : ${module.pass_score}%`, margin, y);
           y += 8;
         }
         
@@ -1330,7 +1331,7 @@ export default function TrainingModulesPage() {
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF: ' + (error.message || 'Unknown error'));
+      alert('Génération du PDF impossible : ' + (error.message || 'Erreur inconnue'));
     } finally {
       setExportingPdf(null);
     }
@@ -1431,11 +1432,11 @@ export default function TrainingModulesPage() {
   const handleSlideImageUpload = async (slideId, file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) { 
-      alert('Please select an image file'); 
+      alert('Choisissez un fichier image'); 
       return; 
     }
     if (file.size > 10 * 1024 * 1024) { 
-      alert('Image must be less than 10MB'); 
+      alert('L’image doit faire moins de 10 Mo'); 
       return; 
     }
 
@@ -1447,7 +1448,7 @@ export default function TrainingModulesPage() {
       const clientId = currentProfile?.client_id || 'default';
       const filePath = `${clientId}/training-slides/${fileName}`;
       
-      console.log('Uploading to:', filePath, 'File type:', file.type, 'Size:', file.size);
+      console.log('Uploading to:', filePath, 'File type:', file.type, 'Taille :', file.size);
       
       const { error: uploadError } = await supabase.storage
         .from('uploads')
@@ -1474,7 +1475,7 @@ export default function TrainingModulesPage() {
       setEditingSlideId(slideId);
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Failed to upload image: ' + (error.message || 'Unknown error'));
+      alert('Import de l’image impossible : ' + (error.message || 'Erreur inconnue'));
     } finally {
       setUploadingSlideImage(null);
     }
@@ -1486,11 +1487,11 @@ export default function TrainingModulesPage() {
   const handleNewSlideImageUpload = async (index, file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) { 
-      alert('Please select an image file'); 
+      alert('Choisissez un fichier image'); 
       return; 
     }
     if (file.size > 10 * 1024 * 1024) { 
-      alert('Image must be less than 10MB'); 
+      alert('L’image doit faire moins de 10 Mo'); 
       return; 
     }
 
@@ -1502,7 +1503,7 @@ export default function TrainingModulesPage() {
       const clientId = currentProfile?.client_id || 'default';
       const filePath = `${clientId}/training-slides/${fileName}`;
       
-      console.log('Uploading to:', filePath, 'File type:', file.type, 'Size:', file.size);
+      console.log('Uploading to:', filePath, 'File type:', file.type, 'Taille :', file.size);
       
       const { error: uploadError, data } = await supabase.storage
         .from('uploads')
@@ -1528,7 +1529,7 @@ export default function TrainingModulesPage() {
       setGeneratedSlides(updated);
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Failed to upload image: ' + (error.message || 'Unknown error'));
+      alert('Import de l’image impossible : ' + (error.message || 'Erreur inconnue'));
     } finally {
       setUploadingNewSlideImage(null);
     }
@@ -1569,7 +1570,7 @@ export default function TrainingModulesPage() {
       const targetLevel = competencyLink?.[0]?.target_level || 3;
       
       if (!competency) {
-        setEditGenerateError('No competency linked to this module. Please link a competency first.');
+        setEditGenerateError('Aucune compétence liée à cette formation. Liez-en une d’abord.');
         setGeneratingForEdit(false);
         return;
       }
@@ -1604,7 +1605,7 @@ export default function TrainingModulesPage() {
       
     } catch (error) {
       console.error('Error preparing generation:', error);
-      setEditGenerateError(error.message || 'Failed to prepare generation');
+      setEditGenerateError(error.message || 'Préparation de la génération impossible');
       setGeneratingForEdit(false);
     }
   };
@@ -1615,7 +1616,7 @@ export default function TrainingModulesPage() {
     
     // Check if module has audio enabled
     if (!module.has_audio) {
-      alert('Audio is not enabled for this module.');
+      alert('L’audio n’est pas activé pour cette formation.');
       return;
     }
     
@@ -1627,7 +1628,7 @@ export default function TrainingModulesPage() {
       const slides = await dbFetch(`module_slides?module_id=eq.${module.id}&order=slide_number.asc`);
       
       if (!slides || slides.length === 0) {
-        alert('No slides found for this module.');
+        alert('Aucune diapositive pour cette formation.');
         setGeneratingAudio(false);
         return;
       }
@@ -1636,7 +1637,7 @@ export default function TrainingModulesPage() {
       const slidesNeedingAudio = slides.filter(s => s.audio_script && !s.audio_url);
       
       if (slidesNeedingAudio.length === 0) {
-        alert('All slides already have audio generated, or no audio scripts exist.');
+        alert('Toutes les diapositives ont déjà un audio, ou aucun script audio n’existe.');
         setGeneratingAudio(false);
         return;
       }
@@ -1649,7 +1650,7 @@ export default function TrainingModulesPage() {
         setAudioProgress({ 
           current: i + 1, 
           total: slidesNeedingAudio.length, 
-          status: `Generating audio for slide ${slide.slide_number}: ${slide.title}...` 
+          status: `Génération audio de la diapositive ${slide.slide_number}: ${slide.title}...` 
         });
         
         try {
@@ -1664,7 +1665,7 @@ export default function TrainingModulesPage() {
           });
           
           if (!response.ok) {
-            console.error(`Failed to generate audio for slide ${slide.id}`);
+            console.error(`Génération audio impossible pour la diapositive ${slide.id}`);
             continue;
           }
           
@@ -1716,7 +1717,7 @@ export default function TrainingModulesPage() {
       // Reload modules to update the UI
       await loadModules();
       
-      alert(`Audio generation complete! Generated audio for ${slidesNeedingAudio.length} slides.`);
+      alert(`Audio généré pour ${slidesNeedingAudio.length} slides.`);
       
     } catch (error) {
       console.error('Error generating audio:', error);
@@ -1735,7 +1736,7 @@ export default function TrainingModulesPage() {
       4: 'Proficient',
       5: 'Expert'
     };
-    return names[level] || 'Unknown';
+    return names[level] || 'Inconnu';
   };
 
   const getStatusColor = (status) => {
@@ -1756,7 +1757,7 @@ export default function TrainingModulesPage() {
       case 'published': return 'Published';
       case 'content_approved': return 'Quiz Pending';
       case 'submitted': return 'Pending Review';
-      case 'in_review': return 'In Review';
+      case 'in_review': return 'En relecture';
       case 'returned': return 'Needs Revision';
       case 'draft': return 'Draft';
       case 'archived': return 'Archived';
@@ -1916,7 +1917,7 @@ export default function TrainingModulesPage() {
             <option value="archived">Archivé</option>
           </select>
 
-          {isSuperAdmin && (
+          {isSuperAdmin && !SINGLE_CLIENT && (
             <select
               value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value)}
@@ -1987,7 +1988,7 @@ export default function TrainingModulesPage() {
                         ) : (
                           <Download className="w-4 h-4" />
                         )}
-                        {exportingPdf === module.id ? 'Generating PDF...' : 'Export PDF'}
+                        {exportingPdf === module.id ? 'Génération du PDF…' : 'Exporter en PDF'}
                       </button>
                       
                       <button
@@ -2046,7 +2047,7 @@ export default function TrainingModulesPage() {
                           </button>
                           <button
                             onClick={() => {
-                              const notes = prompt('Please provide feedback for the creator:');
+                              const notes = prompt('Laissez un retour au créateur :');
                               if (notes) handleReturnSubmission(module, notes);
                             }}
                             className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -2059,7 +2060,7 @@ export default function TrainingModulesPage() {
 
                       {module.status === 'returned' && module.created_by === currentProfile?.id && (
                         <div className="px-4 py-2 text-xs text-red-600 bg-red-50">
-                          Feedback: {module.review_notes || 'No notes provided'}
+                          Retour : {module.review_notes || 'Aucune note'}
                         </div>
                       )}
                       
@@ -2103,7 +2104,7 @@ export default function TrainingModulesPage() {
                           className="w-full px-4 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 disabled:opacity-50"
                         >
                           <Mic className="w-4 h-4" />
-                          {generatingAudio ? 'Generating...' : 'Generate Audio'}
+                          {generatingAudio ? 'Generating...' : 'Générer l’audio'}
                         </button>
                       )}
                       
@@ -2142,7 +2143,7 @@ export default function TrainingModulesPage() {
                     <Target className="w-4 h-4" />
                     <span>
                       {module.competency_modules[0].competencies?.name} 
-                      <span className="text-gray-400"> • Level {module.competency_modules[0].target_level}</span>
+                      <span className="text-gray-400"> • Niveau {module.competency_modules[0].target_level}</span>
                     </span>
                   </div>
                 )}
@@ -2173,20 +2174,20 @@ export default function TrainingModulesPage() {
                   )}
                   <div className="flex items-center gap-1">
                     <Award className="w-4 h-4" />
-                    <span>Pass: {module.pass_score}%</span>
+                    <span>Réussite : {module.pass_score}%</span>
                   </div>
                 </div>
                 
                 {/* Metadata: Created, Last Updated, Last Review */}
                 <div className="pt-3 mt-3 border-t border-gray-100 space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Created:</span>
+                    <span className="text-gray-400">Créé le :</span>
                     <span className="text-gray-600">
                       {module.created_at ? new Date(module.created_at).toLocaleDateString() : '—'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Last updated:</span>
+                    <span className="text-gray-400">Dernière mise à jour :</span>
                     <span className="text-gray-600">
                       {module.updated_at 
                         ? new Date(module.updated_at).toLocaleDateString() 
@@ -2194,15 +2195,15 @@ export default function TrainingModulesPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Last review:</span>
+                    <span className="text-gray-400">Dernière relecture :</span>
                     <span className="text-gray-600">
                       {module.last_reviewed_at 
                         ? new Date(module.last_reviewed_at).toLocaleDateString() 
-                        : 'Never'}
+                        : 'Jamais'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Author:</span>
+                    <span className="text-gray-400">Auteur :</span>
                     <span className="text-gray-600 truncate max-w-[120px]">
                       {module.creator?.full_name || '—'}
                     </span>
@@ -2225,9 +2226,9 @@ export default function TrainingModulesPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
-                    {editingModuleId ? 'Generate Content' : 'Create Training Module'}
+                    {editingModuleId ? 'Generate Content' : 'Créer une formation'}
                   </h2>
-                  <p className="text-sm text-gray-500">Step {createStep} of 3</p>
+                  <p className="text-sm text-gray-500">Étape {createStep} sur 3</p>
                 </div>
               </div>
               <button
@@ -2253,7 +2254,7 @@ export default function TrainingModulesPage() {
               {createStep === 1 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Titre *</label>
                     <input
                       type="text"
                       value={formData.title}
@@ -2275,7 +2276,7 @@ export default function TrainingModulesPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    {!SINGLE_CLIENT && (<div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Clients * {formData.client_ids.length > 0 && `(${formData.client_ids.length} selected)`}</label>
                       <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto">
                         {currentProfile?.role === 'client_admin' ? (
@@ -2302,10 +2303,10 @@ export default function TrainingModulesPage() {
                           ))
                         )}
                       </div>
-                    </div>
+                    </div>)}
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Competency *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Compétence *</label>
                       <div className="space-y-2">
                         {/* Competency mode toggle */}
                         <div className="flex gap-2">
@@ -2329,7 +2330,7 @@ export default function TrainingModulesPage() {
                                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                            + Create new
+                            + Créer une nouvelle
                           </button>
                         </div>
                         
@@ -2463,7 +2464,7 @@ export default function TrainingModulesPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Languages * {formData.audio_languages.length > 0 && `(${formData.audio_languages.length} selected)`}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Langues * {formData.audio_languages.length > 0 && `(${formData.audio_languages.length} selected)`}</label>
                       <div className="border border-gray-200 rounded-lg p-2">
                         {languages.map(lang => (
                           <label key={lang.code} className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
@@ -2654,7 +2655,7 @@ export default function TrainingModulesPage() {
                           <div className="mt-4">
                             <div className="flex items-center justify-between text-sm mb-1">
                               <span className="text-gray-600">
-                                {importMode === 'smart' ? 'AI is transforming content...' : 'Extracting content...'}
+                                {importMode === 'smart' ? 'L’IA transforme le contenu…' : 'Extraction du contenu…'}
                               </span>
                               <span className="text-blue-600 font-medium">{uploadProgress}%</span>
                             </div>
@@ -2666,17 +2667,17 @@ export default function TrainingModulesPage() {
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
                               {importMode === 'smart' 
-                                ? 'AI is restructuring content and creating optimized slides...'
-                                : 'Extracting original content and generating quiz questions...'}
+                                ? 'L’IA restructure le contenu et crée les diapositives…'
+                                : 'Extraction du contenu et génération des questions…'}
                             </p>
                           </div>
                         )}
 
                         <p className="text-xs text-gray-500 mt-3">
                           {importMode === 'smart' ? (
-                            <><strong>Smart Transform:</strong> L’IA analyse votre document et crée des diapositives restructurées pour l’apprentissage, avec scripts de narration et questions de quiz.</>
+                            <><strong>Transformation intelligente :</strong> L’IA analyse votre document et crée des diapositives restructurées pour l’apprentissage, avec scripts de narration et questions de quiz.</>
                           ) : (
-                            <><strong>Direct Import:</strong> Votre contenu est conservé tel quel. L’IA ajoute des scripts de narration et génère des questions de quiz à partir du contenu.</>
+                            <><strong>Import direct :</strong> Votre contenu est conservé tel quel. L’IA ajoute des scripts de narration et génère des questions de quiz à partir du contenu.</>
                           )}
                         </p>
                       </div>
@@ -2690,7 +2691,7 @@ export default function TrainingModulesPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900">Review & Edit Slides ({generatedSlides.length})</h3>
+                      <h3 className="font-semibold text-gray-900">Relire et modifier les diapositives ({generatedSlides.length})</h3>
                       <p className="text-sm text-gray-500">Cliquez sur un champ pour le modifier</p>
                     </div>
                     <div className="flex gap-2">
@@ -2698,7 +2699,7 @@ export default function TrainingModulesPage() {
                         onClick={() => setCreateStep(1)}
                         className="text-sm text-blue-600 hover:underline"
                       >
-                        ← Back to settings
+                        ← Retour aux réglages
                       </button>
                       <button
                         onClick={() => {
@@ -2706,12 +2707,12 @@ export default function TrainingModulesPage() {
                             slide_number: generatedSlides.length + 1,
                             title: 'Nouvelle diapositive',
                             key_points: ['Point 1', 'Point 2', 'Point 3'],
-                            audio_script: 'Audio script for this slide.'
+                            audio_script: 'Script audio de cette diapositive.'
                           }]);
                         }}
                         className="text-sm bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700"
                       >
-                        + Add Slide
+                        + Ajouter une diapositive
                       </button>
                     </div>
                   </div>
@@ -2748,7 +2749,7 @@ export default function TrainingModulesPage() {
 
                         {/* Slide Image Upload with Paste Support */}
                         <div className="mb-3">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">🖼️ Slide Image (optional)</label>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">🖼️ Image de la diapositive (facultatif)</label>
                           {slide.image_url ? (
                             <div className="relative inline-block">
                               <img 
@@ -2779,7 +2780,7 @@ export default function TrainingModulesPage() {
                                   const items = e.clipboardData?.items;
                                   if (items) {
                                     for (let i = 0; i < items.length; i++) {
-                                      console.log('Item', i, items[i].type);
+                                      console.log('Élément', i, items[i].type);
                                       if (items[i].type.startsWith('image/')) {
                                         const file = items[i].getAsFile();
                                         console.log('Got file:', file);
@@ -2799,8 +2800,8 @@ export default function TrainingModulesPage() {
                                   </div>
                                 ) : (
                                   <>
-                                    <span className="text-sm text-gray-500">📋 Click here & paste (Ctrl+V)</span>
-                                    <span className="text-xs text-gray-400 mt-1">or use the upload button →</span>
+                                    <span className="text-sm text-gray-500">📋 Cliquez ici et collez (Ctrl+V)</span>
+                                    <span className="text-xs text-gray-400 mt-1">ou utilisez le bouton d’import →</span>
                                   </>
                                 )}
                               </div>
@@ -2856,13 +2857,13 @@ export default function TrainingModulesPage() {
                           <button
                             onClick={() => {
                               const updated = [...generatedSlides];
-                              const newPoints = [...(updated[index].key_points || []), 'New point'];
+                              const newPoints = [...(updated[index].key_points || []), 'Nouveau point'];
                               updated[index] = { ...updated[index], key_points: newPoints };
                               setGeneratedSlides(updated);
                             }}
                             className="text-xs text-blue-600 hover:underline mt-1"
                           >
-                            + Add point
+                            + Ajouter un point
                           </button>
                         </div>
                         
@@ -2890,7 +2891,7 @@ export default function TrainingModulesPage() {
                     onClick={() => setCreateStep(3)}
                     className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
-                    Review Quiz Questions →
+                    Relire les questions →
                   </button>
                 </div>
               )}
@@ -2900,7 +2901,7 @@ export default function TrainingModulesPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900">Review & Edit Quiz ({generatedQuiz.length} questions)</h3>
+                      <h3 className="font-semibold text-gray-900">Relire et modifier le quiz ({generatedQuiz.length} questions)</h3>
                       <p className="text-sm text-gray-500">Cliquez sur un champ pour le modifier. Vert = bonne réponse.</p>
                     </div>
                     <div className="flex gap-2">
@@ -2908,7 +2909,7 @@ export default function TrainingModulesPage() {
                         onClick={() => setCreateStep(2)}
                         className="text-sm text-blue-600 hover:underline"
                       >
-                        ← Back to slides
+                        ← Retour aux diapositives
                       </button>
                       <button
                         onClick={() => {
@@ -2921,7 +2922,7 @@ export default function TrainingModulesPage() {
                         }}
                         className="text-sm bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700"
                       >
-                        + Add Question
+                        + Ajouter une question
                       </button>
                     </div>
                   </div>
@@ -2973,7 +2974,7 @@ export default function TrainingModulesPage() {
                                       ? 'bg-green-500 text-white' 
                                       : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                                   }`}
-                                  title={isCorrect ? 'Correct answer' : 'Click to set as correct'}
+                                  title={isCorrect ? 'Bonne réponse' : 'Cliquer pour définir comme bonne réponse'}
                                 >
                                   {letter}
                                 </button>
@@ -3029,7 +3030,7 @@ export default function TrainingModulesPage() {
                   {generating ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      {competencyMode === 'new' ? 'Creating Competency & Generating...' : 'Generating...'}
+                      {competencyMode === 'new' ? 'Création de la compétence et génération…' : 'Generating...'}
                     </>
                   ) : (
                     <>
@@ -3078,7 +3079,7 @@ export default function TrainingModulesPage() {
                   {generating ? 'Saving...' : (
                     <>
                       <Check className="w-4 h-4" />
-                      {editingModuleId ? 'Save Content' : 'Save Module'}
+                      {editingModuleId ? 'Enregistrer le contenu' : 'Enregistrer la formation'}
                     </>
                   )}
                 </button>
@@ -3108,7 +3109,7 @@ export default function TrainingModulesPage() {
             <div className="flex-1 overflow-y-auto p-6">
               {/* Slides */}
               <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 mb-3">Slides ({selectedModule.slides?.length || 0})</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">Diapositives ({selectedModule.slides?.length || 0})</h3>
                 <div className="space-y-3">
                   {selectedModule.slides?.map((slide, index) => (
                     <div key={slide.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -3142,7 +3143,7 @@ export default function TrainingModulesPage() {
 
               {/* Questions */}
               <div>
-                <h3 className="font-semibold text-gray-900 mb-3">Quiz Questions ({selectedModule.questions?.length || 0})</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">Questions du quiz ({selectedModule.questions?.length || 0})</h3>
                 <div className="space-y-3">
                   {selectedModule.questions?.map((q, index) => (
                     <div key={q.id} className="border border-gray-200 rounded-lg p-4">
@@ -3244,10 +3245,10 @@ export default function TrainingModulesPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-900">Linked Competency: {linkedCompetency.name}</span>
+                      <span className="text-sm font-medium text-blue-900">Compétence liée : {linkedCompetency.name}</span>
                     </div>
                     <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                      Target: L{linkedCompetency.target_level}
+                      Cible : N{linkedCompetency.target_level}
                     </span>
                   </div>
                 </div>
@@ -3256,7 +3257,7 @@ export default function TrainingModulesPage() {
               {/* Already assigned */}
               {assignedUsers.length > 0 && (
                 <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Already Assigned ({assignedUsers.length})</h4>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Déjà assignées ({assignedUsers.length})</h4>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {assignedUsers.map(au => (
                       <div key={au.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
@@ -3320,7 +3321,7 @@ export default function TrainingModulesPage() {
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
                               <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                                Current: L{dbCurrentLevel}
+                                Actuel : N{dbCurrentLevel}
                               </span>
                             </div>
                             <p className="text-xs text-gray-500">{user.email}</p>
@@ -3339,7 +3340,7 @@ export default function TrainingModulesPage() {
               {selectedUsers.length > 0 && (
                 <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                   <h4 className="text-sm font-medium text-purple-900 mb-3">
-                    Set Maturity Levels ({selectedUsers.length} user{selectedUsers.length > 1 ? 's' : ''})
+                    Définir les niveaux ({selectedUsers.length} user{selectedUsers.length > 1 ? 's' : ''})
                   </h4>
                   <div className="space-y-3">
                     {selectedUsers.map(userId => {
@@ -3356,7 +3357,7 @@ export default function TrainingModulesPage() {
                             <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
                             {atTarget && (
                               <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
-                                ✓ Will auto-pass
+                                ✓ Sera validée automatiquement
                               </span>
                             )}
                           </div>
@@ -3398,7 +3399,7 @@ export default function TrainingModulesPage() {
                           </div>
                           {levels.current_level > 0 && !atTarget && (
                             <p className="text-xs text-amber-600 mt-2">
-                              Gap: L{levels.current_level} → L{levels.target_level}
+                              Écart : N{levels.current_level} → L{levels.target_level}
                             </p>
                           )}
                         </div>
@@ -3412,7 +3413,7 @@ export default function TrainingModulesPage() {
               <div className="mb-4">
                 <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
                   <Award className="w-4 h-4" />
-                  Select Validator/Coach *
+                  Choisir un validateur / coach *
                 </label>
                 <p className="text-xs text-gray-500 mb-2">Cette personne sera prévenue à la fin de la formation et validera le niveau de compétence.</p>
                 <select
@@ -3421,23 +3422,23 @@ export default function TrainingModulesPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500"
                   required
                 >
-                  <option value="">-- Select validator --</option>
+                  <option value="">-- Choisir un validateur --</option>
                   {potentialValidators.map(v => (
                     <option key={v.id} value={v.id}>
                       {v.full_name} ({v.role.replace('_', ' ')})
-                      {v.id === selectedModule.training_developer_id && ' - Module Owner'}
-                      {v.id === currentProfile?.id && ' - You'}
+                      {v.id === selectedModule.training_developer_id && ' - Responsable de la formation'}
+                      {v.id === currentProfile?.id && ' - Vous'}
                     </option>
                   ))}
                 </select>
                 {!assignValidatorId && (
-                  <p className="text-xs text-red-500 mt-1">⚠ Validator is required</p>
+                  <p className="text-xs text-red-500 mt-1">⚠ Le validateur est obligatoire</p>
                 )}
               </div>
 
               {/* Due date - Required */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date d’échéance *</label>
                 <input
                   type="date"
                   value={assignDueDate}
@@ -3447,7 +3448,7 @@ export default function TrainingModulesPage() {
                   required
                 />
                 {!assignDueDate && (
-                  <p className="text-xs text-red-500 mt-1">⚠ Due date is required</p>
+                  <p className="text-xs text-red-500 mt-1">⚠ La date d’échéance est obligatoire</p>
                 )}
               </div>
             </div>
@@ -3469,7 +3470,7 @@ export default function TrainingModulesPage() {
               <button
                 onClick={async () => {
                   if (selectedUsers.length === 0 || !assignValidatorId || !assignDueDate) {
-                    alert('Please select users, a validator, and a due date');
+                    alert('Choisissez des personnes, un validateur et une date d’échéance');
                     return;
                   }
                   
@@ -3541,10 +3542,10 @@ export default function TrainingModulesPage() {
                         body: JSON.stringify({
                           user_id: userId,
                           type: 'training_assigned',
-                          title: alreadyAtTarget ? 'Training Auto-Completed' : 'New Training Assigned',
+                          title: alreadyAtTarget ? 'Formation validée automatiquement' : 'Nouvelle formation assignée',
                           message: alreadyAtTarget 
-                            ? `You have been assigned "${selectedModule.title}" but your current level (L${currentLevel}) already meets the target (L${targetLevel}). It has been marked as passed.`
-                            : `You have been assigned "${selectedModule.title}". Due date: ${new Date(assignDueDate).toLocaleDateString()}`,
+                            ? `On vous a assigné « ${selectedModule.title}" mais votre niveau actuel (N${currentLevel}) atteint déjà la cible (N${targetLevel}). Elle a été marquée comme réussie.`
+                            : `On vous a assigné « ${selectedModule.title}". Échéance : ${new Date(assignDueDate).toLocaleDateString()}`,
                           link: '/my-training'
                         })
                       });
@@ -3557,7 +3558,7 @@ export default function TrainingModulesPage() {
                             user_id: assignValidatorId,
                             type: 'training_auto_passed',
                             title: 'Formation validée automatiquement',
-                            message: `${traineeInfo?.full_name || 'A user'} was assigned "${selectedModule.title}" but already meets the target level (L${targetLevel}). No action required.`,
+                            message: `${traineeInfo?.full_name || 'Une personne'} s’est vu assigner « ${selectedModule.title}" mais atteint déjà le niveau cible (N${targetLevel}). Aucune action requise.`,
                             link: '/dashboard'
                           })
                         });
@@ -3573,13 +3574,13 @@ export default function TrainingModulesPage() {
                     await loadAssignedUsers(selectedModule.id);
                   } catch (error) {
                     console.error('Error assigning users:', error);
-                    alert('Error assigning users. Please try again.');
+                    alert('Assignation impossible. Réessayez.');
                   }
                 }}
                 disabled={selectedUsers.length === 0 || !assignValidatorId || !assignDueDate}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Assign {selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}
+                Assigner {selectedUsers.length > 0 ? `(${selectedUsers.length})` : ''}
               </button>
             </div>
           </div>
@@ -3628,7 +3629,7 @@ export default function TrainingModulesPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Slides ({editSlides.length})
+                Diapositives ({editSlides.length})
               </button>
               <button
                 onClick={() => setEditTab('quiz')}
@@ -3701,12 +3702,12 @@ export default function TrainingModulesPage() {
                       {/* Show current metadata */}
                       <div className="pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1">
                         <div className="flex justify-between">
-                          <span>Created:</span>
+                          <span>Créé le :</span>
                           <span>{selectedModule.created_at ? new Date(selectedModule.created_at).toLocaleDateString() : '—'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Last reviewed:</span>
-                          <span>{selectedModule.last_reviewed_at ? new Date(selectedModule.last_reviewed_at).toLocaleDateString() : 'Never'}</span>
+                          <span>Dernière relecture :</span>
+                          <span>{selectedModule.last_reviewed_at ? new Date(selectedModule.last_reviewed_at).toLocaleDateString() : 'Jamais'}</span>
                         </div>
                         <p className="text-gray-400 italic mt-2">L’enregistrement met à jour la date de dernière relecture</p>
                       </div>
@@ -3805,8 +3806,8 @@ export default function TrainingModulesPage() {
                                           </div>
                                         ) : (
                                           <>
-                                            <span className="text-sm text-gray-500">📋 Click here & paste (Ctrl+V)</span>
-                                            <span className="text-xs text-gray-400 mt-1">or use the upload button →</span>
+                                            <span className="text-sm text-gray-500">📋 Cliquez ici et collez (Ctrl+V)</span>
+                                            <span className="text-xs text-gray-400 mt-1">ou utilisez le bouton d’import →</span>
                                           </>
                                         )}
                                       </div>
@@ -4001,7 +4002,7 @@ export default function TrainingModulesPage() {
                                   ))}
                                 </div>
                                 {question.explanation && (
-                                  <p className="text-xs text-gray-500 mt-2 italic">Explanation: {question.explanation}</p>
+                                  <p className="text-xs text-gray-500 mt-2 italic">Explication : {question.explanation}</p>
                                 )}
                               </div>
                             )}
@@ -4028,7 +4029,7 @@ export default function TrainingModulesPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {editSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {editSubmitting ? 'Saving...' : 'Save Details'}
+                  {editSubmitting ? 'Saving...' : 'Enregistrer les détails'}
                 </button>
               )}
             </div>

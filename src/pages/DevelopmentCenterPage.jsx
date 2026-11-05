@@ -393,7 +393,7 @@ export default function DevelopmentCenterPage() {
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status. Please try again.');
+      alert('Mise à jour du statut impossible. Réessayez.');
     }
   };
 
@@ -463,7 +463,7 @@ export default function DevelopmentCenterPage() {
 
   const getUserName = (userId) => {
     const user = users.find(u => u.id === userId);
-    return user?.full_name || 'Unknown';
+    return user?.full_name || 'Inconnu';
   };
 
   const getCompetencyName = (competencyId) => {
@@ -652,7 +652,7 @@ export default function DevelopmentCenterPage() {
       await loadData();
     } catch (error) {
       console.error('Error deleting competency:', error);
-      alert('Failed to delete competency. Please try again.');
+      alert('Suppression impossible. Réessayez.');
     }
   };
 
@@ -703,7 +703,7 @@ export default function DevelopmentCenterPage() {
 
   const handleGenerateContent = async () => {
     if (!wizardData.name) {
-      setFormError('Please enter a competency name first');
+      setFormError('Saisissez d’abord un nom de compétence');
       return;
     }
     
@@ -733,7 +733,7 @@ export default function DevelopmentCenterPage() {
 
       if (!slidesResponse.ok) {
         const error = await slidesResponse.json().catch(() => ({}));
-        throw new Error(error.error || 'Failed to generate slides');
+        throw new Error(error.error || 'Génération des diapositives impossible');
       }
 
       const slidesData = await slidesResponse.json();
@@ -755,7 +755,7 @@ export default function DevelopmentCenterPage() {
 
       if (!quizResponse.ok) {
         const error = await quizResponse.json().catch(() => ({}));
-        throw new Error(error.error || 'Failed to generate quiz');
+        throw new Error(error.error || 'Génération du quiz impossible');
       }
 
       const quizData = await quizResponse.json();
@@ -766,7 +766,7 @@ export default function DevelopmentCenterPage() {
       
     } catch (error) {
       console.error('Error generating content:', error);
-      setFormError(error.message || 'Failed to generate content. Please try again.');
+      setFormError(error.message || 'Génération impossible. Réessayez.');
     } finally {
       setGenerating(false);
     }
@@ -809,13 +809,13 @@ export default function DevelopmentCenterPage() {
       const { quickAction, assignments, linkedModuleId, activityTitle, activityDescription, coach_id, dueDate, startDate } = wizardData;
       
       if (assignments.length === 0) {
-        throw new Error('Please select at least one user');
+        throw new Error('Choisissez au moins une personne');
       }
 
       if (quickAction === 'training') {
         // Assign training module to selected users
         if (!linkedModuleId) {
-          throw new Error('Please select a training module');
+          throw new Error('Choisissez une formation');
         }
         
         for (const assignment of assignments) {
@@ -844,7 +844,7 @@ export default function DevelopmentCenterPage() {
               user_id: assignment.user_id,
               type: 'training_assigned',
               title: 'Formation assignée',
-              message: `${currentProfile?.full_name || 'Your manager'} has assigned you a training module to complete.`,
+              message: `${currentProfile?.full_name || 'Votre responsable'} vous a assigné une formation à suivre.`,
               link: '/my-training',
               related_id: linkedModuleId,
               related_type: 'training_module'
@@ -889,8 +889,8 @@ export default function DevelopmentCenterPage() {
             body: JSON.stringify({
               user_id: assignment.user_id,
               type: quickAction === 'task' ? 'task_assigned' : 'coaching_assigned',
-              title: quickAction === 'task' ? 'Task Assigned' : 'Coaching Session Assigned',
-              message: `${currentProfile?.full_name || 'Your manager'} has assigned you ${quickAction === 'task' ? 'a development task' : 'a coaching session'}: "${activityTitle}"`,
+              title: quickAction === 'task' ? 'Tâche assignée' : 'Séance de coaching assignée',
+              message: `${currentProfile?.full_name || 'Votre responsable'} vous a assigné ${quickAction === 'task' ? 'une tâche de développement' : 'une séance de coaching'}: "${activityTitle}"`,
               link: '/my-plan',
               related_id: activityResult?.[0]?.id,
               related_type: 'development_activity'
@@ -905,8 +905,8 @@ export default function DevelopmentCenterPage() {
               body: JSON.stringify({
                 user_id: coach_id,
                 type: quickAction === 'task' ? 'task_coach_assigned' : 'coaching_coach_assigned',
-                title: quickAction === 'task' ? 'Task Supervision Assigned' : 'Coaching Role Assigned',
-                message: `You have been assigned ${quickAction === 'task' ? 'to supervise' : 'as coach for'} ${trainee?.full_name || 'a team member'}: "${activityTitle}"`,
+                title: quickAction === 'task' ? 'Supervision de tâche assignée' : 'Rôle de coach assigné',
+                message: `On vous a assigné ${quickAction === 'task' ? 'à superviser' : 'comme coach pour'} ${trainee?.full_name || 'un membre de l’équipe'}: "${activityTitle}"`,
                 link: '/development',
                 related_id: activityResult?.[0]?.id,
                 related_type: 'development_activity'
@@ -922,7 +922,7 @@ export default function DevelopmentCenterPage() {
       
     } catch (error) {
       console.error('Quick action submit error:', error);
-      setFormError(error.message || 'Failed to complete action');
+      setFormError(error.message || 'Action impossible');
     } finally {
       setSubmitting(false);
     }
@@ -934,7 +934,7 @@ export default function DevelopmentCenterPage() {
     
     try {
       if (!wizardData.name.trim()) {
-        throw new Error('Competency name is required');
+        throw new Error('Le nom de la compétence est obligatoire');
       }
       
       // CRITICAL VALIDATION: Ensure at least one development method is selected
@@ -948,7 +948,7 @@ export default function DevelopmentCenterPage() {
         const hasGaps = wizardData.assignments.some(a => (a.current_level || 0) < a.target_level);
         
         if (hasGaps && !hasTemplate && !hasTraining) {
-          throw new Error('Development method required: Please select a template (coaching/task) OR assign/generate training materials. Users need a way to close their competency gaps.');
+          throw new Error('Méthode de développement obligatoire : choisissez un modèle (coaching / tâche) ou assignez / générez un support de formation.');
         }
       }
       
@@ -987,7 +987,7 @@ export default function DevelopmentCenterPage() {
           })
         });
         competencyId = result?.[0]?.id;
-        if (!competencyId) throw new Error('Failed to create competency');
+        if (!competencyId) throw new Error('Création de la compétence impossible');
         
         if (clientId) {
           await dbFetch('competency_clients', {
@@ -998,14 +998,14 @@ export default function DevelopmentCenterPage() {
         
         // NOTIFICATION: Training development assigned to someone
         if (trainingDeveloperId && trainingDeveloperId !== currentProfile?.id) {
-          const developerName = users.find(u => u.id === trainingDeveloperId)?.full_name || 'Developer';
+          const developerName = users.find(u => u.id === trainingDeveloperId)?.full_name || 'Concepteur';
           await dbFetch('notifications', {
             method: 'POST',
             body: JSON.stringify({
               user_id: trainingDeveloperId,
               type: 'training_development_assigned',
               title: 'Conception de formation assignée',
-              message: `${currentProfile?.full_name || 'Someone'} has assigned you to develop training materials for "${wizardData.name}". Please create the training content.`,
+              message: `${currentProfile?.full_name || 'Quelqu’un'} vous a confié la conception du support de formation « ${wizardData.name}». Merci de créer le contenu de formation.`,
               link: '/training',
               related_id: competencyId,
               related_type: 'competency'
@@ -1102,7 +1102,7 @@ export default function DevelopmentCenterPage() {
                   user_id: approver.id,
                   type: 'training_material_created',
                   title: 'Nouveau support de formation créé',
-                  message: `${currentProfile?.full_name || 'Someone'} has created "${wizardData.generateTitle || wizardData.name}" training material with ${generatedSlides.length} slides and ${generatedQuiz.length} quiz questions. Review and approve to make it available.`,
+                  message: `${currentProfile?.full_name || 'Quelqu’un'} a créé « ${wizardData.generateTitle || wizardData.name}» avec ${generatedSlides.length} diapositives et ${generatedQuiz.length} questions de quiz. Relisez et approuvez pour la rendre disponible.`,
                   link: '/training',
                   related_id: moduleId,
                   related_type: 'training_module'
@@ -1191,8 +1191,8 @@ export default function DevelopmentCenterPage() {
               body: JSON.stringify({
                 user_id: assignment.user_id,
                 type: wizardData.developmentMethod === 'coaching' ? 'coaching_assigned' : 'task_assigned',
-                title: wizardData.developmentMethod === 'coaching' ? 'New Coaching Session Assigned' : 'New Task Assigned',
-                message: `${currentProfile?.full_name || 'Your manager'} has assigned you ${wizardData.developmentMethod === 'coaching' ? 'a coaching session' : 'a task'}: "${activityTitle}"`,
+                title: wizardData.developmentMethod === 'coaching' ? 'Nouvelle séance de coaching assignée' : 'Nouvelle tâche assignée',
+                message: `${currentProfile?.full_name || 'Votre responsable'} vous a assigné ${wizardData.developmentMethod === 'coaching' ? 'une séance de coaching' : 'une tâche'}: "${activityTitle}"`,
                 link: '/development-center',
                 related_id: activityId,
                 related_type: 'development_activity'
@@ -1208,7 +1208,7 @@ export default function DevelopmentCenterPage() {
                 user_id: wizardData.coach_id,
                 type: 'coach_assigned',
                 title: 'Vous êtes le coach',
-                message: `${currentProfile?.full_name || 'Someone'} has assigned you as coach for ${traineeName}: "${activityTitle}"`,
+                message: `${currentProfile?.full_name || 'Quelqu’un'} vous a désigné coach pour ${traineeName}: "${activityTitle}"`,
                 link: '/development-center',
                 related_id: activityId,
                 related_type: 'development_activity'
@@ -1251,7 +1251,7 @@ export default function DevelopmentCenterPage() {
       
     } catch (error) {
       console.error('Error saving:', error);
-      setFormError(error.message || 'Failed to save. Please try again.');
+      setFormError(error.message || 'Enregistrement impossible. Réessayez.');
     } finally {
       setSubmitting(false);
     }
@@ -1310,7 +1310,7 @@ export default function DevelopmentCenterPage() {
           </div>
           <div>
             <p className="font-semibold text-gray-900">Formation</p>
-            <p className="text-sm text-gray-500 mt-0.5">Assign e-learning modules →</p>
+            <p className="text-sm text-gray-500 mt-0.5">Assigner des formations →</p>
           </div>
         </button>
 
@@ -1568,13 +1568,13 @@ export default function DevelopmentCenterPage() {
                                     </td>
                                     <td className="px-4 py-2 text-center">
                                       {gap <= 0 ? (
-                                        <span className="text-xs text-green-600 font-medium">✓ Complete</span>
+                                        <span className="text-xs text-green-600 font-medium">✓ Terminer</span>
                                       ) : trainingStatus?.status === 'passed' || trainingStatus?.status === 'completed' ? (
                                         <button
                                           onClick={() => setValidateModal({ assignment: a, competency: comp, trainingStatus })}
                                           className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 font-medium"
                                         >
-                                          ✓ Validate Level
+                                          ✓ Valider le niveau
                                         </button>
                                       ) : trainingStatus?.status === 'in_progress' ? (
                                         <span className="text-xs text-blue-600">En cours…</span>
@@ -1595,9 +1595,9 @@ export default function DevelopmentCenterPage() {
                                                 })
                                               });
                                               await loadUserTraining();
-                                              alert(`Training assigned to ${a.user?.full_name}`);
+                                              alert(`Formation assignée à ${a.user?.full_name}`);
                                             } catch (error) {
-                                              alert('Failed to assign training');
+                                              alert('Assignation de la formation impossible');
                                             }
                                           }}
                                           className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
@@ -1620,7 +1620,7 @@ export default function DevelopmentCenterPage() {
                         <Users className="w-8 h-8 mx-auto text-gray-300 mb-2" />
                         <p className="text-gray-500 text-sm">Personne n’est encore assigné</p>
                         <button onClick={() => openWizard(comp)} className="mt-2 text-blue-600 hover:underline text-sm">
-                          Edit & Assign Users →
+                          Modifier et assigner →
                         </button>
                       </div>
                     )}
@@ -1711,8 +1711,8 @@ export default function DevelopmentCenterPage() {
               <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune action trouvée</h3>
               <p className="text-gray-500 mb-4">
                 {activities.length === 0 
-                  ? "Create a competency and assign it to team members to see activities here"
-                  : "No activities match your current filter"}
+                  ? "Créez une compétence et assignez-la pour voir des actions ici"
+                  : "Aucune action ne correspond au filtre"}
               </p>
               {activities.length === 0 && (
                 <button
@@ -1755,27 +1755,27 @@ export default function DevelopmentCenterPage() {
                         <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                           <div className="flex items-center gap-1">
                             <UserCheck className="w-4 h-4" />
-                            <span>Trainee: {getUserName(activity.trainee_id)}</span>
+                            <span>Apprenant : {getUserName(activity.trainee_id)}</span>
                           </div>
                           
                           {activity.coach_id && (
                             <div className="flex items-center gap-1">
                               <Users className="w-4 h-4" />
-                              <span>Coach: {getUserName(activity.coach_id)}</span>
+                              <span>Coach : {getUserName(activity.coach_id)}</span>
                             </div>
                           )}
                           
                           {activity.due_date && (
                             <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
                               <Calendar className="w-4 h-4" />
-                              <span>Due: {new Date(activity.due_date).toLocaleDateString()}</span>
+                              <span>Échéance : {new Date(activity.due_date).toLocaleDateString()}</span>
                             </div>
                           )}
                           
                           {activity.competency_id && (
                             <div className="flex items-center gap-1">
                               <Target className="w-4 h-4" />
-                              <span>{getCompetencyName(activity.competency_id)} → Level {activity.target_level}</span>
+                              <span>{getCompetencyName(activity.competency_id)} → Niveau {activity.target_level}</span>
                             </div>
                           )}
                         </div>
@@ -1841,17 +1841,17 @@ export default function DevelopmentCenterPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      {editingCompetency ? 'Edit Competency' : 
-                       wizardData.quickAction === 'training' ? 'Assign Formal Education' :
-                       wizardData.quickAction === 'task' ? 'Assign Learn by Doing' :
-                       wizardData.quickAction === 'coaching' ? 'Assign Learn through Others' :
+                      {editingCompetency ? 'Modifier la compétence' : 
+                       wizardData.quickAction === 'training' ? 'Assigner une formation' :
+                       wizardData.quickAction === 'task' ? 'Assigner une mise en pratique' :
+                       wizardData.quickAction === 'coaching' ? 'Assigner un coaching' :
                        'New Competency'}
                     </h2>
                     <p className="text-sm text-gray-500">
-                      {wizardData.quickAction === 'training' ? 'Assign e-learning modules to team members' :
-                       wizardData.quickAction === 'task' ? 'Assign project or hands-on initiative' :
-                       wizardData.quickAction === 'coaching' ? 'Assign coaching or mentoring session' :
-                       'Create formal skill definition with development path'}
+                      {wizardData.quickAction === 'training' ? 'Assigner des formations en ligne à l’équipe' :
+                       wizardData.quickAction === 'task' ? 'Assigner un projet ou une mise en pratique' :
+                       wizardData.quickAction === 'coaching' ? 'Assigner une séance de coaching ou de mentorat' :
+                       'Définir une compétence et son parcours de développement'}
                     </p>
                   </div>
                 </div>
@@ -1876,9 +1876,9 @@ export default function DevelopmentCenterPage() {
                     ))}
                   </div>
                   <p className="text-sm text-gray-500 mt-2">
-                    {wizardStep === 1 && 'Define competency & tags'}
-                    {wizardStep === 2 && 'Development method'}
-                    {wizardStep === 3 && 'Assign to users'}
+                    {wizardStep === 1 && 'Définir la compétence et ses étiquettes'}
+                    {wizardStep === 2 && 'Méthode de développement'}
+                    {wizardStep === 3 && 'Assigner à des personnes'}
                   </p>
                 </>
               ) : (
@@ -1897,10 +1897,10 @@ export default function DevelopmentCenterPage() {
                   </div>
                   <p className="text-sm text-gray-500 mt-2">
                     {wizardStep === 1 && (
-                      wizardData.quickAction === 'training' ? 'Select training module' :
-                      'Define activity details'
+                      wizardData.quickAction === 'training' ? 'Choisir une formation' :
+                      'Décrire l’action'
                     )}
-                    {wizardStep === 2 && 'Assign to users'}
+                    {wizardStep === 2 && 'Assigner à des personnes'}
                   </p>
                 </>
               )}
@@ -1919,13 +1919,13 @@ export default function DevelopmentCenterPage() {
               {wizardStep === 1 && wizardData.quickAction === 'training' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Training Module *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Choisir une formation *</label>
                     <select
                       value={wizardData.linkedModuleId}
                       onChange={(e) => setWizardData({ ...wizardData, linkedModuleId: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                     >
-                      <option value="">-- Select a module --</option>
+                      <option value="">-- Choisir une formation --</option>
                       {trainingModules.filter(m => m.status === 'published').map(module => (
                         <option key={module.id} value={module.id}>{module.title}</option>
                       ))}
@@ -1953,14 +1953,14 @@ export default function DevelopmentCenterPage() {
                   {/* Competency Selection - Required */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Link to Competency *
+                      Compétence liée *
                     </label>
                     <select
                       value={wizardData.competency_id || ''}
                       onChange={(e) => setWizardData({ ...wizardData, competency_id: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                     >
-                      <option value="">-- Select competency --</option>
+                      <option value="">-- Choisir une compétence --</option>
                       {competencies.map(comp => (
                         <option key={comp.id} value={comp.id}>{comp.name}</option>
                       ))}
@@ -1972,14 +1972,14 @@ export default function DevelopmentCenterPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {wizardData.quickAction === 'task' ? 'Task Title *' : 'Coaching Topic *'}
+                      {wizardData.quickAction === 'task' ? 'Titre de la tâche *' : 'Sujet du coaching *'}
                     </label>
                     <input
                       type="text"
                       value={wizardData.activityTitle}
                       onChange={(e) => setWizardData({ ...wizardData, activityTitle: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                      placeholder={wizardData.quickAction === 'task' ? 'e.g., Lead Q2 Process Improvement Project' : 'e.g., Presentation Skills Development'}
+                      placeholder={wizardData.quickAction === 'task' ? 'ex. Piloter le projet d’amélioration du T2' : 'ex. Développer ses compétences de présentation'}
                     />
                   </div>
                   
@@ -1990,20 +1990,20 @@ export default function DevelopmentCenterPage() {
                       onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                       rows={3}
-                      placeholder={wizardData.quickAction === 'task' ? 'What should be accomplished?' : 'What should be learned or improved?'}
+                      placeholder={wizardData.quickAction === 'task' ? 'Que faut-il accomplir ?' : 'Que faut-il apprendre ou améliorer ?'}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {wizardData.quickAction === 'task' ? 'Supervisor / Mentor *' : 'Coach / Mentor *'}
+                      {wizardData.quickAction === 'task' ? 'Responsable / Mentor *' : 'Coach / Mentor *'}
                     </label>
                     <select
                       value={wizardData.coach_id}
                       onChange={(e) => setWizardData({ ...wizardData, coach_id: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                     >
-                      <option value="">-- Select --</option>
+                      <option value="">-- Choisir --</option>
                       {users.filter(u => u.role !== 'trainee' || u.id === currentProfile?.id).map(user => (
                         <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
                       ))}
@@ -2037,7 +2037,7 @@ export default function DevelopmentCenterPage() {
               {wizardStep === 1 && !wizardData.quickAction && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Competency Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nom de la compétence *</label>
                     <input
                       type="text"
                       value={wizardData.name}
@@ -2123,9 +2123,9 @@ export default function DevelopmentCenterPage() {
               {wizardStep === 2 && wizardData.quickAction && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 mb-4">
-                    Select team members to assign this {
+                    Choisissez les personnes à qui assigner {
                       wizardData.quickAction === 'training' ? 'training' :
-                      wizardData.quickAction === 'task' ? 'task' : 'coaching session'
+                      wizardData.quickAction === 'task' ? 'task' : 'séance de coaching'
                     }
                   </p>
                   
@@ -2174,7 +2174,7 @@ export default function DevelopmentCenterPage() {
                   )}
                   
                   {wizardData.assignments.length > 0 && (
-                    <p className="text-sm text-blue-600">{wizardData.assignments.length} user(s) selected</p>
+                    <p className="text-sm text-blue-600">{wizardData.assignments.length} personne(s) sélectionnée(s)</p>
                   )}
                 </div>
               )}
@@ -2193,7 +2193,7 @@ export default function DevelopmentCenterPage() {
                         onChange={(e) => handleTemplateSelect(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                       >
-                        <option value="">-- Select a template --</option>
+                        <option value="">-- Choisir un modèle --</option>
                         {templates.map(t => (
                           <option key={t.id} value={t.id}>{t.name} ({t.type})</option>
                         ))}
@@ -2204,9 +2204,9 @@ export default function DevelopmentCenterPage() {
                   {/* Method Selection */}
                   <div className="flex gap-4">
                     {[
-                      { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Learn from others' },
-                      { value: 'task', label: 'Tâche', icon: Briefcase, desc: 'Learn by doing' },
-                      { value: 'training', label: 'Formation', icon: BookOpen, desc: 'Formal learning' }
+                      { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Apprendre par les autres' },
+                      { value: 'task', label: 'Tâche', icon: Briefcase, desc: 'Mise en pratique' },
+                      { value: 'training', label: 'Formation', icon: BookOpen, desc: 'Formation' }
                     ].map(type => {
                       const Icon = type.icon;
                       return (
@@ -2237,20 +2237,20 @@ export default function DevelopmentCenterPage() {
                   {wizardData.developmentMethod === 'coaching' && (
                     <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Coach/Mentor *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Coach / Mentor *</label>
                         <select
                           value={wizardData.coach_id}
                           onChange={(e) => setWizardData({ ...wizardData, coach_id: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                         >
-                          <option value="">-- Select coach --</option>
+                          <option value="">-- Choisir un coach --</option>
                           {coaches.map(user => (
                             <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Activity Title *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Titre de l’action *</label>
                         <input
                           type="text"
                           value={wizardData.activityTitle}
@@ -2278,7 +2278,7 @@ export default function DevelopmentCenterPage() {
                   {wizardData.developmentMethod === 'task' && (
                     <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Task Title *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Titre de la tâche *</label>
                         <input
                           type="text"
                           value={wizardData.activityTitle}
@@ -2312,7 +2312,7 @@ export default function DevelopmentCenterPage() {
                           <p className="text-sm text-gray-500">Assigner la formation plus tard</p>
                           {!wizardData.template_id && (
                             <p className="text-sm text-red-600 mt-1 font-medium">
-                              ⚠️ A template must be selected above if choosing this option
+                              ⚠️ Choisissez un modèle ci-dessus pour cette option
                             </p>
                           )}
                         </div>
@@ -2360,23 +2360,23 @@ export default function DevelopmentCenterPage() {
                                 <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Contenu généré !</p>
                                 <button onClick={handleGenerateContent} disabled={generating} className="text-sm text-amber-700 hover:underline flex items-center gap-1">
                                   {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                                  Regenerate
+                                  Régénérer
                                 </button>
                               </div>
                               
                               {/* Slides Preview */}
                               <div>
                                 <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-medium text-gray-900 text-sm">Slides ({generatedSlides.length})</h4>
+                                  <h4 className="font-medium text-gray-900 text-sm">Diapositives ({generatedSlides.length})</h4>
                                   <button
                                     onClick={() => setGeneratedSlides([...generatedSlides, {
                                       title: 'Nouvelle diapositive',
                                       key_points: ['Point 1', 'Point 2', 'Point 3'],
-                                      audio_script: 'Audio script for this slide.'
+                                      audio_script: 'Script audio de cette diapositive.'
                                     }])}
                                     className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
                                   >
-                                    + Add Slide
+                                    + Ajouter une diapositive
                                   </button>
                                 </div>
                                 <div className="space-y-3 max-h-[300px] overflow-y-auto">
@@ -2439,13 +2439,13 @@ export default function DevelopmentCenterPage() {
                                         <button
                                           onClick={() => {
                                             const updated = [...generatedSlides];
-                                            const newPoints = [...(updated[index].key_points || []), 'New point'];
+                                            const newPoints = [...(updated[index].key_points || []), 'Nouveau point'];
                                             updated[index] = { ...updated[index], key_points: newPoints };
                                             setGeneratedSlides(updated);
                                           }}
                                           className="text-xs text-blue-600 hover:underline"
                                         >
-                                          + Add point
+                                          + Ajouter un point
                                         </button>
                                       </div>
                                       
@@ -2470,7 +2470,7 @@ export default function DevelopmentCenterPage() {
                               {/* Quiz Preview */}
                               <div>
                                 <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-medium text-gray-900 text-sm">Quiz Questions ({generatedQuiz.length})</h4>
+                                  <h4 className="font-medium text-gray-900 text-sm">Questions du quiz ({generatedQuiz.length})</h4>
                                   <button
                                     onClick={() => setGeneratedQuiz([...generatedQuiz, {
                                       question_text: 'New question?',
@@ -2480,7 +2480,7 @@ export default function DevelopmentCenterPage() {
                                     }])}
                                     className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
                                   >
-                                    + Add Question
+                                    + Ajouter une question
                                   </button>
                                 </div>
                                 <div className="space-y-3 max-h-[300px] overflow-y-auto">
@@ -2527,7 +2527,7 @@ export default function DevelopmentCenterPage() {
                                                     ? 'bg-green-500 text-white' 
                                                     : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                                                 }`}
-                                                title={isCorrect ? 'Correct answer' : 'Click to set as correct'}
+                                                title={isCorrect ? 'Bonne réponse' : 'Cliquer pour définir comme bonne réponse'}
                                               >
                                                 {letter}
                                               </button>
@@ -2628,7 +2628,7 @@ export default function DevelopmentCenterPage() {
                               )}
                             </div>
                             {isSelected && (assignment.current_level || 0) > 0 && (
-                              <p className="text-xs text-green-600 mt-2 ml-7">✓ Will be validated at Level {assignment.current_level} (prior experience)</p>
+                              <p className="text-xs text-green-600 mt-2 ml-7">✓ Sera validé au niveau {assignment.current_level} (expérience antérieure)</p>
                             )}
                           </div>
                         );
@@ -2650,7 +2650,7 @@ export default function DevelopmentCenterPage() {
             <div className="p-4 border-t border-gray-200 flex items-center justify-between">
               <button onClick={() => wizardStep > 1 ? setWizardStep(wizardStep - 1) : closeWizard()} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2">
                 <ChevronLeft className="w-4 h-4" />
-                {wizardStep === 1 ? 'Cancel' : 'Back'}
+                {wizardStep === 1 ? 'Cancel' : 'Retour'}
               </button>
               
               <div className="flex items-center gap-2">
@@ -2667,19 +2667,19 @@ export default function DevelopmentCenterPage() {
                       <button onClick={() => {
                         // Validation for quick action step 1
                         if (wizardData.quickAction === 'training' && !wizardData.linkedModuleId) {
-                          setFormError('Please select a training module');
+                          setFormError('Choisissez une formation');
                           return;
                         }
                         if ((wizardData.quickAction === 'task' || wizardData.quickAction === 'coaching') && !wizardData.competency_id) {
-                          setFormError('Please select a competency to link this activity to');
+                          setFormError('Choisissez la compétence liée à cette action');
                           return;
                         }
                         if ((wizardData.quickAction === 'task' || wizardData.quickAction === 'coaching') && !wizardData.activityTitle) {
-                          setFormError('Please enter a title');
+                          setFormError('Saisissez un titre');
                           return;
                         }
                         if ((wizardData.quickAction === 'task' || wizardData.quickAction === 'coaching') && !wizardData.coach_id) {
-                          setFormError('Please select a coach/supervisor');
+                          setFormError('Choisissez un coach ou un responsable');
                           return;
                         }
                         setFormError('');
@@ -2693,7 +2693,7 @@ export default function DevelopmentCenterPage() {
                         wizardData.quickAction === 'task' ? 'bg-blue-600 hover:bg-blue-700' :
                         'bg-purple-600 hover:bg-purple-700'
                       }`}>
-                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Assignation…</> : <><Check className="w-4 h-4" />Assign {wizardData.assignments.length} User{wizardData.assignments.length !== 1 ? 's' : ''}</>}
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Assignation…</> : <><Check className="w-4 h-4" />Assigner {wizardData.assignments.length} User{wizardData.assignments.length !== 1 ? 's' : ''}</>}
                       </button>
                     )}
                   </>
@@ -2709,20 +2709,20 @@ export default function DevelopmentCenterPage() {
                     {wizardStep < 3 ? (
                       <button onClick={() => {
                         if (wizardStep === 1 && !wizardData.name.trim()) {
-                          setFormError('Please enter a competency name');
+                          setFormError('Saisissez un nom de compétence');
                           return;
                         }
                         if (wizardStep === 2) {
                           if (wizardData.developmentMethod === 'coaching' && !wizardData.coach_id) {
-                            setFormError('Please select a coach');
+                            setFormError('Choisissez un coach');
                             return;
                           }
                           if (wizardData.developmentMethod === 'coaching' && !wizardData.activityTitle) {
-                            setFormError('Please enter an activity title');
+                            setFormError('Saisissez un titre d’action');
                             return;
                           }
                           if (wizardData.developmentMethod === 'task' && !wizardData.activityTitle) {
-                            setFormError('Please enter a task title');
+                            setFormError('Saisissez un titre de tâche');
                             return;
                           }
                         }
@@ -2733,7 +2733,7 @@ export default function DevelopmentCenterPage() {
                       </button>
                     ) : (
                       <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
-                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement…</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Update' : 'Create'} Competency</>}
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement…</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Enregistrer' : 'Créer'} Competency</>}
                       </button>
                     )}
                   </>
@@ -2773,12 +2773,12 @@ export default function DevelopmentCenterPage() {
             
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-800 font-medium">✓ {validateModal.assignment.user?.full_name} passed the training</p>
-                {validateModal.trainingStatus?.score && <p className="text-sm text-green-700">Score: {validateModal.trainingStatus.score}%</p>}
+                <p className="text-sm text-green-800 font-medium">✓ {validateModal.assignment.user?.full_name} a réussi la formation</p>
+                {validateModal.trainingStatus?.score && <p className="text-sm text-green-700">Score : {validateModal.trainingStatus.score}%</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Set achieved level for "{validateModal.competency.name}"</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Définir le niveau atteint pour « {validateModal.competency.name}"</label>
                 <select id="validateLevel" defaultValue={Math.min(validateModal.assignment.target_level || 3, currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin' ? 5 : 4)} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
                   {(currentProfile?.role === 'super_admin' || currentProfile?.role === 'client_admin' 
                     ? [1, 2, 3, 4, 5] 
@@ -2809,9 +2809,9 @@ export default function DevelopmentCenterPage() {
                     });
                     setValidateModal(null);
                     await loadData();
-                    alert(`${validateModal.assignment.user?.full_name}'s level updated to ${newLevel}`);
+                    alert(`${validateModal.assignment.user?.full_name} : niveau mis à jour à ${newLevel}`);
                   } catch (error) {
-                    alert('Failed to validate level');
+                    alert('Validation du niveau impossible');
                   }
                 }}
                 className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
@@ -2846,7 +2846,7 @@ export default function DevelopmentCenterPage() {
               {/* Status & Actions */}
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-500">Status:</span>
+                  <span className="text-sm text-gray-500">Statut :</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getActivityStatusColor(selectedActivity.status, selectedActivity.due_date)}`}>
                     {selectedActivity.status?.replace('_', ' ')}
                   </span>
@@ -2900,14 +2900,14 @@ export default function DevelopmentCenterPage() {
                   <p className="font-medium">
                     {selectedActivity.due_date 
                       ? new Date(selectedActivity.due_date).toLocaleDateString() 
-                      : 'No due date'}
+                      : 'Sans échéance'}
                   </p>
                 </div>
                 {selectedActivity.competency_id && (
                   <div>
                     <p className="text-sm text-gray-500">Compétence liée</p>
                     <p className="font-medium">
-                      {getCompetencyName(selectedActivity.competency_id)} → Level {selectedActivity.target_level}
+                      {getCompetencyName(selectedActivity.competency_id)} → Niveau {selectedActivity.target_level}
                     </p>
                   </div>
                 )}
@@ -2938,7 +2938,7 @@ export default function DevelopmentCenterPage() {
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
-                  Feedback & Progress ({feedback.length})
+                  Retours et avancement ({feedback.length})
                 </h3>
                 
                 {/* Add Feedback */}

@@ -17,8 +17,8 @@ const ROLE_LABELS = {
 
 const SOP_STATUS = {
   draft: { label: 'Brouillon', cls: 'bg-gray-100 text-gray-700' },
-  pending_review: { label: 'Pending review', cls: 'bg-amber-100 text-amber-700' },
-  approved: { label: 'Approved', cls: 'bg-blue-100 text-blue-700' },
+  pending_review: { label: 'En relecture', cls: 'bg-amber-100 text-amber-700' },
+  approved: { label: 'Approuvé', cls: 'bg-blue-100 text-blue-700' },
   published: { label: 'Publié', cls: 'bg-green-100 text-green-700' },
   archived: { label: 'Archivé', cls: 'bg-gray-100 text-gray-500' }
 };
@@ -68,9 +68,9 @@ export default function UserDetailPage() {
       setError('');
       try {
         const [p] = await dbFetch(`profiles?id=eq.${id}&select=*`);
-        if (!p) throw new Error('User not found');
+        if (!p) throw new Error('Personne introuvable');
         if (viewer?.role !== 'super_admin' && viewer?.client_id && p.client_id !== viewer.client_id) {
-          throw new Error('This user is not in your organization');
+          throw new Error('Cette personne n’est pas dans votre organisation');
         }
         const [clientRow, managerRow, sops, execs, comps, trains] = await Promise.all([
           p.client_id ? dbFetch(`clients?id=eq.${p.client_id}&select=id,name`) : [],
@@ -89,7 +89,7 @@ export default function UserDetailPage() {
         setCompetencies(comps || []);
         setTraining(trains || []);
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Failed to load user');
+        if (!cancelled) setError(e.message || 'Chargement impossible');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -122,7 +122,7 @@ export default function UserDetailPage() {
         <div className="w-16 h-16 rounded-full bg-blue-600 text-white text-2xl font-semibold flex items-center justify-center flex-shrink-0">{initial}</div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">{person.full_name || 'No name'}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{person.full_name || 'Sans nom'}</h1>
             <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{ROLE_LABELS[person.role] || person.role}</span>
             {person.is_active === false && <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">Inactif</span>}
           </div>
@@ -180,10 +180,10 @@ export default function UserDetailPage() {
                 <Play className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 <span className="flex-1 min-w-0 truncate font-medium text-gray-900">{e.sop_title || 'SOP'}</span>
                 <span className="text-xs text-gray-500">{fmtDate(e.completed_at || e.started_at)}</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${e.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{e.status === 'completed' ? 'Completed' : 'In progress'}</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${e.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{e.status === 'completed' ? 'Completed' : 'En cours'}</span>
                 {e.status === 'completed' && (
                   <span className={`text-xs px-2 py-0.5 rounded ${e.signoff_status === 'approved' ? 'bg-green-100 text-green-700' : e.signoff_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {e.signoff_status === 'approved' ? 'Signed off' : e.signoff_status === 'rejected' ? 'Sign-off rejected' : 'Awaiting sign-off'}
+                    {e.signoff_status === 'approved' ? 'Validé' : e.signoff_status === 'rejected' ? 'Validation refusée' : 'En attente de validation'}
                   </span>
                 )}
               </li>
@@ -221,9 +221,9 @@ export default function UserDetailPage() {
             {training.map(t => (
               <li key={t.id} className="py-2.5 flex items-center gap-3 text-sm">
                 <span className="flex-1 min-w-0 truncate font-medium text-gray-900">{t.training_modules?.title || 'Training module'}</span>
-                {t.best_score != null && <span className="text-xs text-gray-500">Best {t.best_score}%</span>}
+                {t.best_score != null && <span className="text-xs text-gray-500">Meilleur {t.best_score}%</span>}
                 <span className="text-xs text-gray-500 w-24 text-right">{t.completed_at ? `Done ${fmtDate(t.completed_at)}` : t.due_date ? `Due ${fmtDate(t.due_date)}` : ''}</span>
-                <span className={`text-xs px-2 py-0.5 rounded capitalize ${t.status === 'completed' ? 'bg-green-100 text-green-700' : t.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{String(t.status || 'not started').replace(/_/g, ' ')}</span>
+                <span className={`text-xs px-2 py-0.5 rounded capitalize ${t.status === 'completed' ? 'bg-green-100 text-green-700' : t.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{String(t.status || 'pas commencé').replace(/_/g, ' ')}</span>
               </li>
             ))}
           </ul>

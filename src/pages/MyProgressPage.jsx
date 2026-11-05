@@ -177,7 +177,7 @@ export default function MyProgressPage() {
 
   // Spider chart data
   const chartData = competencies.map(c => ({
-    name: c.competency?.name || 'Unknown',
+    name: c.competency?.name || 'Inconnu',
     current: c.current_level || 1,
     target: c.target_level || 3
   }));
@@ -334,7 +334,7 @@ export default function MyProgressPage() {
                     {gap > 0 && (
                       <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
-                        {gap} level{gap > 1 ? 's' : ''} to target
+                        {gap} level{gap > 1 ? 's' : ''} vers la cible
                       </p>
                     )}
                   </div>

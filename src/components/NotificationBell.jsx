@@ -108,10 +108,10 @@ export default function NotificationBell({ userId }) {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return 'À l’instant';
+    if (diffMins < 60) return `${diffMins} min`;
+    if (diffHours < 24) return `${diffHours} h`;
+    if (diffDays < 7) return `${diffDays} j`;
     return date.toLocaleDateString();
   };
 
@@ -142,7 +142,7 @@ export default function NotificationBell({ userId }) {
                 className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
               >
                 <CheckCheck className="w-3 h-3" />
-                Mark all read
+                Tout marquer comme lu
               </button>
             )}
           </div>
@@ -152,7 +152,7 @@ export default function NotificationBell({ userId }) {
             {notifications.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
                 <Bell className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm">No notifications yet</p>
+                <p className="text-sm">Aucune notification</p>
               </div>
             ) : (
               notifications.map(notification => (
@@ -195,7 +195,7 @@ export default function NotificationBell({ userId }) {
                 }}
                 className="w-full text-center text-sm text-blue-600 hover:text-blue-700 py-1"
               >
-                View all notifications
+                Voir toutes les notifications
               </button>
             </div>
           )}

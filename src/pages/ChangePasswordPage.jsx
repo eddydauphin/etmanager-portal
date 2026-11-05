@@ -42,11 +42,11 @@ export default function ChangePasswordPage() {
             
             if (error) {
               console.error('Error setting session:', error);
-              setError('Invalid or expired reset link. Please request a new one.');
+              setError('Lien invalide ou expiré. Demandez-en un nouveau.');
             }
           } catch (err) {
             console.error('Session error:', err);
-            setError('Failed to process reset link.');
+            setError('Lien de réinitialisation invalide.');
           }
         }
       }
@@ -59,7 +59,7 @@ export default function ChangePasswordPage() {
 
   const validatePassword = () => {
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long');
+      setError('Le mot de passe doit faire au moins 8 caractères');
       return false;
     }
     if (newPassword !== confirmPassword) {
@@ -110,7 +110,7 @@ export default function ChangePasswordPage() {
 
     } catch (err) {
       console.error('Password change error:', err);
-      setError(err.message || 'Failed to change password');
+      setError(err.message || 'Changement de mot de passe impossible');
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ export default function ChangePasswordPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">E&T Manager</h1>
           <p className="text-gray-600">
-            {isResetMode ? 'Reset your password' : 'Set up your new password'}
+            {isResetMode ? 'Reset your password' : 'Choisissez votre nouveau mot de passe'}
           </p>
         </div>
 
@@ -165,8 +165,8 @@ export default function ChangePasswordPage() {
             <Shield className="w-6 h-6 text-blue-600 flex-shrink-0" />
             <p className="text-sm text-blue-800">
               {isResetMode 
-                ? 'Enter your new password below.' 
-                : 'For security, please create a new password for your account.'}
+                ? 'Saisissez votre nouveau mot de passe.' 
+                : 'Par sécurité, créez un nouveau mot de passe.'}
             </p>
           </div>
 
@@ -223,7 +223,7 @@ export default function ChangePasswordPage() {
                 <p className="text-xs text-red-500 mt-1">Les mots de passe ne correspondent pas</p>
               )}
               {confirmPassword && newPassword === confirmPassword && (
-                <p className="text-xs text-green-500 mt-1">Passwords match ✓</p>
+                <p className="text-xs text-green-500 mt-1">Les mots de passe correspondent ✓</p>
               )}
             </div>
 
@@ -240,7 +240,7 @@ export default function ChangePasswordPage() {
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  {isResetMode ? 'Reset Password' : 'Set New Password'}
+                  {isResetMode ? 'Reset Password' : 'Définir le mot de passe'}
                 </>
               )}
             </button>
@@ -249,7 +249,7 @@ export default function ChangePasswordPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-gray-500 mt-6">
-          Need help? Contact{' '}
+          Besoin d’aide ? Contactez{' '}
           <a href="mailto:support@foodekconsulting.com" className="text-blue-600 hover:underline">
             support@foodekconsulting.com
           </a>
