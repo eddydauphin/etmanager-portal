@@ -121,11 +121,12 @@ function ManagerHome({ profile }) {
       try {
         const scope = clientId ? `&client_id=eq.${clientId}` : '';
         const teamScope = profile.role === 'team_lead' ? `&reports_to_id=eq.${profile.id}` : '';
+        const safe = (q) => q.catch(e => { console.error('Tableau de bord :', e); return []; });
         const [people, trainings, activities, modules] = await Promise.all([
-          dbFetch(`profiles?select=id,full_name,role,client_id,is_active&is_active=eq.true&role=neq.super_admin${scope}${teamScope}`),
-          dbFetch(`user_training?select=id,status,due_date,completed_at,user_id,profiles!inner(full_name,client_id,reports_to_id),training_modules:module_id(title)&order=due_date.asc.nullslast${clientId ? `&profiles.client_id=eq.${clientId}` : ''}${profile.role === 'team_lead' ? `&profiles.reports_to_id=eq.${profile.id}` : ''}`),
-          dbFetch(`development_activities?select=id,title,type,status,due_date,trainee_id,coach_id,trainee:trainee_id!inner(full_name,client_id,reports_to_id),coach:coach_id(full_name),competencies(name)&status=neq.cancelled&order=due_date.asc.nullslast${clientId ? `&trainee.client_id=eq.${clientId}` : ''}${profile.role === 'team_lead' ? `&trainee.reports_to_id=eq.${profile.id}` : ''}`),
-          dbFetch(`training_modules?select=id,title,status,client_id${scope}`)
+          safe(dbFetch(`profiles?select=id,full_name,role,client_id,is_active&is_active=eq.true&role=neq.super_admin${scope}${teamScope}`)),
+          safe(dbFetch(`user_training?select=id,status,due_date,completed_at,user_id,person:user_id!inner(full_name,client_id,reports_to_id),training_modules:module_id(title)&order=due_date.asc.nullslast${clientId ? `&person.client_id=eq.${clientId}` : ''}${profile.role === 'team_lead' ? `&person.reports_to_id=eq.${profile.id}` : ''}`)),
+          safe(dbFetch(`development_activities?select=id,title,type,status,due_date,trainee_id,coach_id,trainee:trainee_id!inner(full_name,client_id,reports_to_id),coach:coach_id(full_name),competencies(name)&status=neq.cancelled&order=due_date.asc.nullslast${clientId ? `&trainee.client_id=eq.${clientId}` : ''}${profile.role === 'team_lead' ? `&trainee.reports_to_id=eq.${profile.id}` : ''}`)),
+          safe(dbFetch(`training_modules?select=id,title,status,client_id${scope}`)
         ]);
         if (cancelled) return;
         setData({ people: people || [], trainings: trainings || [], activities: activities || [], modules: modules || [] });
@@ -177,7 +178,7 @@ function ManagerHome({ profile }) {
               {openTrainings.length === 0 ? <Empty>Aucune formation en cours. Assignez-en une depuis Formations.</Empty> : openTrainings.slice(0, 8).map(t => (
                 <Row key={t.id}
                   left={t.training_modules?.title || 'Formation'}
-                  sub={t.profiles?.full_name}
+                  sub={t.person?.full_name}
                   late={isLate(t)}
                   right={<span className={`text-xs px-2 py-0.5 rounded ${(TRAINING_STATUS[t.status] || TRAINING_STATUS.pending).cls}`}>{t.due_date ? `Échéance ${fmtDate(t.due_date)}` : (TRAINING_STATUS[t.status] || TRAINING_STATUS.pending).label}</span>}
                 />
@@ -185,7 +186,7 @@ function ManagerHome({ profile }) {
             </Panel>
 
             <Panel title="Coaching en cours" to="/training?onglet=coaching">
-              {openActivities.length === 0 ? <Empty>Aucune action de coaching en cours. Lancez-en une depuis Coaching.</Empty> : openActivities.slice(0, 8).map(a => (
+              {openActivities.length === 0 ? <Empty>Aucune action de coaching en cours. Lancez-en une depuis Formations.</Empty> : openActivities.slice(0, 8).map(a => (
                 <Row key={a.id}
                   left={a.title || a.competencies?.name || 'Action de développement'}
                   sub={[a.trainee?.full_name, a.coach?.full_name ? `avec ${a.coach.full_name}` : null, ACTIVITY_TYPE[a.type]].filter(Boolean).join(' · ')}
