@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import { dbFetch } from '../../lib/db';
 import NotificationBell from '../NotificationBell';
+import { useFeatures } from '../../lib/features';
 import {
   LayoutDashboard,
   Users,
@@ -29,34 +30,37 @@ import {
 // ============================================================================
 
 const ALL_CAPABILITIES = {
-  dashboard: { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', description: 'View dashboard and KPIs' },
-  chat: { icon: MessageSquare, label: 'Chat', path: '/chat', description: 'AI Assistant and messaging' },
-  clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Manage client organizations', superAdminOnly: true },
-  users: { icon: Users, label: 'Users', path: '/users', description: 'Manage users and team members' },
-  expert_network: { icon: Network, label: 'Expert Network', path: '/expert-network', description: 'Manage knowledge networks and experts' },
-  development_center: { icon: Rocket, label: 'Development Center', path: '/development-center', description: 'Create competencies and assign development' },
-  competencies: { icon: Target, label: 'Competencies', path: '/competencies', description: 'Manage competency framework' },
-  profiles: { icon: FileText, label: 'Profiles', path: '/profiles', description: 'Manage competency profiles' },
-  development: { icon: ClipboardList, label: 'Development Center', path: '/development', description: 'Manage development activities' },
-  training: { icon: GraduationCap, label: 'Training', path: '/training', description: 'Manage training modules' },
-  sops: { icon: ClipboardCheck, label: 'SOPs', path: '/sops', description: 'Standard Operating Procedures' },
-  reports: { icon: BarChart3, label: 'Reports', path: '/reports', description: 'View analytics and reports' },
-  settings: { icon: Settings, label: 'Settings', path: '/settings', description: 'Account settings' },
+  dashboard: { icon: LayoutDashboard, label: 'Tableau de bord', path: '/dashboard', description: 'Vue d’ensemble et indicateurs' },
+  chat: { icon: MessageSquare, label: 'Messagerie', path: '/chat', description: 'Assistant IA et messagerie' },
+  clients: { icon: Building2, label: 'Clients', path: '/clients', description: 'Gérer les organisations clientes', superAdminOnly: true },
+  users: { icon: Users, label: 'Personnes', path: '/users', description: 'Gérer les utilisateurs et les équipes' },
+  expert_network: { icon: Network, label: 'Experts', path: '/expert-network', description: 'Réseau interne d’experts' },
+  development_center: { icon: Rocket, label: 'Coaching', path: '/development-center', description: 'Assigner et suivre les actions de développement' },
+  competencies: { icon: Target, label: 'Compétences', path: '/skills?onglet=referentiel', description: 'Référentiel de compétences' },
+  profiles: { icon: FileText, label: 'Profils de poste', path: '/skills?onglet=profils', description: 'Profils de poste (compétences + formations)' },
+  development: { icon: ClipboardList, label: 'Développement', path: '/development', description: 'Activités de développement' },
+  training: { icon: GraduationCap, label: 'Formations', path: '/training', description: 'Créer et assigner des formations' },
+  sops: { icon: ClipboardCheck, label: 'Procédures', path: '/sops', description: 'Modes opératoires (module en pause)' },
+  reports: { icon: BarChart3, label: 'Rapports', path: '/reports', description: 'Analyses et rapports (module en pause)' },
+  settings: { icon: Settings, label: 'Paramètres', path: '/settings', description: 'Compte et modules' },
   // Trainee-specific
-  my_progress: { icon: TrendingUp, label: 'My Progress', path: '/my-progress', description: 'View your progress', traineeOnly: true },
-  my_training: { icon: BookOpen, label: 'My Training', path: '/my-training', description: 'Access your training', traineeOnly: true },
+  my_progress: { icon: TrendingUp, label: 'Ma progression', path: '/my-progress', description: 'Suivre ma progression', traineeOnly: true },
+  my_training: { icon: BookOpen, label: 'Mes formations', path: '/my-training', description: 'Accéder à mes formations', traineeOnly: true },
 };
+
+// Modules que le menu peut masquer (voir src/lib/features.js)
+const PARKABLE = ['sops', 'reports'];
 
 // Helper to check if user has capability
 export function hasCapability(profile, capability) {
   if (!profile) return false;
-  
+
   // Super admin always has all capabilities
   if (profile.role === 'super_admin') return true;
-  
+
   // Chat is available to everyone
   if (capability === 'chat') return true;
-  
+
   // Check capabilities object if it exists and has the specific capability key
   if (profile.capabilities && typeof profile.capabilities === 'object') {
     // If the capability key exists in the object, use that value
@@ -65,7 +69,7 @@ export function hasCapability(profile, capability) {
     }
     // If capability key doesn't exist, fall through to defaults
   }
-  
+
   // Fallback to role-based defaults if no capabilities set or key not found
   return getDefaultCapabilities(profile.role)[capability] || false;
 }
@@ -117,7 +121,7 @@ export function getDefaultCapabilities(role) {
 // Get all available capabilities for a role (for the edit form)
 export function getAvailableCapabilitiesForRole(role) {
   const capabilities = [];
-  
+
   Object.entries(ALL_CAPABILITIES).forEach(([key, config]) => {
     // Skip super admin only items for non-super admins
     if (config.superAdminOnly && role !== 'super_admin') return;
@@ -130,7 +134,7 @@ export function getAvailableCapabilitiesForRole(role) {
       }
     }
   });
-  
+
   return capabilities;
 }
 
@@ -151,14 +155,14 @@ function Layout() {
         const participants = await dbFetch(
           `chat_participants?select=channel_id,last_read_at&user_id=eq.${profile.id}`
         );
-        
+
         if (!participants || participants.length === 0) {
           setUnreadMessages(0);
           return;
         }
 
         let totalUnread = 0;
-        
+
         for (const part of participants) {
           // Count messages after last_read_at
           let query = `chat_messages?select=id&channel_id=eq.${part.channel_id}&sender_id=neq.${profile.id}&is_deleted=eq.false`;
@@ -167,11 +171,11 @@ function Layout() {
             const encodedTimestamp = encodeURIComponent(part.last_read_at);
             query += `&created_at=gt.${encodedTimestamp}`;
           }
-          
+
           const messages = await dbFetch(query);
           totalUnread += messages?.length || 0;
         }
-        
+
         setUnreadMessages(totalUnread);
       } catch (error) {
         console.error('Error fetching unread messages:', error);
@@ -179,7 +183,7 @@ function Layout() {
     };
 
     fetchUnreadCount();
-    
+
     // Poll for new messages every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
@@ -195,35 +199,41 @@ function Layout() {
     const role = profile?.role;
     const items = [];
 
-    // Define menu order - Chat added after dashboard for all roles
-    // SOPs added between training and reports
-    const menuOrder = role === 'trainee' 
-      ? ['dashboard', 'chat', 'my_progress', 'my_training', 'sops', 'settings']
-      : ['dashboard', 'chat', 'users', 'expert_network', 'development_center', 'profiles', 'training', 'sops', 'reports', 'settings'];
+    // Ordre du menu : formation et coaching d'abord, administration ensuite.
+    // 'skills' regroupe le référentiel et les profils de poste sur une page.
+    const menuOrder = role === 'trainee'
+      ? ['dashboard', 'chat', 'my_training', 'my_progress', 'sops', 'settings']
+      : ['dashboard', 'chat', 'users', 'skills', 'training', 'development_center', 'expert_network', 'sops', 'reports', 'settings'];
 
-    // Super admin also gets clients
+    // Le super admin gère aussi les clients
     if (role === 'super_admin') {
-      menuOrder.splice(2, 0, 'clients'); // Insert after chat
+      menuOrder.splice(2, 0, 'clients');
     }
 
     menuOrder.forEach(capKey => {
+      if (capKey === 'skills') {
+        if (hasCapability(profile, 'competencies') || hasCapability(profile, 'profiles')) {
+          items.push({ to: '/skills', icon: Target, label: 'Compétences', badge: 0 });
+        }
+        return;
+      }
+
       const config = ALL_CAPABILITIES[capKey];
       if (!config) return;
 
-      // Check if user has this capability
       if (hasCapability(profile, capKey)) {
-        // Apply role-specific label changes
         let label = config.label;
         if (capKey === 'users') {
-          if (role === 'client_admin' || role === 'site_admin') label = 'Team';
-          else if (role === 'team_lead') label = 'My Team';
+          if (role === 'client_admin' || role === 'site_admin') label = 'Équipe';
+          else if (role === 'team_lead') label = 'Mon équipe';
         }
 
         items.push({
           to: config.path,
           icon: config.icon,
           label: label,
-          badge: capKey === 'chat' ? unreadMessages : 0
+          badge: capKey === 'chat' ? unreadMessages : 0,
+          feature: PARKABLE.includes(capKey) ? capKey : null
         });
       }
     });
@@ -231,7 +241,8 @@ function Layout() {
     return items;
   };
 
-  const menuItems = getMenuItems();
+  const features = useFeatures();
+  const menuItems = getMenuItems().filter(item => !(item.feature && features[item.feature] === false));
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -303,11 +314,12 @@ function Layout() {
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
-              {profile?.role === 'super_admin' && 'Super Admin Dashboard'}
-              {profile?.role === 'client_admin' && 'Client Admin Dashboard'}
-              {profile?.role === 'site_admin' && 'Site Admin Dashboard'}
-              {profile?.role === 'team_lead' && 'Team Lead Dashboard'}
-              {profile?.role === 'trainee' && 'Trainee Portal'}
+              {profile?.role === 'super_admin' && 'Administration'}
+              {profile?.role === 'client_admin' && 'Administration client'}
+              {profile?.role === 'category_admin' && 'Administration catégorie'}
+              {profile?.role === 'site_admin' && 'Administration site'}
+              {profile?.role === 'team_lead' && 'Chef d’équipe'}
+              {profile?.role === 'trainee' && 'Espace apprenant'}
             </h1>
           </div>
 
@@ -315,7 +327,7 @@ function Layout() {
           <div className="flex items-center gap-2">
             {/* Notification Bell */}
             <NotificationBell userId={profile?.id} />
-            
+
             {/* User menu */}
             <div className="relative">
               <button

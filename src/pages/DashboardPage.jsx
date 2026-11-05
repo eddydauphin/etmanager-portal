@@ -3,6 +3,7 @@
 // Role-based dashboard with real stats, quick actions, and coaching overview
 // ============================================================================
 
+import { isFeatureEnabled } from '../lib/features';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
@@ -3643,7 +3644,7 @@ function TeamLeadDashboard() {
           { icon: UserPlus, label: 'Add Member', path: '/users?action=add' },
           { icon: GraduationCap, label: 'Assign Training', path: '/training' },
           { icon: ClipboardList, label: 'Development', onClick: () => setShowDevModal(true) },
-          { icon: BarChart3, label: 'Reports', path: '/reports' },
+          ...(isFeatureEnabled('reports') ? [{ icon: BarChart3, label: 'Reports', path: '/reports' }] : []),
         ].map((action, i) => (
           <button 
             key={i}
@@ -3729,7 +3730,7 @@ function TeamLeadDashboard() {
             {[
               { label: 'Add Team Member', path: '/users?action=add' },
               { label: 'Assign Training', path: '/training' },
-              { label: 'View Reports', path: '/reports' },
+              ...(isFeatureEnabled('reports') ? [{ label: 'View Reports', path: '/reports' }] : []),
               { label: 'Development', onClick: () => setShowDevModal(true) },
             ].map((a, i) => (
               <button key={i} onClick={a.onClick || (() => navigate(a.path))} className="w-full p-2 rounded bg-slate-700 hover:bg-slate-600 text-left text-sm text-slate-300">

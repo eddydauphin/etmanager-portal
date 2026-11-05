@@ -19,6 +19,8 @@ import DevelopmentActivitiesPage from './pages/DevelopmentActivitiesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import UserDetailPage from './pages/UserDetailPage';
+import SkillsPage from './pages/SkillsPage';
+import { useFeatures } from './lib/features';
 import SettingsPage from './pages/SettingsPage';
 import ClientsPage from './pages/ClientsPage';
 import ExpertNetworkPage from './pages/ExpertNetworkPage';
@@ -47,6 +49,13 @@ function LoadingScreen() {
 }
 
 // Protected route wrapper with capability check
+// Un module en pause (Paramètres → Modules) redirige vers le tableau de bord
+function FeatureGate({ feature, children }) {
+  const features = useFeatures();
+  if (features[feature] === false) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 function ProtectedRoute({ children, allowedRoles = [], requiredCapability = null }) {
   const { user, profile, loading, mustChangePassword } = useAuth();
 
@@ -151,6 +160,11 @@ function AppRoutes() {
             <UserDetailPage />
           </ProtectedRoute>
         } />
+        <Route path="skills" element={
+          <ProtectedRoute>
+            <SkillsPage />
+          </ProtectedRoute>
+        } />
 
         {/* Expert Network - requires expert_network capability */}
         <Route path="expert-network" element={
@@ -196,16 +210,20 @@ function AppRoutes() {
 
         {/* SOPs - requires sops capability */}
         <Route path="sops" element={
+          <FeatureGate feature="sops">
           <ProtectedRoute requiredCapability="sops">
             <SOPsPage />
           </ProtectedRoute>
+          </FeatureGate>
         } />
 
         {/* Reports - requires reports capability */}
         <Route path="reports" element={
+          <FeatureGate feature="reports">
           <ProtectedRoute requiredCapability="reports">
             <ReportsPage />
           </ProtectedRoute>
+          </FeatureGate>
         } />
 
         {/* Legacy Trainees routes */}
