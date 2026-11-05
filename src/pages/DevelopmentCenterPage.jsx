@@ -108,7 +108,7 @@ export default function DevelopmentCenterPage() {
   const [newFeedback, setNewFeedback] = useState('');
   const [feedbackType, setFeedbackType] = useState('progress');
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
-  const [activeTab, setActiveTab] = useState('competencies'); // 'competencies', 'activities'
+  const [activeTab, setActiveTab] = useState('compétences'); // 'competencies', 'activities'
 
   // ==========================================================================
   // DATA LOADING
@@ -558,7 +558,7 @@ export default function DevelopmentCenterPage() {
         trainingOption: competency.hasTraining ? 'link' : 'none',
         training_developer_id: competency.training_developer_id || '',
         linkedModuleId: competency.training_modules?.[0]?.id || '',
-        generateTitle: `${competency.name} Training`,
+        generateTitle: `${competency.name} Formation`,
         assignments: competency.assignments?.map(a => ({
           user_id: a.user_id,
           current_level: a.current_level || 0,
@@ -722,7 +722,7 @@ export default function DevelopmentCenterPage() {
         cache: 'no-store',
         body: JSON.stringify({
           type: 'slides',
-          title: `${wizardData.name} Training`,
+          title: `${wizardData.name} Formation`,
           description: wizardData.description || wizardData.name,
           competency: { name: wizardData.name, description: wizardData.description || wizardData.name },
           targetLevel: 3,
@@ -744,7 +744,7 @@ export default function DevelopmentCenterPage() {
         cache: 'no-store',
         body: JSON.stringify({
           type: 'quiz',
-          title: `${wizardData.name} Training`,
+          title: `${wizardData.name} Formation`,
           description: wizardData.description || wizardData.name,
           competency: { name: wizardData.name, description: wizardData.description || wizardData.name },
           targetLevel: 3,
@@ -762,7 +762,7 @@ export default function DevelopmentCenterPage() {
       
       setGeneratedSlides(slidesData.slides || []);
       setGeneratedQuiz(quizData.questions || []);
-      setWizardData(prev => ({ ...prev, generateTitle: `${wizardData.name} Training` }));
+      setWizardData(prev => ({ ...prev, generateTitle: `${wizardData.name} Formation` }));
       
     } catch (error) {
       console.error('Error generating content:', error);
@@ -979,11 +979,11 @@ export default function DevelopmentCenterPage() {
             description: wizardData.description || null,
             is_active: true,
             training_developer_id: trainingDeveloperId,
-            level_1_description: 'Awareness - Can recognize the topic',
-            level_2_description: 'Knowledge - Can explain concepts',
-            level_3_description: 'Practitioner - Can perform with supervision',
-            level_4_description: 'Proficient - Works independently',
-            level_5_description: 'Expert - Can teach others'
+            level_1_description: 'Sensibilisation – reconnaît le sujet',
+            level_2_description: 'Connaissance – explique les concepts',
+            level_3_description: 'Praticien – réalise avec supervision',
+            level_4_description: 'Confirmé – travaille en autonomie',
+            level_5_description: 'Expert – peut former les autres'
           })
         });
         competencyId = result?.[0]?.id;
@@ -1008,7 +1008,7 @@ export default function DevelopmentCenterPage() {
               message: `${currentProfile?.full_name || 'Quelqu’un'} vous a confié la conception du support de formation « ${wizardData.name}». Merci de créer le contenu de formation.`,
               link: '/training',
               related_id: competencyId,
-              related_type: 'competency'
+              related_type: 'compétence'
             })
           });
         }
@@ -1031,7 +1031,7 @@ export default function DevelopmentCenterPage() {
           const moduleResult = await dbFetch('training_modules?select=id', {
             method: 'POST',
             body: JSON.stringify({
-              title: wizardData.generateTitle || `${wizardData.name} Training`,
+              title: wizardData.generateTitle || `${wizardData.name} Formation`,
               description: wizardData.description,
               client_id: clientId,
               status: 'draft',
@@ -1182,7 +1182,7 @@ export default function DevelopmentCenterPage() {
           
           const activityId = activityResult?.[0]?.id;
           const activityTitle = wizardData.activityTitle || `${wizardData.name} - ${wizardData.developmentMethod}`;
-          const traineeName = users.find(u => u.id === assignment.user_id)?.full_name || 'Trainee';
+          const traineeName = users.find(u => u.id === assignment.user_id)?.full_name || 'Apprenant';
           
           // NOTIFICATION: Notify trainee about assigned activity
           if (assignment.user_id !== currentProfile?.id) {
@@ -1347,7 +1347,7 @@ export default function DevelopmentCenterPage() {
       <div className="border-b border-gray-200">
         <nav className="flex gap-8">
           <button
-            onClick={() => setActiveTab('competencies')}
+            onClick={() => setActiveTab('compétences')}
             className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === 'competencies'
                 ? 'border-blue-600 text-blue-600'
@@ -1560,7 +1560,7 @@ export default function DevelopmentCenterPage() {
                                     <td className="px-4 py-2 text-center">
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${getGapColor(a.current_level, a.target_level)}`}>
                                         {gap <= 0 ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                        {gap <= 0 ? 'Done' : `-${gap}`}
+                                        {gap <= 0 ? 'Terminé' : `-${gap}`}
                                       </span>
                                     </td>
                                     <td className="px-4 py-2 text-gray-500 text-xs">
@@ -1716,7 +1716,7 @@ export default function DevelopmentCenterPage() {
               </p>
               {activities.length === 0 && (
                 <button
-                  onClick={() => { setActiveTab('competencies'); openWizard(); }}
+                  onClick={() => { setActiveTab('compétences'); openWizard(); }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Créer une première compétence
@@ -1744,7 +1744,7 @@ export default function DevelopmentCenterPage() {
                           </div>
                           <h3 className="font-semibold text-gray-900">{activity.title}</h3>
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getActivityStatusColor(activity.status, activity.due_date)}`}>
-                            {isOverdue ? 'Overdue' : activity.status?.replace('_', ' ')}
+                            {isOverdue ? 'En retard' : activity.status?.replace('_', ' ')}
                           </span>
                         </div>
                         
@@ -1845,7 +1845,7 @@ export default function DevelopmentCenterPage() {
                        wizardData.quickAction === 'training' ? 'Assigner une formation' :
                        wizardData.quickAction === 'task' ? 'Assigner une mise en pratique' :
                        wizardData.quickAction === 'coaching' ? 'Assigner un coaching' :
-                       'New Competency'}
+                       'Nouvelle compétence'}
                     </h2>
                     <p className="text-sm text-gray-500">
                       {wizardData.quickAction === 'training' ? 'Assigner des formations en ligne à l’équipe' :
@@ -2473,7 +2473,7 @@ export default function DevelopmentCenterPage() {
                                   <h4 className="font-medium text-gray-900 text-sm">Questions du quiz ({generatedQuiz.length})</h4>
                                   <button
                                     onClick={() => setGeneratedQuiz([...generatedQuiz, {
-                                      question_text: 'New question?',
+                                      question_text: 'Nouvelle question ?',
                                       options: ['A) Option 1', 'B) Option 2', 'C) Option 3', 'D) Option 4'],
                                       correct_answer: 'A',
                                       points: 1
@@ -2650,7 +2650,7 @@ export default function DevelopmentCenterPage() {
             <div className="p-4 border-t border-gray-200 flex items-center justify-between">
               <button onClick={() => wizardStep > 1 ? setWizardStep(wizardStep - 1) : closeWizard()} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2">
                 <ChevronLeft className="w-4 h-4" />
-                {wizardStep === 1 ? 'Cancel' : 'Retour'}
+                {wizardStep === 1 ? 'Annuler' : 'Retour'}
               </button>
               
               <div className="flex items-center gap-2">
@@ -2693,7 +2693,7 @@ export default function DevelopmentCenterPage() {
                         wizardData.quickAction === 'task' ? 'bg-blue-600 hover:bg-blue-700' :
                         'bg-purple-600 hover:bg-purple-700'
                       }`}>
-                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Assignation…</> : <><Check className="w-4 h-4" />Assigner {wizardData.assignments.length} User{wizardData.assignments.length !== 1 ? 's' : ''}</>}
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Assignation…</> : <><Check className="w-4 h-4" />Assigner {wizardData.assignments.length} Personne{wizardData.assignments.length !== 1 ? 's' : ''}</>}
                       </button>
                     )}
                   </>
@@ -2733,7 +2733,7 @@ export default function DevelopmentCenterPage() {
                       </button>
                     ) : (
                       <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
-                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement…</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Enregistrer' : 'Créer'} Competency</>}
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement…</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Enregistrer' : 'Créer'} Compétence</>}
                       </button>
                     )}
                   </>
@@ -2784,7 +2784,7 @@ export default function DevelopmentCenterPage() {
                     ? [1, 2, 3, 4, 5] 
                     : [1, 2, 3, 4]
                   ).map(level => (
-                    <option key={level} value={level}>Level {level} {level === validateModal.assignment.target_level ? '(Target)' : ''}</option>
+                    <option key={level} value={level}>Niveau {level} {level === validateModal.assignment.target_level ? '(Target)' : ''}</option>
                   ))}
                 </select>
                 {currentProfile?.role !== 'super_admin' && currentProfile?.role !== 'client_admin' && (

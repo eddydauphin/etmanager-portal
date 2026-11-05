@@ -294,11 +294,11 @@ export default function CompetenciesPage() {
     client_ids: DEFAULT_CLIENT_ID ? [DEFAULT_CLIENT_ID] : [],
     owner_id: '',                    // NEW: Competency owner (expert/coach)
     training_developer_id: '',       // NEW: Who creates training materials
-    level_1_description: 'Awareness - Can recognize the topic',
-    level_2_description: 'Knowledge - Can explain concepts',
-    level_3_description: 'Practitioner - Can perform with supervision',
-    level_4_description: 'Proficient - Works independently',
-    level_5_description: 'Expert - Can teach others',
+    level_1_description: 'Sensibilisation – reconnaît le sujet',
+    level_2_description: 'Connaissance – explique les concepts',
+    level_3_description: 'Praticien – réalise avec supervision',
+    level_4_description: 'Confirmé – travaille en autonomie',
+    level_5_description: 'Expert – peut former les autres',
     is_active: true,
     // Training module options
     training_option: 'none', // 'none', 'create', 'link'
@@ -633,11 +633,11 @@ export default function CompetenciesPage() {
           client_ids: competency.client_ids || [],
           owner_id: competency.owner_id || '',
           training_developer_id: competency.training_developer_id || '',
-          level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
-          level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
-          level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
-          level_4_description: competency.level_4_description || 'Proficient - Works independently',
-          level_5_description: competency.level_5_description || 'Expert - Can teach others',
+          level_1_description: competency.level_1_description || 'Sensibilisation – reconnaît le sujet',
+          level_2_description: competency.level_2_description || 'Connaissance – explique les concepts',
+          level_3_description: competency.level_3_description || 'Praticien – réalise avec supervision',
+          level_4_description: competency.level_4_description || 'Confirmé – travaille en autonomie',
+          level_5_description: competency.level_5_description || 'Expert – peut former les autres',
           is_active: competency.is_active ?? true,
           // Training options - when editing, show as 'link' if modules exist
           training_option: linkedModuleIds.length > 0 ? 'link' : 'none',
@@ -657,11 +657,11 @@ export default function CompetenciesPage() {
           client_ids: competency.client_ids || [],
           owner_id: competency.owner_id || '',
           training_developer_id: competency.training_developer_id || '',
-          level_1_description: competency.level_1_description || 'Awareness - Can recognize the topic',
-          level_2_description: competency.level_2_description || 'Knowledge - Can explain concepts',
-          level_3_description: competency.level_3_description || 'Practitioner - Can perform with supervision',
-          level_4_description: competency.level_4_description || 'Proficient - Works independently',
-          level_5_description: competency.level_5_description || 'Expert - Can teach others',
+          level_1_description: competency.level_1_description || 'Sensibilisation – reconnaît le sujet',
+          level_2_description: competency.level_2_description || 'Connaissance – explique les concepts',
+          level_3_description: competency.level_3_description || 'Praticien – réalise avec supervision',
+          level_4_description: competency.level_4_description || 'Confirmé – travaille en autonomie',
+          level_5_description: competency.level_5_description || 'Expert – peut former les autres',
           is_active: competency.is_active ?? true,
           training_option: 'none',
           training_module_title: '',
@@ -681,11 +681,11 @@ export default function CompetenciesPage() {
         client_ids: currentProfile?.role === 'client_admin' ? [currentProfile.client_id] : [],
         owner_id: '',
         training_developer_id: '',
-        level_1_description: 'Awareness - Can recognize the topic',
-        level_2_description: 'Knowledge - Can explain concepts',
-        level_3_description: 'Practitioner - Can perform with supervision',
-        level_4_description: 'Proficient - Works independently',
-        level_5_description: 'Expert - Can teach others',
+        level_1_description: 'Sensibilisation – reconnaît le sujet',
+        level_2_description: 'Connaissance – explique les concepts',
+        level_3_description: 'Praticien – réalise avec supervision',
+        level_4_description: 'Confirmé – travaille en autonomie',
+        level_5_description: 'Expert – peut former les autres',
         is_active: true,
         training_option: 'none',
         training_module_title: '',
@@ -821,7 +821,7 @@ export default function CompetenciesPage() {
         method: 'POST',
         body: JSON.stringify({
           type: 'coaching',
-          title: `Validation: ${competencyToAssign?.name || 'Competency'}`,
+          title: `Validation: ${competencyToAssign?.name || 'Compétence'}`,
           description: validateForm.notes || `Compétence validée au niveau ${validateForm.achieved_level}`,
           trainee_id: competencyToValidate.user_id,
           assigned_by: currentProfile.id,
@@ -961,7 +961,7 @@ export default function CompetenciesPage() {
                   body: JSON.stringify({
                     type: 'training',
                     title: `E-Learning: ${competencyToAssign.name}`,
-                    description: `Complete ${modulesToAssign.length} formation(s) pour ${competencyToAssign.name}`,
+                    description: `Terminer ${modulesToAssign.length} formation(s) pour ${competencyToAssign.name}`,
                     objectives: `Atteindre le niveau ${targetLevel} in ${competencyToAssign.name} par e-learning`,
                     success_criteria: `Suivre les formations assignées et réussir les évaluations`,
                     trainee_id: userId,
@@ -1142,7 +1142,7 @@ export default function CompetenciesPage() {
       // Handle training module creation/linking
       if (competencyId && formData.training_option === 'create') {
         // Create new training module (draft, empty)
-        const moduleTitle = formData.training_module_title || `${formData.name} Training`;
+        const moduleTitle = formData.training_module_title || `${formData.name} Formation`;
         const moduleDescription = formData.training_module_description || formData.description || '';
         const developerId = formData.training_developer_assignment || currentProfile?.id;
         
@@ -1795,7 +1795,7 @@ export default function CompetenciesPage() {
                     : 'Aucun client'}
                 </span>
                 <span className={`px-2 py-0.5 rounded-full ${comp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {comp.is_active ? 'Active' : 'Inactive'}
+                  {comp.is_active ? 'Actif' : 'Inactif'}
                 </span>
               </div>
             </div>
@@ -1846,7 +1846,7 @@ export default function CompetenciesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${comp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {comp.is_active ? 'Active' : 'Inactive'}
+                      {comp.is_active ? 'Actif' : 'Inactif'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -1886,7 +1886,7 @@ export default function CompetenciesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingCompetency ? 'Modifier la compétence' : 'Add Competency'}
+                {editingCompetency ? 'Modifier la compétence' : 'Ajouter une compétence'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -2106,7 +2106,7 @@ export default function CompetenciesPage() {
                       onChange={(e) => setFormData({ 
                         ...formData, 
                         training_option: e.target.value,
-                        training_module_title: formData.training_module_title || `${formData.name} Training`,
+                        training_module_title: formData.training_module_title || `${formData.name} Formation`,
                         training_module_description: formData.training_module_description || formData.description
                       })}
                       className="mt-0.5"
@@ -2127,7 +2127,7 @@ export default function CompetenciesPage() {
                           value={formData.training_module_title}
                           onChange={(e) => setFormData({ ...formData, training_module_title: e.target.value })}
                           className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
-                          placeholder={`${formData.name} Training`}
+                          placeholder={`${formData.name} Formation`}
                         />
                       </div>
                       <div>
@@ -2149,7 +2149,7 @@ export default function CompetenciesPage() {
                             className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
                           >
                             {[1, 2, 3, 4, 5].map(level => (
-                              <option key={level} value={level}>Level {level}</option>
+                              <option key={level} value={level}>Niveau {level}</option>
                             ))}
                           </select>
                         </div>
@@ -2248,7 +2248,7 @@ export default function CompetenciesPage() {
                           className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
                         >
                           {[1, 2, 3, 4, 5].map(level => (
-                            <option key={level} value={level}>Level {level}</option>
+                            <option key={level} value={level}>Niveau {level}</option>
                           ))}
                         </select>
                       </div>
@@ -2284,7 +2284,7 @@ export default function CompetenciesPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {submitting ? 'Saving...' : editingCompetency ? 'Enregistrer' : 'Créer'}
+                  {submitting ? 'Enregistrement…' : editingCompetency ? 'Enregistrer' : 'Créer'}
                 </button>
               </div>
             </form>
@@ -2477,7 +2477,7 @@ export default function CompetenciesPage() {
                     disabled={submitting}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {submitting ? 'Saving...' : editingTag ? 'Enregistrer' : 'Créer'}
+                    {submitting ? 'Enregistrement…' : editingTag ? 'Enregistrer' : 'Créer'}
                   </button>
                 </div>
               </div>
@@ -2516,7 +2516,7 @@ export default function CompetenciesPage() {
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
                 >
-                  {submitting ? 'Suppression…' : 'Delete'}
+                  {submitting ? 'Suppression…' : 'Supprimer'}
                 </button>
               </div>
             </div>
@@ -2604,7 +2604,7 @@ export default function CompetenciesPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 >
                   {[1, 2, 3, 4, 5].map(level => (
-                    <option key={level} value={level}>Level {level}</option>
+                    <option key={level} value={level}>Niveau {level}</option>
                   ))}
                 </select>
               </div>
@@ -2621,7 +2621,7 @@ export default function CompetenciesPage() {
                 >
                   <option value={0}>Pas encore acquis (niveau 0)</option>
                   {[1, 2, 3, 4, 5].map(level => (
-                    <option key={level} value={level}>Level {level}</option>
+                    <option key={level} value={level}>Niveau {level}</option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
@@ -2681,7 +2681,7 @@ export default function CompetenciesPage() {
                           <p className="text-sm font-medium text-gray-900">E-learning</p>
                           {linkedTrainingModules.length > 0 && (
                             <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                              {linkedTrainingModules.length} module{linkedTrainingModules.length > 1 ? 's' : ''} linked
+                              {linkedTrainingModules.length} formation{linkedTrainingModules.length > 1 ? 's' : ''} linked
                             </span>
                           )}
                         </div>
@@ -3113,7 +3113,7 @@ export default function CompetenciesPage() {
                   <div>
                     <p className="font-medium text-purple-900">{nominationData.user_name}</p>
                     <p className="text-sm text-purple-600">
-                      Level {nominationData.current_level} in {nominationData.competency_name}
+                      Niveau {nominationData.current_level} in {nominationData.competency_name}
                     </p>
                   </div>
                 </div>

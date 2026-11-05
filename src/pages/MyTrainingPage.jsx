@@ -165,7 +165,7 @@ function TrainingCard({ training, onStart, onContinue }) {
             <div>
               <p className="font-medium text-green-700">Score : {training.best_score}%</p>
               <p className="text-sm text-green-600">
-                Completed {training.completed_at ? new Date(training.completed_at).toLocaleDateString() : ''}
+                Terminé {training.completed_at ? new Date(training.completed_at).toLocaleDateString() : ''}
               </p>
             </div>
           </div>
@@ -762,7 +762,7 @@ export default function MyTrainingPage() {
       }
     }
     
-    setMode('slides');
+    setMode('diapositives');
   };
 
   const handleSlidesComplete = () => {
@@ -874,7 +874,7 @@ export default function MyTrainingPage() {
 
   const handleRetry = () => {
     setCurrentSlide(0);
-    setMode('slides');
+    setMode('diapositives');
   };
 
   // Stats

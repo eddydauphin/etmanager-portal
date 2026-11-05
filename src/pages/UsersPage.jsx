@@ -772,7 +772,7 @@ export default function UsersPage() {
         {/* Results Count */}
         {filteredUsers.length > 0 && (
           <div className="text-sm text-gray-500 text-center">
-            Affichage de {filteredUsers.length} of {users.length} users
+            Affichage de {filteredUsers.length} of {users.length} personnes
           </div>
         )}
       </div>
@@ -788,7 +788,7 @@ export default function UsersPage() {
                   {editingUser ? <Edit2 className="w-5 h-5 text-blue-600" /> : <Plus className="w-5 h-5 text-blue-600" />}
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {editingUser ? 'Edit User' : 'Nouvelle personne'}
+                  {editingUser ? 'Modifier la personne' : 'Nouvelle personne'}
                 </h2>
               </div>
               <button
@@ -1234,7 +1234,7 @@ export default function UsersPage() {
                     <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                   <span className="text-sm font-medium text-gray-700">
-                    {formData.is_active ? 'Active' : 'Inactive'}
+                    {formData.is_active ? 'Actif' : 'Inactif'}
                   </span>
                 </div>
               )}
@@ -1269,7 +1269,7 @@ export default function UsersPage() {
                   {submitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      {editingUser ? 'Updating...' : 'Création…'}
+                      {editingUser ? 'Mise à jour…' : 'Création…'}
                     </>
                   ) : (
                     <>

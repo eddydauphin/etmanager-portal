@@ -287,7 +287,7 @@ export default function CompetencyProfilesPage() {
 
           // Auto-create coaching activity for this competency
           if (coachId) {
-            const competencyName = pc.competencies?.name || 'Competency';
+            const competencyName = pc.competencies?.name || 'Compétence';
             
             await dbFetch('development_activities', {
               method: 'POST',
@@ -704,7 +704,7 @@ export default function CompetencyProfilesPage() {
               {/* Competencies preview */}
               <div className="space-y-1">
                 <p className="text-xs font-medium text-gray-500 mb-2">
-                  {profile.profile_competencies?.length || 0} Competencies
+                  {profile.profile_competencies?.length || 0} Compétences
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {profile.profile_competencies?.slice(0, 4).map(pc => (
@@ -767,7 +767,7 @@ export default function CompetencyProfilesPage() {
                   <Briefcase className="w-5 h-5 text-blue-600" />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {editingProfile ? 'Modifier le profil' : 'Create Profile'}
+                  {editingProfile ? 'Modifier le profil' : 'Créer un profil'}
                 </h2>
               </div>
               <button
@@ -861,7 +861,7 @@ export default function CompetencyProfilesPage() {
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                       <Target className="w-4 h-4 text-blue-600" />
-                      Choisir les compétences <span className="text-gray-400">({formData.competencies.length} selected)</span>
+                      Choisir les compétences <span className="text-gray-400">({formData.competencies.length} sélectionné(s))</span>
                     </label>
                   </div>
 
@@ -963,7 +963,7 @@ export default function CompetencyProfilesPage() {
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-green-600" />
-                      Formations <span className="text-gray-400">({formData.training_modules.length} selected)</span>
+                      Formations <span className="text-gray-400">({formData.training_modules.length} sélectionné(s))</span>
                     </label>
                   </div>
 
@@ -1050,7 +1050,7 @@ export default function CompetencyProfilesPage() {
                   disabled={submitting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : editingProfile ? 'Enregistrer le profil' : 'Create Profile'}
+                  {submitting ? 'Enregistrement…' : editingProfile ? 'Enregistrer le profil' : 'Créer un profil'}
                 </button>
               </div>
             </form>
@@ -1130,7 +1130,7 @@ export default function CompetencyProfilesPage() {
               {/* Profile Info */}
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  Cette action assignera <strong>{profileToAssign.profile_competencies?.length || 0} competencies</strong> aux personnes sélectionnées :
+                  Cette action assignera <strong>{profileToAssign.profile_competencies?.length || 0} compétences</strong> aux personnes sélectionnées :
                 </p>
                 <div className="flex flex-wrap gap-1 mt-2">
                   {profileToAssign.profile_competencies?.map(pc => (

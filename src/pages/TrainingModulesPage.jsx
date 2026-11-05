@@ -416,11 +416,11 @@ export default function TrainingModulesPage() {
           description: formData.new_competency_description || formData.description,
           owner_id: formData.new_competency_owner_id || currentProfile?.id || null,
           training_developer_id: currentProfile?.id || null,
-          level_1_description: 'Awareness - Can recognize the topic',
-          level_2_description: 'Knowledge - Can explain concepts',
-          level_3_description: 'Practitioner - Can perform with supervision',
-          level_4_description: 'Proficient - Works independently',
-          level_5_description: 'Expert - Can teach others',
+          level_1_description: 'Sensibilisation – reconnaît le sujet',
+          level_2_description: 'Connaissance – explique les concepts',
+          level_3_description: 'Praticien – réalise avec supervision',
+          level_4_description: 'Confirmé – travaille en autonomie',
+          level_5_description: 'Expert – peut former les autres',
           is_active: true
         };
         
@@ -493,7 +493,7 @@ export default function TrainingModulesPage() {
       
       // Use first selected language for generation
       const primaryLanguage = formData.audio_languages[0];
-      const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'English';
+      const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'Anglais';
       
       const levelDescriptions = {
         1: competency?.level_1_description || 'Reconnaît le sujet',
@@ -637,7 +637,7 @@ export default function TrainingModulesPage() {
 
       const competency = competencies.find(c => c.id === formData.competency_id);
       const primaryLanguage = formData.audio_languages[0];
-      const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'English';
+      const languageLabel = languages.find(l => l.code === primaryLanguage)?.label || 'Anglais';
 
       setUploadProgress(50);
 
@@ -744,7 +744,7 @@ export default function TrainingModulesPage() {
         // CREATING NEW MODULE(S)
         for (const clientId of formData.client_ids) {
           for (const langCode of formData.audio_languages) {
-            const langLabel = languages.find(l => l.code === langCode)?.label || 'English';
+            const langLabel = languages.find(l => l.code === langCode)?.label || 'Anglais';
             
             // Add language suffix if multiple languages selected
             const titleSuffix = formData.audio_languages.length > 1 ? ` (${langLabel})` : '';
@@ -1730,10 +1730,10 @@ export default function TrainingModulesPage() {
 
   const getLevelName = (level) => {
     const names = {
-      1: 'Awareness',
-      2: 'Knowledge',
-      3: 'Practitioner',
-      4: 'Proficient',
+      1: 'Sensibilisation',
+      2: 'Connaissance',
+      3: 'Praticien',
+      4: 'Confirmé',
       5: 'Expert'
     };
     return names[level] || 'Inconnu';
@@ -1754,13 +1754,13 @@ export default function TrainingModulesPage() {
 
   const getStatusLabel = (status) => {
     switch (status) {
-      case 'published': return 'Published';
-      case 'content_approved': return 'Quiz Pending';
-      case 'submitted': return 'Pending Review';
+      case 'published': return 'Publié';
+      case 'content_approved': return 'Quiz à valider';
+      case 'submitted': return 'En relecture';
       case 'in_review': return 'En relecture';
-      case 'returned': return 'Needs Revision';
-      case 'draft': return 'Draft';
-      case 'archived': return 'Archived';
+      case 'returned': return 'À revoir';
+      case 'draft': return 'Brouillon';
+      case 'archived': return 'Archivé';
       default: return status;
     }
   };
@@ -1832,7 +1832,7 @@ export default function TrainingModulesPage() {
                     />
                   </div>
                   <p className="text-xs text-orange-600 mt-1">
-                    {audioProgress.current} of {audioProgress.total} slides
+                    {audioProgress.current} of {audioProgress.total} diapositives
                   </p>
                 </div>
               )}
@@ -2104,7 +2104,7 @@ export default function TrainingModulesPage() {
                           className="w-full px-4 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 disabled:opacity-50"
                         >
                           <Mic className="w-4 h-4" />
-                          {generatingAudio ? 'Generating...' : 'Générer l’audio'}
+                          {generatingAudio ? 'Génération…' : 'Générer l’audio'}
                         </button>
                       )}
                       
@@ -2151,7 +2151,7 @@ export default function TrainingModulesPage() {
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1">
                     <FileText className="w-4 h-4" />
-                    <span>{module.module_slides?.length || 0} slides</span>
+                    <span>{module.module_slides?.length || 0} diapositives</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <ClipboardList className="w-4 h-4" />
@@ -2226,7 +2226,7 @@ export default function TrainingModulesPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
-                    {editingModuleId ? 'Generate Content' : 'Créer une formation'}
+                    {editingModuleId ? 'Générer le contenu' : 'Créer une formation'}
                   </h2>
                   <p className="text-sm text-gray-500">Étape {createStep} sur 3</p>
                 </div>
@@ -2277,7 +2277,7 @@ export default function TrainingModulesPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     {!SINGLE_CLIENT && (<div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Clients * {formData.client_ids.length > 0 && `(${formData.client_ids.length} selected)`}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Clients * {formData.client_ids.length > 0 && `(${formData.client_ids.length} sélectionné(s))`}</label>
                       <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto">
                         {currentProfile?.role === 'client_admin' ? (
                           <div className="text-sm text-gray-600 p-1">
@@ -2354,7 +2354,7 @@ export default function TrainingModulesPage() {
                                 ...formData, 
                                 new_competency_name: e.target.value,
                                 // Auto-fill training title if empty
-                                title: formData.title || `${e.target.value} Training`
+                                title: formData.title || `${e.target.value} Formation`
                               });
                             }}
                             className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-green-50"
@@ -2464,7 +2464,7 @@ export default function TrainingModulesPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Langues * {formData.audio_languages.length > 0 && `(${formData.audio_languages.length} selected)`}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Langues * {formData.audio_languages.length > 0 && `(${formData.audio_languages.length} sélectionné(s))`}</label>
                       <div className="border border-gray-200 rounded-lg p-2">
                         {languages.map(lang => (
                           <label key={lang.code} className="flex items-center gap-2 p-1 hover:bg-gray-50 rounded cursor-pointer">
@@ -2914,7 +2914,7 @@ export default function TrainingModulesPage() {
                       <button
                         onClick={() => {
                           setGeneratedQuiz([...generatedQuiz, {
-                            question_text: 'New question?',
+                            question_text: 'Nouvelle question ?',
                             options: ['A) Option 1', 'B) Option 2', 'C) Option 3', 'D) Option 4'],
                             correct_answer: 'A',
                             points: 1
@@ -3030,7 +3030,7 @@ export default function TrainingModulesPage() {
                   {generating ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      {competencyMode === 'new' ? 'Création de la compétence et génération…' : 'Generating...'}
+                      {competencyMode === 'new' ? 'Création de la compétence et génération…' : 'Génération…'}
                     </>
                   ) : (
                     <>
@@ -3076,7 +3076,7 @@ export default function TrainingModulesPage() {
                   disabled={generating}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                 >
-                  {generating ? 'Saving...' : (
+                  {generating ? 'Enregistrement…' : (
                     <>
                       <Check className="w-4 h-4" />
                       {editingModuleId ? 'Enregistrer le contenu' : 'Enregistrer la formation'}
@@ -3340,7 +3340,7 @@ export default function TrainingModulesPage() {
               {selectedUsers.length > 0 && (
                 <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                   <h4 className="text-sm font-medium text-purple-900 mb-3">
-                    Définir les niveaux ({selectedUsers.length} user{selectedUsers.length > 1 ? 's' : ''})
+                    Définir les niveaux ({selectedUsers.length} personne{selectedUsers.length > 1 ? 's' : ''})
                   </h4>
                   <div className="space-y-3">
                     {selectedUsers.map(userId => {
@@ -3375,7 +3375,7 @@ export default function TrainingModulesPage() {
                                 className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
                               >
                                 {[0, 1, 2, 3, 4].map(l => (
-                                  <option key={l} value={l}>Level {l}</option>
+                                  <option key={l} value={l}>Niveau {l}</option>
                                 ))}
                               </select>
                             </div>
@@ -3392,7 +3392,7 @@ export default function TrainingModulesPage() {
                                 className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
                               >
                                 {[1, 2, 3, 4, 5].map(l => (
-                                  <option key={l} value={l}>Level {l}{l === 5 ? ' (Expert)' : ''}</option>
+                                  <option key={l} value={l}>Niveau {l}{l === 5 ? ' (Expert)' : ''}</option>
                                 ))}
                               </select>
                             </div>
@@ -3622,7 +3622,7 @@ export default function TrainingModulesPage() {
                 Détails
               </button>
               <button
-                onClick={() => setEditTab('slides')}
+                onClick={() => setEditTab('diapositives')}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   editTab === 'slides'
                     ? 'border-blue-600 text-blue-600'
@@ -3757,7 +3757,7 @@ export default function TrainingModulesPage() {
                                 onClick={() => setEditingSlideId(editingSlideId === slide.id ? null : slide.id)}
                                 className="text-sm text-blue-600 hover:text-blue-700"
                               >
-                                {editingSlideId === slide.id ? 'Close' : 'Edit'}
+                                {editingSlideId === slide.id ? 'Fermer' : 'Modifier'}
                               </button>
                             </div>
                             
@@ -3924,7 +3924,7 @@ export default function TrainingModulesPage() {
                                 onClick={() => setEditingQuestionId(editingQuestionId === question.id ? null : question.id)}
                                 className="text-sm text-blue-600 hover:text-blue-700"
                               >
-                                {editingQuestionId === question.id ? 'Close' : 'Edit'}
+                                {editingQuestionId === question.id ? 'Fermer' : 'Modifier'}
                               </button>
                             </div>
                             
@@ -4029,7 +4029,7 @@ export default function TrainingModulesPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {editSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {editSubmitting ? 'Saving...' : 'Enregistrer les détails'}
+                  {editSubmitting ? 'Enregistrement…' : 'Enregistrer les détails'}
                 </button>
               )}
             </div>

@@ -107,7 +107,7 @@ export default function ChatPage() {
     const { data: ch } = await supabase.from('chat_channels')
       .insert({ 
         type: 'ai_assistant', 
-        name: `AI Assistant`, 
+        name: `Assistant IA`, 
         created_by: user.id, 
         client_id: profile.client_id 
       })
@@ -179,7 +179,7 @@ export default function ChatPage() {
       await supabase.from('chat_messages').insert({
         channel_id: activeChannel.id,
         sender_id: user.id,
-        sender_type: 'user',
+        sender_type: 'personne',
         content,
         content_type: 'text'
       });
@@ -339,7 +339,7 @@ export default function ChatPage() {
                     {showAv && <div className={`w-8 h-8 rounded-full flex items-center justify-center ${ai ? 'bg-purple-100' : own ? 'bg-blue-100' : 'bg-gray-100'}`}>{ai ? <Bot className="w-4 h-4 text-purple-600" /> : <span className="text-sm font-medium">{(msg.sender?.full_name || profile?.full_name || 'U')[0]}</span>}</div>}
                     {!showAv && <div className="w-8" />}
                     <div>
-                      {showAv && <div className={`flex items-center gap-2 mb-1 ${own ? 'justify-end' : ''}`}><span className="text-sm font-medium text-gray-700">{ai ? 'AI Assistant' : msg.sender?.full_name || profile?.full_name}</span><span className="text-xs text-gray-400">{formatTime(msg.created_at)}</span></div>}
+                      {showAv && <div className={`flex items-center gap-2 mb-1 ${own ? 'justify-end' : ''}`}><span className="text-sm font-medium text-gray-700">{ai ? 'Assistant IA' : msg.sender?.full_name || profile?.full_name}</span><span className="text-xs text-gray-400">{formatTime(msg.created_at)}</span></div>}
                       <div className={`rounded-2xl px-4 py-2 ${own ? 'bg-blue-600 text-white' : ai ? 'bg-purple-50 border border-purple-100' : 'bg-white border'}`}><p className="text-sm whitespace-pre-wrap">{msg.content}</p></div>
                     </div>
                   </div>

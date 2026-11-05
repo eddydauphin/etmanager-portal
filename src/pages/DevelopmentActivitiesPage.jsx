@@ -615,7 +615,7 @@ export default function DevelopmentActivitiesPage() {
                       </div>
                       <h3 className="font-semibold text-gray-900">{activity.title}</h3>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(activity.status, activity.due_date)}`}>
-                        {isOverdue ? 'Overdue' : activity.status.replace('_', ' ')}
+                        {isOverdue ? 'En retard' : activity.status.replace('_', ' ')}
                       </span>
                     </div>
                     
@@ -918,7 +918,7 @@ export default function DevelopmentActivitiesPage() {
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  Assign Activity
+                  Assigner une action
                 </button>
               </div>
             </form>

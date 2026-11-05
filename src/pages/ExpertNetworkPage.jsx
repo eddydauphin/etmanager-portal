@@ -920,7 +920,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                         </div>
                         <div className="ml-13 space-y-1 text-sm">
                           <p><span className="text-gray-500">Compétence :</span> <span className="font-medium">{nomination.competency?.name}</span></p>
-                          <p><span className="text-gray-500">Niveau :</span> <span className="font-medium text-purple-600">Level {nomination.current_level}</span></p>
+                          <p><span className="text-gray-500">Niveau :</span> <span className="font-medium text-purple-600">Niveau {nomination.current_level}</span></p>
                           <p><span className="text-gray-500">Rôle proposé :</span> <span className="font-medium capitalize">{nomination.proposed_role?.replace('_', ' ')}</span></p>
                           {nomination.site_name && <p><span className="text-gray-500">Site :</span> <span className="font-medium">{nomination.site_name}</span></p>}
                           <p><span className="text-gray-500">Nommé par :</span> <span className="font-medium">{nomination.nominator?.full_name}</span></p>
@@ -971,7 +971,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                         <tr key={nomination.id}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{nomination.user?.full_name}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{nomination.competency?.name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">Level {nomination.current_level}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">Niveau {nomination.current_level}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 text-xs rounded-full font-medium ${
                               nomination.status === 'approved' 
@@ -1020,7 +1020,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                       <tr key={nomination.id}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{nomination.user?.full_name}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">{nomination.competency?.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">Level {nomination.current_level}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">Niveau {nomination.current_level}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 text-xs rounded-full font-medium ${
                             nomination.status === 'pending' 
@@ -1352,7 +1352,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
-                {editingNetwork ? 'Modifier le réseau' : 'Create Network'}
+                {editingNetwork ? 'Modifier le réseau' : 'Créer un réseau'}
               </h2>
               <button
                 onClick={() => setShowNetworkModal(false)}
@@ -1481,7 +1481,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : (editingNetwork ? 'Enregistrer' : 'Créer')}
+                  {submitting ? 'Enregistrement…' : (editingNetwork ? 'Enregistrer' : 'Créer')}
                 </button>
               </div>
             </form>
@@ -1496,7 +1496,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {editingMember ? 'Modifier le membre' : 'Add Member'}
+                  {editingMember ? 'Modifier le membre' : 'Ajouter un membre'}
                 </h2>
                 <p className="text-sm text-gray-500">{selectedNetwork.name}</p>
               </div>
@@ -1666,7 +1666,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : (editingMember ? 'Enregistrer' : 'Add')}
+                  {submitting ? 'Enregistrement…' : (editingMember ? 'Enregistrer' : 'Ajouter')}
                 </button>
               </div>
             </form>
@@ -1681,7 +1681,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {editingAction ? 'Modifier l’action' : 'Add Action'}
+                  {editingAction ? 'Modifier l’action' : 'Ajouter une action'}
                 </h2>
                 <p className="text-sm text-gray-500">{selectedNetwork.name}</p>
               </div>
@@ -1792,7 +1792,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : (editingAction ? 'Enregistrer' : 'Add')}
+                  {submitting ? 'Enregistrement…' : (editingAction ? 'Enregistrer' : 'Ajouter')}
                 </button>
               </div>
             </form>
@@ -1925,7 +1925,7 @@ Seront aussi supprimés : - ${memberCount} member(s)\n- ${actionCount} plan(s) d
                               <div className="flex-1">
                                 <div className="font-medium text-gray-900">{action.title}</div>
                                 <div className="text-sm text-gray-500 mt-0.5">
-                                  {action.assigned_user?.full_name || 'Unassigned'}
+                                  {action.assigned_user?.full_name || 'Non assigné'}
                                   {action.due_date && ` • Échéance : ${new Date(action.due_date).toLocaleDateString()}`}
                                 </div>
                               </div>

@@ -286,8 +286,8 @@ export default function MyProgressPage() {
                         <h3 className="font-medium text-gray-900">{comp.competency?.name}</h3>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(comp.status)}`}>
-                        {comp.status === 'achieved' ? 'Achieved' : 
-                         comp.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                        {comp.status === 'achieved' ? 'Atteint' : 
+                         comp.status === 'in_progress' ? 'En cours' : 'Pas commencé'}
                       </span>
                     </div>
 

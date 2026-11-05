@@ -155,7 +155,7 @@ export default function ChangePasswordPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">E&T Manager</h1>
           <p className="text-gray-600">
-            {isResetMode ? 'Reset your password' : 'Choisissez votre nouveau mot de passe'}
+            {isResetMode ? 'Réinitialiser le mot de passe' : 'Choisissez votre nouveau mot de passe'}
           </p>
         </div>
 
@@ -240,7 +240,7 @@ export default function ChangePasswordPage() {
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  {isResetMode ? 'Reset Password' : 'Définir le mot de passe'}
+                  {isResetMode ? 'Réinitialiser le mot de passe' : 'Définir le mot de passe'}
                 </>
               )}
             </button>
