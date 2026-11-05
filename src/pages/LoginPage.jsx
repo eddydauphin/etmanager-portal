@@ -79,7 +79,7 @@ export default function LoginPage() {
               E&T
             </div>
             <h1 className="text-2xl font-bold text-gray-900">E&T Manager</h1>
-            <p className="text-gray-600">Reset your password</p>
+            <p className="text-gray-600">Réinitialiser le mot de passe</p>
           </div>
 
           {/* Reset Form */}
@@ -90,20 +90,20 @@ export default function LoginPage() {
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Check your email</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Vérifiez votre boîte mail</h2>
                 <p className="text-gray-600 mb-6">
-                  We've sent a password reset link to<br />
+                  Un lien de réinitialisation a été envoyé à<br />
                   <strong>{resetEmail}</strong>
                 </p>
                 <p className="text-sm text-gray-500 mb-6">
-                  Didn't receive the email? Check your spam folder or try again.
+                  E-mail non reçu ? Vérifiez vos indésirables ou réessayez.
                 </p>
                 <button
                   onClick={handleBackToLogin}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to Sign In
+                  Retour à la connexion
                 </button>
               </div>
             ) : (
@@ -114,12 +114,12 @@ export default function LoginPage() {
                   className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-6"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to Sign In
+                  Retour à la connexion
                 </button>
 
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Forgot your password?</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Mot de passe oublié ?</h2>
                 <p className="text-gray-600 mb-6">
-                  Enter your email address and we'll send you a link to reset your password.
+                  Saisissez votre adresse e-mail : nous vous enverrons un lien de réinitialisation.
                 </p>
 
                 {resetError && (
@@ -132,7 +132,7 @@ export default function LoginPage() {
                 <form onSubmit={handleForgotPassword}>
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email address
+                      Adresse e-mail
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -155,12 +155,12 @@ export default function LoginPage() {
                     {resetLoading ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                        Sending...
+                        Envoi…
                       </>
                     ) : (
                       <>
                         <Mail className="w-5 h-5" />
-                        Send Reset Link
+                        Envoyer le lien
                       </>
                     )}
                   </button>
@@ -191,13 +191,13 @@ export default function LoginPage() {
             E&T
           </div>
           <h1 className="text-2xl font-bold text-gray-900">E&T Manager</h1>
-          <p className="text-gray-600">Competency & Training Management</p>
-          <p className="text-sm text-gray-500">by Foodek Consulting</p>
+          <p className="text-gray-600">Gestion des compétences et des formations</p>
+          <p className="text-sm text-gray-500">par Foodek Consulting</p>
         </div>
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Sign in to your account</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Connexion à votre compte</h2>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
@@ -209,7 +209,7 @@ export default function LoginPage() {
           <form onSubmit={handleLogin}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email address
+                Adresse e-mail
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -226,7 +226,7 @@ export default function LoginPage() {
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                Mot de passe
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -256,7 +256,7 @@ export default function LoginPage() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-600">Remember me</span>
+                <span className="text-sm text-gray-600">Se souvenir de moi</span>
               </label>
               <button
                 type="button"
@@ -266,7 +266,7 @@ export default function LoginPage() {
                 }}
                 className="text-sm text-blue-600 hover:underline"
               >
-                Forgot password?
+                Mot de passe oublié ?
               </button>
             </div>
 
@@ -278,12 +278,12 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                  Signing in...
+                  Connexion…
                 </>
               ) : (
                 <>
                   <LogIn className="w-5 h-5" />
-                  Sign in
+                  Se connecter
                 </>
               )}
             </button>

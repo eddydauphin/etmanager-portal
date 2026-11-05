@@ -9,12 +9,11 @@ import { AuthProvider, useAuth } from './lib/AuthContext';
 // Pages
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
-import DashboardPage from './pages/DashboardPage';
-import TraineesPage from './pages/TraineesPage';
+import HomePage from './pages/HomePage';
 import TraineeDetailPage from './pages/TraineeDetailPage';
 import CompetenciesPage from './pages/CompetenciesPage';
 import CompetencyProfilesPage from './pages/CompetencyProfilesPage';
-import TrainingModulesPage from './pages/TrainingModulesPage';
+import TrainingHubPage from './pages/TrainingHubPage';
 import DevelopmentActivitiesPage from './pages/DevelopmentActivitiesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
@@ -126,7 +125,7 @@ function AppRoutes() {
         {/* Dashboard - everyone with capability */}
         <Route path="dashboard" element={
           <ProtectedRoute requiredCapability="dashboard">
-            <DashboardPage />
+            <HomePage />
           </ProtectedRoute>
         } />
         
@@ -204,7 +203,7 @@ function AppRoutes() {
         {/* Training - requires training capability */}
         <Route path="training" element={
           <ProtectedRoute requiredCapability="training">
-            <TrainingModulesPage />
+            <TrainingHubPage />
           </ProtectedRoute>
         } />
 
@@ -226,12 +225,7 @@ function AppRoutes() {
           </FeatureGate>
         } />
 
-        {/* Legacy Trainees routes */}
-        <Route path="trainees" element={
-          <ProtectedRoute requiredCapability="users">
-            <TraineesPage />
-          </ProtectedRoute>
-        } />
+        {/* Legacy: /trainees/:id shows the same page as /users/:id */}
         <Route path="trainees/:id" element={
           <ProtectedRoute requiredCapability="users">
             <TraineeDetailPage />

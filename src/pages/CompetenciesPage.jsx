@@ -1389,7 +1389,7 @@ export default function CompetenciesPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <p className="text-gray-500">Loading competencies...</p>
+          <p className="text-gray-500">Chargement des compétences…</p>
         </div>
       </div>
     );
@@ -1400,8 +1400,8 @@ export default function CompetenciesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Competencies</h1>
-          <p className="text-gray-500 mt-1">Manage skills and competency frameworks</p>
+          <h1 className="text-2xl font-bold text-gray-900">Compétences</h1>
+          <p className="text-gray-500 mt-1">Compétences, étiquettes et clients</p>
         </div>
         <div className="flex gap-2">
           {canManageTags && (
@@ -1410,7 +1410,7 @@ export default function CompetenciesPage() {
               className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Layers className="w-4 h-4" />
-              Manage Tags
+              Gérer les étiquettes
             </button>
           )}
           <button
@@ -1418,7 +1418,7 @@ export default function CompetenciesPage() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Add Competency
+            Ajouter une compétence
           </button>
         </div>
       </div>
@@ -1432,7 +1432,7 @@ export default function CompetenciesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{competencies.length}</p>
-              <p className="text-sm text-gray-500">Total Competencies</p>
+              <p className="text-sm text-gray-500">Compétences</p>
             </div>
           </div>
         </div>
@@ -1443,7 +1443,7 @@ export default function CompetenciesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{tags.length}</p>
-              <p className="text-sm text-gray-500">Tags</p>
+              <p className="text-sm text-gray-500">Étiquettes</p>
             </div>
           </div>
         </div>
@@ -1454,7 +1454,7 @@ export default function CompetenciesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{competencies.filter(c => c.is_active).length}</p>
-              <p className="text-sm text-gray-500">Active</p>
+              <p className="text-sm text-gray-500">Actif</p>
             </div>
           </div>
         </div>
@@ -1475,7 +1475,7 @@ export default function CompetenciesPage() {
       {tags.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Tags</h2>
+            <h2 className="font-semibold text-gray-900">Étiquettes</h2>
             {canManageTags && (
               <button 
                 onClick={() => handleOpenTagModal()}
@@ -1519,7 +1519,7 @@ export default function CompetenciesPage() {
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Category Selection */}
             <div className="lg:w-48 flex-shrink-0">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Tags</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Choisir des étiquettes</h3>
               <div className="space-y-1">
                 <button
                   onClick={() => setSelectedChartTags([])}
@@ -1529,7 +1529,7 @@ export default function CompetenciesPage() {
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  All Tags
+                  Toutes les étiquettes
                 </button>
                 {tags.map(cat => (
                   <button
@@ -1564,7 +1564,7 @@ export default function CompetenciesPage() {
             <div className="flex-1">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Competency Framework</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Référentiel de compétences</h2>
                   <p className="text-sm text-gray-500">
                     {selectedChartTags.length === 0 
                       ? 'Showing all competencies'
@@ -1575,7 +1575,7 @@ export default function CompetenciesPage() {
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-600">Defined</span>
+                    <span className="text-gray-600">Définies</span>
                   </div>
                 </div>
               </div>
@@ -1600,7 +1600,7 @@ export default function CompetenciesPage() {
                     <div className="flex items-center justify-center h-64 text-gray-400">
                       <div className="text-center">
                         <Target className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                        <p>No competencies in selected categories</p>
+                        <p>Aucune compétence dans les catégories choisies</p>
                       </div>
                     </div>
                   );
@@ -1636,7 +1636,7 @@ export default function CompetenciesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search competencies..."
+              placeholder="Rechercher une compétence…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1650,7 +1650,7 @@ export default function CompetenciesPage() {
               onChange={(e) => setTagFilter(e.target.value)}
               className="appearance-none pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             >
-              <option value="all">All Tags</option>
+              <option value="all">Toutes les étiquettes</option>
               {tags.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
@@ -1666,7 +1666,7 @@ export default function CompetenciesPage() {
                 onChange={(e) => setClientFilter(e.target.value)}
                 className="appearance-none pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               >
-                <option value="all">All Clients</option>
+                <option value="all">Tous les clients</option>
                 {clients.map(client => (
                   <option key={client.id} value={client.id}>{client.name}</option>
                 ))}
@@ -1697,14 +1697,14 @@ export default function CompetenciesPage() {
       {filteredCompetencies.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Competencies Found</h3>
-          <p className="text-gray-500 mb-4">Get started by creating your first competency.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune compétence trouvée</h3>
+          <p className="text-gray-500 mb-4">Commencez par créer une première compétence.</p>
           <button
             onClick={() => handleOpenModal()}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
-            Add Competency
+            Ajouter une compétence
           </button>
         </div>
       ) : viewMode === 'grid' ? (
@@ -1724,7 +1724,7 @@ export default function CompetenciesPage() {
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs text-gray-400">No tags</span>
+                    <span className="text-xs text-gray-400">Sans étiquette</span>
                   )}
                 </div>
                 <div className="relative">
@@ -1747,7 +1747,7 @@ export default function CompetenciesPage() {
                         className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Edit2 className="w-4 h-4" />
-                        Edit
+                        Modifier
                       </button>
                       {/* NEW: Assign to Users option */}
                       <button
@@ -1758,14 +1758,14 @@ export default function CompetenciesPage() {
                         className="w-full px-3 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
                       >
                         <UserPlus className="w-4 h-4" />
-                        Assign to Users
+                        Assigner à des personnes
                       </button>
                       <button
                         onClick={() => handleDeleteClick(comp)}
                         className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Delete
+                        Supprimer
                       </button>
                     </div>
                   )}
@@ -1805,10 +1805,10 @@ export default function CompetenciesPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Competency</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Compétence</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Catégorie</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Client</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -1854,7 +1854,7 @@ export default function CompetenciesPage() {
                       <button
                         onClick={() => handleOpenAssignModal(comp)}
                         className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
-                        title="Assign to Users"
+                        title="Assigner à des personnes"
                       >
                         <UserPlus className="w-4 h-4" />
                       </button>
@@ -1912,7 +1912,7 @@ export default function CompetenciesPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., HACCP Management"
+                  placeholder="ex. Gestion HACCP"
                 />
               </div>
 
@@ -1925,14 +1925,14 @@ export default function CompetenciesPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Brief description of this competency..."
+                  placeholder="Brève description de cette compétence…"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tags
+                    Étiquettes
                   </label>
                   <div className="flex flex-wrap gap-1 p-2 border border-gray-200 rounded-lg min-h-[42px]">
                     {formData.tag_ids?.length > 0 ? (
@@ -1959,7 +1959,7 @@ export default function CompetenciesPage() {
                         ) : null;
                       })
                     ) : (
-                      <span className="text-gray-400 text-sm">Click to add tags...</span>
+                      <span className="text-gray-400 text-sm">Cliquez pour ajouter des étiquettes…</span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -1982,14 +1982,14 @@ export default function CompetenciesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Owner (Expert)
+                    Responsable (expert)
                   </label>
                   <select
                     value={formData.owner_id}
                     onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select owner...</option>
+                    <option value="">Choisir un responsable…</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>{user.full_name}</option>
                     ))}
@@ -1999,14 +1999,14 @@ export default function CompetenciesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Training Developer
+                  Concepteur de formation
                 </label>
                 <select
                   value={formData.training_developer_id}
                   onChange={(e) => setFormData({ ...formData, training_developer_id: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="">Select training developer...</option>
+                  <option value="">Choisir un concepteur de formation…</option>
                   {users.map(user => (
                     <option key={user.id} value={user.id}>{user.full_name}</option>
                   ))}
@@ -2040,7 +2040,7 @@ export default function CompetenciesPage() {
               {/* Level Descriptions */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Level Descriptions
+                  Description des niveaux
                 </label>
                 <div className="space-y-2">
                   {[1, 2, 3, 4, 5].map(level => (
@@ -2065,7 +2065,7 @@ export default function CompetenciesPage() {
               {/* Training Material Section */}
               <div className="border-t border-gray-200 pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Training Material
+                  Support de formation
                 </label>
                 <div className="space-y-3">
                   {/* No training needed */}
@@ -2083,8 +2083,8 @@ export default function CompetenciesPage() {
                       className="mt-0.5"
                     />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">No training module needed</p>
-                      <p className="text-xs text-gray-500">Competency will be developed via coaching, on-the-job, or self-study</p>
+                      <p className="text-sm font-medium text-gray-900">Aucune formation nécessaire</p>
+                      <p className="text-xs text-gray-500">La compétence sera développée par coaching, sur le poste ou en autonomie</p>
                     </div>
                   </label>
                   
@@ -2108,8 +2108,8 @@ export default function CompetenciesPage() {
                       className="mt-0.5"
                     />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Create training module</p>
-                      <p className="text-xs text-gray-500">Generate e-learning content for this competency</p>
+                      <p className="text-sm font-medium text-gray-900">Créer une formation</p>
+                      <p className="text-xs text-gray-500">Générer un e-learning pour cette compétence</p>
                     </div>
                   </label>
                   
@@ -2117,7 +2117,7 @@ export default function CompetenciesPage() {
                   {formData.training_option === 'create' && (
                     <div className="ml-6 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Module Title</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Titre de la formation</label>
                         <input
                           type="text"
                           value={formData.training_module_title}
@@ -2127,18 +2127,18 @@ export default function CompetenciesPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Module Description</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Description de la formation</label>
                         <textarea
                           value={formData.training_module_description}
                           onChange={(e) => setFormData({ ...formData, training_module_description: e.target.value })}
                           rows={2}
                           className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
-                          placeholder="What will users learn..."
+                          placeholder="Ce que les personnes apprendront…"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Target Level</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Niveau cible</label>
                           <select
                             value={formData.training_target_level}
                             onChange={(e) => setFormData({ ...formData, training_target_level: parseInt(e.target.value) })}
@@ -2156,7 +2156,7 @@ export default function CompetenciesPage() {
                             onChange={(e) => setFormData({ ...formData, training_developer_assignment: e.target.value })}
                             className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
                           >
-                            <option value="">Select developer...</option>
+                            <option value="">Choisir un concepteur…</option>
                             {users.map(user => (
                               <option key={user.id} value={user.id}>{user.full_name}</option>
                             ))}
@@ -2165,7 +2165,7 @@ export default function CompetenciesPage() {
                       </div>
                       <p className="text-xs text-blue-600 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
-                        The training developer will create slides & quiz content
+                        Le concepteur créera les diapositives et le quiz
                       </p>
                       
                       {/* Generate now option - only show if creator is the training developer */}
@@ -2178,7 +2178,7 @@ export default function CompetenciesPage() {
                               onChange={(e) => setFormData({ ...formData, training_generate_now: e.target.checked })}
                               className="w-4 h-4 text-blue-600 rounded"
                             />
-                            <span className="text-sm text-gray-700">Generate content now (opens AI generator)</span>
+                            <span className="text-sm text-gray-700">Générer le contenu maintenant (ouvre le générateur IA)</span>
                           </label>
                         </div>
                       )}
@@ -2187,7 +2187,7 @@ export default function CompetenciesPage() {
                       {formData.training_developer_assignment && formData.training_developer_assignment !== currentProfile?.id && (
                         <div className="pt-2 border-t border-blue-200">
                           <p className="text-xs text-blue-700 italic">
-                            The assigned developer will be able to generate content using AI when they edit the module.
+                            Le concepteur pourra générer le contenu avec l’IA en modifiant la formation.
                           </p>
                         </div>
                       )}
@@ -2209,8 +2209,8 @@ export default function CompetenciesPage() {
                       className="mt-0.5"
                     />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Link existing training module</p>
-                      <p className="text-xs text-gray-500">Connect an existing module to this competency</p>
+                      <p className="text-sm font-medium text-gray-900">Relier une formation existante</p>
+                      <p className="text-xs text-gray-500">Relier une formation existante à cette compétence</p>
                     </div>
                   </label>
                   
@@ -2218,14 +2218,14 @@ export default function CompetenciesPage() {
                   {formData.training_option === 'link' && (
                     <div className="ml-6 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Module</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Choisir une formation</label>
                         {availableModulesToLink.length > 0 ? (
                           <select
                             value={formData.link_module_id}
                             onChange={(e) => setFormData({ ...formData, link_module_id: e.target.value })}
                             className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
                           >
-                            <option value="">Select module...</option>
+                            <option value="">Choisir une formation…</option>
                             {availableModulesToLink.map(module => (
                               <option key={module.id} value={module.id}>
                                 {module.title} {module.status === 'draft' ? '(Draft)' : ''}
@@ -2233,11 +2233,11 @@ export default function CompetenciesPage() {
                             ))}
                           </select>
                         ) : (
-                          <p className="text-sm text-gray-500 italic">No available modules to link. Create a module in the Training page first.</p>
+                          <p className="text-sm text-gray-500 italic">Aucune formation à relier. Créez-en une d’abord dans Formations.</p>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Target Level</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Niveau cible</label>
                         <select
                           value={formData.training_target_level}
                           onChange={(e) => setFormData({ ...formData, training_target_level: parseInt(e.target.value) })}
@@ -2262,7 +2262,7 @@ export default function CompetenciesPage() {
                   className="w-4 h-4 text-blue-600 rounded"
                 />
                 <label htmlFor="is_active" className="text-sm text-gray-700">
-                  Active
+                  Actif
                 </label>
               </div>
 
@@ -2272,7 +2272,7 @@ export default function CompetenciesPage() {
                   onClick={() => setShowModal(false)}
                   className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -2309,7 +2309,7 @@ export default function CompetenciesPage() {
               {!editingTag && !tagFormData.isCustom && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Tag Template
+                    Choisir un modèle d’étiquette
                   </label>
                   <select
                     value={tagFormData.name}
@@ -2342,7 +2342,7 @@ export default function CompetenciesPage() {
                     }}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select a tag...</option>
+                    <option value="">Choisir une étiquette…</option>
                     <option value="Safety">🛡️ Safety</option>
                     <option value="Quality">✨ Quality</option>
                     <option value="Cost">💰 Cost</option>
@@ -2377,7 +2377,7 @@ export default function CompetenciesPage() {
                     value={tagFormData.name}
                     onChange={(e) => setTagFormData({ ...tagFormData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Digital Skills"
+                    placeholder="ex. Compétences numériques"
                     autoFocus
                   />
                 </div>
@@ -2385,20 +2385,20 @@ export default function CompetenciesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description (optional)
+                  Description (facultatif)
                 </label>
                 <textarea
                   value={tagFormData.description}
                   onChange={(e) => setTagFormData({ ...tagFormData, description: e.target.value })}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Brief description..."
+                  placeholder="Brève description…"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Color
+                  Couleur
                 </label>
                 <div className="flex gap-2 flex-wrap">
                   {[
@@ -2429,14 +2429,14 @@ export default function CompetenciesPage() {
               {isSuperAdmin && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Client (optional)
+                    Client (facultatif)
                   </label>
                   <select
                     value={tagFormData.client_id}
                     onChange={(e) => setTagFormData({ ...tagFormData, client_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Global (All Clients)</option>
+                    <option value="">Global (tous les clients)</option>
                     {clients.map(client => (
                       <option key={client.id} value={client.id}>{client.name}</option>
                     ))}
@@ -2454,7 +2454,7 @@ export default function CompetenciesPage() {
                     className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Delete Tag
+                    Supprimer l’étiquette
                   </button>
                 ) : (
                   <div></div>
@@ -2466,7 +2466,7 @@ export default function CompetenciesPage() {
                     onClick={() => setShowTagModal(false)}
                     className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                   >
-                    Cancel
+                    Annuler
                   </button>
                   <button
                     type="submit"
@@ -2491,10 +2491,10 @@ export default function CompetenciesPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Delete Tag?
+                Supprimer l’étiquette ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to delete <strong>{tagToDelete.name}</strong>? 
+                Voulez-vous vraiment supprimer <strong>{tagToDelete.name}</strong>? 
                 This will remove it from all competencies.
               </p>
               <div className="flex gap-3">
@@ -2506,7 +2506,7 @@ export default function CompetenciesPage() {
                   disabled={submitting}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   onClick={handleDeleteTagConfirm}
@@ -2530,10 +2530,10 @@ export default function CompetenciesPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Delete Competency?
+                Supprimer la compétence ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to delete <strong>{competencyToDelete.name}</strong>? 
+                Voulez-vous vraiment supprimer <strong>{competencyToDelete.name}</strong>? 
                 This action cannot be undone.
               </p>
               <div className="flex gap-3">
@@ -2544,13 +2544,13 @@ export default function CompetenciesPage() {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Delete
+                  Supprimer
                 </button>
               </div>
             </div>
@@ -2568,7 +2568,7 @@ export default function CompetenciesPage() {
                   <UserPlus className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Assign to Users</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Assigner à des personnes</h2>
                   <p className="text-sm text-gray-500">{competencyToAssign.name}</p>
                 </div>
               </div>
@@ -2594,7 +2594,7 @@ export default function CompetenciesPage() {
               {/* Target Level */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target Level
+                  Niveau cible
                 </label>
                 <select
                   value={assignFormData.target_level}
@@ -2610,14 +2610,14 @@ export default function CompetenciesPage() {
               {/* Current Level - for direct validation */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Current Level (if already competent)
+                  Niveau actuel (si déjà acquis)
                 </label>
                 <select
                   value={assignFormData.current_level || 0}
                   onChange={(e) => setAssignFormData({ ...assignFormData, current_level: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                 >
-                  <option value={0}>Not yet competent (Level 0)</option>
+                  <option value={0}>Pas encore acquis (niveau 0)</option>
                   {[1, 2, 3, 4, 5].map(level => (
                     <option key={level} value={level}>Level {level}</option>
                   ))}
@@ -2652,7 +2652,7 @@ export default function CompetenciesPage() {
                       />
                       <div>
                         <p className="text-sm font-medium text-gray-900">Coaching</p>
-                        <p className="text-xs text-gray-500">One-on-one guidance with an assigned coach</p>
+                        <p className="text-xs text-gray-500">Accompagnement individuel par un coach</p>
                       </div>
                     </label>
                     
@@ -2676,14 +2676,14 @@ export default function CompetenciesPage() {
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900">E-Learning</p>
+                          <p className="text-sm font-medium text-gray-900">E-learning</p>
                           {linkedTrainingModules.length > 0 && (
                             <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
                               {linkedTrainingModules.length} module{linkedTrainingModules.length > 1 ? 's' : ''} linked
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500">Complete training modules online</p>
+                        <p className="text-xs text-gray-500">Suivre des formations en ligne</p>
                       </div>
                     </label>
                     
@@ -2702,8 +2702,8 @@ export default function CompetenciesPage() {
                         className="mt-0.5"
                       />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">On-the-Job</p>
-                        <p className="text-xs text-gray-500">Learning by doing with supervisor guidance</p>
+                        <p className="text-sm font-medium text-gray-900">Sur le poste</p>
+                        <p className="text-xs text-gray-500">Apprentissage sur le poste avec un encadrant</p>
                       </div>
                     </label>
                     
@@ -2722,8 +2722,8 @@ export default function CompetenciesPage() {
                         className="mt-0.5"
                       />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Self-Study</p>
-                        <p className="text-xs text-gray-500">Independent learning at own pace</p>
+                        <p className="text-sm font-medium text-gray-900">Autonomie</p>
+                        <p className="text-xs text-gray-500">Apprentissage autonome à son rythme</p>
                       </div>
                     </label>
                   </div>
@@ -2734,7 +2734,7 @@ export default function CompetenciesPage() {
               {assignFormData.current_level === 0 && assignFormData.development_method === 'e_learning' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Training Modules to Assign
+                    Formations à assigner
                   </label>
                   {linkedTrainingModules.length > 0 ? (
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -2756,10 +2756,10 @@ export default function CompetenciesPage() {
                   ) : (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-700">
-                        No training modules are linked to this competency.
+                        Aucune formation n’est liée à cette compétence.
                       </p>
                       <p className="text-xs text-yellow-600 mt-1">
-                        To use E-Learning, first create and link training modules to this competency in the Training page.
+                        Pour l’e-learning, créez et reliez d’abord des formations à cette compétence dans Formations.
                       </p>
                     </div>
                   )}
@@ -2833,7 +2833,7 @@ export default function CompetenciesPage() {
                                 {/* Expert Network Status / Recommend Button */}
                                 {inNetwork ? (
                                   <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded flex items-center gap-1">
-                                    <Network className="w-3 h-3" /> In Network
+                                    <Network className="w-3 h-3" /> Dans un réseau
                                   </span>
                                 ) : nominationStatus === 'pending' ? (
                                   <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded">
@@ -2843,9 +2843,9 @@ export default function CompetenciesPage() {
                                   <button
                                     onClick={() => handleOpenNominationModal(uc.user, competencyToAssign, uc.current_level)}
                                     className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-1"
-                                    title="Recommend for Expert Network"
+                                    title="Recommander pour le réseau d’experts"
                                   >
-                                    <Star className="w-3 h-3" /> Recommend
+                                    <Star className="w-3 h-3" /> Recommander
                                   </button>
                                 ) : null}
                                 
@@ -2855,7 +2855,7 @@ export default function CompetenciesPage() {
                                     onClick={() => handleOpenValidateModal(uc)}
                                     className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                   >
-                                    Validate
+                                    Valider
                                   </button>
                                 )}
                               </div>
@@ -2873,13 +2873,13 @@ export default function CompetenciesPage() {
                       );
                       
                       if (availableUsers.length === 0 && existingUserCompetencies.length === 0) {
-                        return <p className="p-4 text-sm text-gray-500 text-center">No users available</p>;
+                        return <p className="p-4 text-sm text-gray-500 text-center">Aucune personne disponible</p>;
                       }
                       
                       if (availableUsers.length === 0) {
                         return (
                           <div className="px-3 py-2 bg-blue-50 text-xs text-blue-600 text-center">
-                            All users already have this competency assigned
+                            Toutes les personnes ont déjà cette compétence
                           </div>
                         );
                       }
@@ -2936,7 +2936,7 @@ export default function CompetenciesPage() {
               {(!assignFormData.current_level || assignFormData.current_level === 0) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Completion Date (Optional)
+                    Date cible (facultatif)
                   </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2960,7 +2960,7 @@ export default function CompetenciesPage() {
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleAssignCompetency}
@@ -2985,7 +2985,7 @@ export default function CompetenciesPage() {
                   <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Validate Competency</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Valider la compétence</h2>
                   <p className="text-sm text-gray-500">{competencyToAssign?.name}</p>
                 </div>
               </div>
@@ -3003,7 +3003,7 @@ export default function CompetenciesPage() {
             <div className="p-4 space-y-4">
               {/* Trainee Info */}
               <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">Trainee</p>
+                <p className="text-sm text-gray-500">Apprenant</p>
                 <p className="font-medium">{competencyToValidate.user?.full_name || 'Unknown User'}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   Current: Level {competencyToValidate.current_level || 0} → Target: Level {competencyToValidate.target_level}
@@ -3013,7 +3013,7 @@ export default function CompetenciesPage() {
               {/* Achieved Level Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Achieved Level
+                  Niveau atteint
                 </label>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map(level => (
@@ -3036,13 +3036,13 @@ export default function CompetenciesPage() {
               {/* Validation Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Validation Notes (Optional)
+                  Notes de validation (facultatif)
                 </label>
                 <textarea
                   value={validateForm.notes}
                   onChange={(e) => setValidateForm({ ...validateForm, notes: e.target.value })}
                   rows={3}
-                  placeholder="Add notes about this validation..."
+                  placeholder="Notes sur cette validation…"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
@@ -3057,7 +3057,7 @@ export default function CompetenciesPage() {
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleValidateCompetency}
@@ -3082,7 +3082,7 @@ export default function CompetenciesPage() {
                   <Network className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Recommend for Expert Network</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Recommander pour le réseau d’experts</h2>
                   <p className="text-sm text-gray-500">{nominationData.competency_name}</p>
                 </div>
               </div>
@@ -3120,7 +3120,7 @@ export default function CompetenciesPage() {
               {/* Proposed Role */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Proposed Role
+                  Rôle proposé
                 </label>
                 <div className="space-y-2">
                   {nominationData.current_level >= 5 && (
@@ -3138,7 +3138,7 @@ export default function CompetenciesPage() {
                       <Star className={`w-5 h-5 ${nominationData.proposed_role === 'gsme' ? 'text-blue-600' : 'text-gray-400'}`} />
                       <div>
                         <div className="font-medium">GSME</div>
-                        <div className="text-xs text-gray-500">Global Subject Matter Expert</div>
+                        <div className="text-xs text-gray-500">Expert métier groupe</div>
                       </div>
                     </label>
                   )}
@@ -3156,7 +3156,7 @@ export default function CompetenciesPage() {
                     <Award className={`w-5 h-5 ${nominationData.proposed_role === 'fsme' ? 'text-green-600' : 'text-gray-400'}`} />
                     <div>
                       <div className="font-medium">FSME</div>
-                      <div className="text-xs text-gray-500">Factory Subject Matter Expert</div>
+                      <div className="text-xs text-gray-500">Expert métier usine</div>
                     </div>
                   </label>
                 </div>
@@ -3165,27 +3165,27 @@ export default function CompetenciesPage() {
               {/* Site Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Site Location
+                  Site
                 </label>
                 <input
                   type="text"
                   value={nominationData.site_name}
                   onChange={(e) => setNominationData({ ...nominationData, site_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="e.g., Lyon, Singapore, Chicago"
+                  placeholder="ex. Lyon, Singapour, Chicago"
                 />
               </div>
 
               {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes (Optional)
+                  Notes (facultatif)
                 </label>
                 <textarea
                   value={nominationData.notes}
                   onChange={(e) => setNominationData({ ...nominationData, notes: e.target.value })}
                   rows={2}
-                  placeholder="Why is this person a good fit for the Expert Network?"
+                  placeholder="Pourquoi cette personne a-t-elle sa place dans le réseau d’experts ?"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
@@ -3194,7 +3194,7 @@ export default function CompetenciesPage() {
               <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
                 <p className="flex items-center gap-2">
                   <Send className="w-4 h-4 text-gray-400" />
-                  This nomination will be sent for approval to a Category Admin or Client Admin.
+                  Cette nomination sera soumise à un admin catégorie ou admin client.
                 </p>
               </div>
             </div>
@@ -3205,7 +3205,7 @@ export default function CompetenciesPage() {
                 onClick={() => setShowNominationModal(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleSubmitNomination}

@@ -16,7 +16,7 @@ const SpiderChart = ({ data, size = 280 }) => {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
-        <p>No competencies assigned yet</p>
+        <p>Aucune compétence assignée</p>
       </div>
     );
   }
@@ -194,8 +194,8 @@ export default function MyProgressPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Progress</h1>
-        <p className="text-sm text-gray-500 mt-1">Track your competency development</p>
+        <h1 className="text-2xl font-bold text-gray-900">Ma progression</h1>
+        <p className="text-sm text-gray-500 mt-1">Suivez le développement de vos compétences</p>
       </div>
 
       {/* Stats */}
@@ -207,7 +207,7 @@ export default function MyProgressPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-              <p className="text-sm text-gray-500">Assigned</p>
+              <p className="text-sm text-gray-500">Assigné</p>
             </div>
           </div>
         </div>
@@ -218,7 +218,7 @@ export default function MyProgressPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.achieved}</p>
-              <p className="text-sm text-gray-500">Achieved</p>
+              <p className="text-sm text-gray-500">Atteint</p>
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function MyProgressPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
-              <p className="text-sm text-gray-500">In Progress</p>
+              <p className="text-sm text-gray-500">En cours</p>
             </div>
           </div>
         </div>
@@ -240,7 +240,7 @@ export default function MyProgressPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.avgLevel}</p>
-              <p className="text-sm text-gray-500">Avg Level</p>
+              <p className="text-sm text-gray-500">Niveau moyen</p>
             </div>
           </div>
         </div>
@@ -250,15 +250,15 @@ export default function MyProgressPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Spider Chart */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Competency Overview</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Vue d’ensemble</h2>
           <div className="flex items-center justify-center gap-4 mb-4 text-sm">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span className="text-gray-600">Current</span>
+              <span className="text-gray-600">Actuel</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-              <span className="text-gray-600">Target</span>
+              <span className="text-gray-600">Cible</span>
             </div>
           </div>
           <SpiderChart data={chartData} size={300} />
@@ -266,13 +266,13 @@ export default function MyProgressPage() {
 
         {/* Competency List */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">My Competencies</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Mes compétences</h2>
           
           {competencies.length === 0 ? (
             <div className="text-center py-8">
               <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No competencies assigned yet.</p>
-              <p className="text-sm text-gray-400">Contact your manager to get started.</p>
+              <p className="text-gray-500">Aucune compétence assignée.</p>
+              <p className="text-sm text-gray-400">Contactez votre responsable pour commencer.</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
@@ -293,7 +293,7 @@ export default function MyProgressPage() {
 
                     <div className="flex items-center gap-4 mt-3">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Current</p>
+                        <p className="text-xs text-gray-500 mb-1">Actuel</p>
                         <div className="flex gap-1">
                           {[1, 2, 3, 4, 5].map(level => (
                             <div
@@ -313,7 +313,7 @@ export default function MyProgressPage() {
                       <ChevronRight className="w-4 h-4 text-gray-400" />
 
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Target</p>
+                        <p className="text-xs text-gray-500 mb-1">Cible</p>
                         <div className="flex gap-1">
                           {[1, 2, 3, 4, 5].map(level => (
                             <div

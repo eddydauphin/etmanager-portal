@@ -63,7 +63,7 @@ export default function ChangePasswordPage() {
       return false;
     }
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Les mots de passe ne correspondent pas');
       return false;
     }
     return true;
@@ -132,12 +132,12 @@ export default function ChangePasswordPage() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Password Changed!</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Mot de passe modifié !</h2>
             <p className="text-gray-600 mb-4">
-              Your password has been successfully updated.
+              Votre mot de passe a bien été mis à jour.
             </p>
             <p className="text-sm text-gray-500">
-              Redirecting to dashboard...
+              Redirection vers le tableau de bord…
             </p>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function ChangePasswordPage() {
           <form onSubmit={handleChangePassword}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                New Password
+                Nouveau mot de passe
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -201,12 +201,12 @@ export default function ChangePasswordPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+              <p className="text-xs text-gray-500 mt-1">8 caractères minimum</p>
             </div>
 
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm New Password
+                Confirmer le nouveau mot de passe
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -220,7 +220,7 @@ export default function ChangePasswordPage() {
                 />
               </div>
               {confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                <p className="text-xs text-red-500 mt-1">Les mots de passe ne correspondent pas</p>
               )}
               {confirmPassword && newPassword === confirmPassword && (
                 <p className="text-xs text-green-500 mt-1">Passwords match ✓</p>
@@ -235,7 +235,7 @@ export default function ChangePasswordPage() {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                  Updating...
+                  Mise à jour…
                 </>
               ) : (
                 <>

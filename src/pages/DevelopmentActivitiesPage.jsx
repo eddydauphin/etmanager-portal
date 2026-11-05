@@ -449,9 +449,9 @@ export default function DevelopmentActivitiesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Development Activities</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Actions de développement</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Assign and track coaching, mentoring, and task-based learning
+            Assigner et suivre coaching, mentorat et apprentissage par la pratique
           </p>
         </div>
         <button
@@ -459,7 +459,7 @@ export default function DevelopmentActivitiesPage() {
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-5 h-5" />
-          Assign Activity
+          Assigner une action
         </button>
       </div>
 
@@ -483,7 +483,7 @@ export default function DevelopmentActivitiesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
-              <p className="text-sm text-gray-500">Pending</p>
+              <p className="text-sm text-gray-500">En attente</p>
             </div>
           </div>
         </div>
@@ -494,7 +494,7 @@ export default function DevelopmentActivitiesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
-              <p className="text-sm text-gray-500">In Progress</p>
+              <p className="text-sm text-gray-500">En cours</p>
             </div>
           </div>
         </div>
@@ -505,7 +505,7 @@ export default function DevelopmentActivitiesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
-              <p className="text-sm text-gray-500">Completed</p>
+              <p className="text-sm text-gray-500">Terminé</p>
             </div>
           </div>
         </div>
@@ -516,7 +516,7 @@ export default function DevelopmentActivitiesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.overdue}</p>
-              <p className="text-sm text-gray-500">Overdue</p>
+              <p className="text-sm text-gray-500">En retard</p>
             </div>
           </div>
         </div>
@@ -530,7 +530,7 @@ export default function DevelopmentActivitiesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search activities..."
+                placeholder="Rechercher une action…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -543,10 +543,10 @@ export default function DevelopmentActivitiesPage() {
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg"
           >
-            <option value="all">All Types</option>
-            <option value="training">Training</option>
+            <option value="all">Tous les types</option>
+            <option value="training">Formation</option>
             <option value="coaching">Coaching</option>
-            <option value="task">Task</option>
+            <option value="task">Tâche</option>
           </select>
           
           <select
@@ -554,12 +554,12 @@ export default function DevelopmentActivitiesPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg"
           >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="validated">Validated</option>
-            <option value="overdue">Overdue</option>
+            <option value="all">Tous les statuts</option>
+            <option value="pending">En attente</option>
+            <option value="in_progress">En cours</option>
+            <option value="completed">Terminé</option>
+            <option value="validated">Validé</option>
+            <option value="overdue">En retard</option>
           </select>
           
           <select
@@ -567,7 +567,7 @@ export default function DevelopmentActivitiesPage() {
             onChange={(e) => setAssigneeFilter(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg"
           >
-            <option value="all">All Assignees</option>
+            <option value="all">Toutes les personnes</option>
             {users.filter(u => u.role === 'trainee').map(user => (
               <option key={user.id} value={user.id}>{user.full_name}</option>
             ))}
@@ -579,7 +579,7 @@ export default function DevelopmentActivitiesPage() {
       {filteredActivities.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Activities Found</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune action trouvée</h3>
           <p className="text-gray-500 mb-4">
             {activities.length === 0 
               ? "Start by assigning development activities to your team"
@@ -590,7 +590,7 @@ export default function DevelopmentActivitiesPage() {
               onClick={() => setShowCreateModal(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              Assign First Activity
+              Assigner une première action
             </button>
           )}
         </div>
@@ -661,7 +661,7 @@ export default function DevelopmentActivitiesPage() {
                         }}
                         className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                       >
-                        Validate
+                        Valider
                       </button>
                     )}
                     <Eye className="w-5 h-5 text-gray-400" />
@@ -678,7 +678,7 @@ export default function DevelopmentActivitiesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Assign Development Activity</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Assigner une action de développement</h2>
               <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
@@ -694,7 +694,7 @@ export default function DevelopmentActivitiesPage() {
               {/* Template Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Use Template (Optional)
+                  Utiliser un modèle (facultatif)
                 </label>
                 <select
                   value={formData.template_id}
@@ -718,8 +718,8 @@ export default function DevelopmentActivitiesPage() {
                 <div className="flex gap-4">
                   {[
                     { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Learn from others' },
-                    { value: 'task', label: 'Task', icon: Briefcase, desc: 'Learn by doing' },
-                    { value: 'training', label: 'Training', icon: BookOpen, desc: 'Formal learning' }
+                    { value: 'task', label: 'Tâche', icon: Briefcase, desc: 'Learn by doing' },
+                    { value: 'training', label: 'Formation', icon: BookOpen, desc: 'Formal learning' }
                   ].map(type => {
                     const Icon = type.icon;
                     return (
@@ -796,7 +796,7 @@ export default function DevelopmentActivitiesPage() {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                  placeholder="e.g., Safety Observation Coaching"
+                  placeholder="ex. Coaching observation sécurité"
                   required
                 />
               </div>
@@ -811,42 +811,42 @@ export default function DevelopmentActivitiesPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                   rows={2}
-                  placeholder="What is this activity about?"
+                  placeholder="De quoi s’agit-il ?"
                 />
               </div>
               
               {/* Objectives */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Objectives
+                  Objectifs
                 </label>
                 <textarea
                   value={formData.objectives}
                   onChange={(e) => setFormData({ ...formData, objectives: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                   rows={2}
-                  placeholder="What should the trainee achieve?"
+                  placeholder="Que doit atteindre l’apprenant ?"
                 />
               </div>
               
               {/* Success Criteria */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Success Criteria
+                  Critères de réussite
                 </label>
                 <textarea
                   value={formData.success_criteria}
                   onChange={(e) => setFormData({ ...formData, success_criteria: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                   rows={2}
-                  placeholder="How will success be measured?"
+                  placeholder="Comment la réussite sera-t-elle mesurée ?"
                 />
               </div>
               
               {/* Linked Competency */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Linked Competency (Optional)
+                  Compétence liée (facultatif)
                 </label>
                 <div className="flex gap-2">
                   <select
@@ -881,7 +881,7 @@ export default function DevelopmentActivitiesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
+                    Date de début
                   </label>
                   <input
                     type="date"
@@ -892,7 +892,7 @@ export default function DevelopmentActivitiesPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Due Date
+                    Date d’échéance
                   </label>
                   <input
                     type="date"
@@ -910,7 +910,7 @@ export default function DevelopmentActivitiesPage() {
                   onClick={() => setShowCreateModal(false)}
                   className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -960,7 +960,7 @@ export default function DevelopmentActivitiesPage() {
                       onClick={() => handleStatusChange(selectedActivity.id, 'in_progress')}
                       className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                     >
-                      Start
+                      Démarrer
                     </button>
                   )}
                   {selectedActivity.status === 'in_progress' && (
@@ -968,7 +968,7 @@ export default function DevelopmentActivitiesPage() {
                       onClick={() => handleStatusChange(selectedActivity.id, 'completed')}
                       className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
                     >
-                      Mark Complete
+                      Marquer comme terminé
                     </button>
                   )}
                   {selectedActivity.status === 'completed' && (
@@ -976,7 +976,7 @@ export default function DevelopmentActivitiesPage() {
                       onClick={() => handleStatusChange(selectedActivity.id, 'validated')}
                       className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                     >
-                      Validate & Close
+                      Valider et clore
                     </button>
                   )}
                 </div>
@@ -985,7 +985,7 @@ export default function DevelopmentActivitiesPage() {
               {/* Details */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Trainee</p>
+                  <p className="text-sm text-gray-500">Apprenant</p>
                   <p className="font-medium">{getUserName(selectedActivity.trainee_id)}</p>
                 </div>
                 {selectedActivity.coach_id && (
@@ -995,11 +995,11 @@ export default function DevelopmentActivitiesPage() {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-gray-500">Assigned By</p>
+                  <p className="text-sm text-gray-500">Assigné par</p>
                   <p className="font-medium">{getUserName(selectedActivity.assigned_by)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Due Date</p>
+                  <p className="text-sm text-gray-500">Date d’échéance</p>
                   <p className="font-medium">
                     {selectedActivity.due_date 
                       ? new Date(selectedActivity.due_date).toLocaleDateString() 
@@ -1008,7 +1008,7 @@ export default function DevelopmentActivitiesPage() {
                 </div>
                 {selectedActivity.competency_id && (
                   <div>
-                    <p className="text-sm text-gray-500">Linked Competency</p>
+                    <p className="text-sm text-gray-500">Compétence liée</p>
                     <p className="font-medium">
                       {getCompetencyName(selectedActivity.competency_id)} → Level {selectedActivity.target_level}
                     </p>
@@ -1025,14 +1025,14 @@ export default function DevelopmentActivitiesPage() {
               
               {selectedActivity.objectives && (
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Objectives</p>
+                  <p className="text-sm text-gray-500 mb-1">Objectifs</p>
                   <p className="text-gray-700">{selectedActivity.objectives}</p>
                 </div>
               )}
               
               {selectedActivity.success_criteria && (
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Success Criteria</p>
+                  <p className="text-sm text-gray-500 mb-1">Critères de réussite</p>
                   <p className="text-gray-700">{selectedActivity.success_criteria}</p>
                 </div>
               )}
@@ -1052,10 +1052,10 @@ export default function DevelopmentActivitiesPage() {
                       onChange={(e) => setFeedbackType(e.target.value)}
                       className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
                     >
-                      <option value="progress">Progress Update</option>
-                      <option value="milestone">Milestone</option>
-                      <option value="challenge">Challenge</option>
-                      <option value="support">Need Support</option>
+                      <option value="progress">Point d’avancement</option>
+                      <option value="milestone">Jalon</option>
+                      <option value="challenge">Défi</option>
+                      <option value="support">Besoin d’aide</option>
                     </select>
                   </div>
                   <div className="flex gap-2">
@@ -1063,7 +1063,7 @@ export default function DevelopmentActivitiesPage() {
                       type="text"
                       value={newFeedback}
                       onChange={(e) => setNewFeedback(e.target.value)}
-                      placeholder="Add a comment or update..."
+                      placeholder="Ajouter un commentaire ou une mise à jour…"
                       className="flex-1 px-3 py-2 border border-gray-200 rounded-lg"
                       onKeyDown={(e) => e.key === 'Enter' && handleAddFeedback()}
                     />
@@ -1079,7 +1079,7 @@ export default function DevelopmentActivitiesPage() {
                 
                 {/* Feedback List */}
                 {feedback.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No feedback yet</p>
+                  <p className="text-sm text-gray-500 text-center py-4">Aucun retour pour l’instant</p>
                 ) : (
                   <div className="space-y-3">
                     {feedback.map(fb => (

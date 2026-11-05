@@ -534,15 +534,15 @@ export default function CompetencyProfilesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Competency Profiles</h1>
-          <p className="text-sm text-gray-500 mt-1">Create role-based competency templates for quick user assignment</p>
+          <h1 className="text-2xl font-bold text-gray-900">Profils de poste</h1>
+          <p className="text-sm text-gray-500 mt-1">Modèles de compétences et formations par poste</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Create Profile
+          Créer un profil
         </button>
       </div>
 
@@ -555,7 +555,7 @@ export default function CompetencyProfilesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{profiles.length}</p>
-              <p className="text-sm text-gray-500">Total Profiles</p>
+              <p className="text-sm text-gray-500">Profils</p>
             </div>
           </div>
         </div>
@@ -566,7 +566,7 @@ export default function CompetencyProfilesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{competencies.length}</p>
-              <p className="text-sm text-gray-500">Available Competencies</p>
+              <p className="text-sm text-gray-500">Compétences disponibles</p>
             </div>
           </div>
         </div>
@@ -592,7 +592,7 @@ export default function CompetencyProfilesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search profiles..."
+              placeholder="Rechercher un profil…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -606,7 +606,7 @@ export default function CompetencyProfilesPage() {
                 onChange={(e) => setClientFilter(e.target.value)}
                 className="appearance-none pl-4 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               >
-                <option value="all">All Clients</option>
+                <option value="all">Tous les clients</option>
                 {clients.map(client => (
                   <option key={client.id} value={client.id}>{client.name}</option>
                 ))}
@@ -621,14 +621,14 @@ export default function CompetencyProfilesPage() {
       {filteredProfiles.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Profiles Found</h3>
-          <p className="text-gray-500 mb-4">Create competency profiles to quickly assign competencies to users.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun profil trouvé</h3>
+          <p className="text-gray-500 mb-4">Créez des profils de poste pour assigner rapidement des compétences.</p>
           <button
             onClick={() => handleOpenModal()}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
-            Create Profile
+            Créer un profil
           </button>
         </div>
       ) : (
@@ -665,7 +665,7 @@ export default function CompetencyProfilesPage() {
                         className="w-full px-3 py-2 text-left text-sm text-green-700 hover:bg-green-50 flex items-center gap-2"
                       >
                         <UserPlus className="w-4 h-4" />
-                        Assign to Users
+                        Assigner à des personnes
                       </button>
                       <button
                         onClick={() => {
@@ -675,21 +675,21 @@ export default function CompetencyProfilesPage() {
                         className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Edit2 className="w-4 h-4" />
-                        Edit
+                        Modifier
                       </button>
                       <button
                         onClick={() => handleDuplicate(profile)}
                         className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Copy className="w-4 h-4" />
-                        Duplicate
+                        Dupliquer
                       </button>
                       <button
                         onClick={() => handleDeleteClick(profile)}
                         className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Delete
+                        Supprimer
                       </button>
                     </div>
                   )}
@@ -749,7 +749,7 @@ export default function CompetencyProfilesPage() {
                 className="w-full mt-3 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 flex items-center justify-center gap-2"
               >
                 <UserPlus className="w-4 h-4" />
-                Assign to Users
+                Assigner à des personnes
               </button>
             </div>
           ))}
@@ -797,7 +797,7 @@ export default function CompetencyProfilesPage() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., ZIPP Liquid Side Operator"
+                      placeholder="ex. Opérateur caséinerie"
                     />
                   </div>
 
@@ -811,7 +811,7 @@ export default function CompetencyProfilesPage() {
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={currentProfile?.role === 'client_admin'}
                     >
-                      <option value="">Select Client</option>
+                      <option value="">Choisir un client</option>
                       {clients.map(client => (
                         <option key={client.id} value={client.id}>{client.name}</option>
                       ))}
@@ -827,28 +827,28 @@ export default function CompetencyProfilesPage() {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={2}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Brief description of this role profile..."
+                      placeholder="Brève description de ce profil de poste…"
                     />
                   </div>
 
                   {/* Owner */}
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Profile Owner
+                      Responsable du profil
                     </label>
                     <select
                       value={formData.owner_id}
                       onChange={(e) => setFormData({ ...formData, owner_id: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="">Select Owner</option>
+                      <option value="">Choisir un responsable</option>
                       {users.map(user => (
                         <option key={user.id} value={user.id}>
                           {user.full_name} ({user.role?.replace('_', ' ')})
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-400 mt-1">Person responsible for following up and validating completion</p>
+                    <p className="text-xs text-gray-400 mt-1">Personne qui suit et valide l’acquisition</p>
                   </div>
                 </div>
 
@@ -857,14 +857,14 @@ export default function CompetencyProfilesPage() {
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                       <Target className="w-4 h-4 text-blue-600" />
-                      Select Competencies <span className="text-gray-400">({formData.competencies.length} selected)</span>
+                      Choisir les compétences <span className="text-gray-400">({formData.competencies.length} selected)</span>
                     </label>
                   </div>
 
                   <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
                     {competencies.length === 0 ? (
                       <div className="p-4 text-center text-gray-500 text-sm">
-                        No competencies available
+                        Aucune compétence disponible
                       </div>
                     ) : (
                       competencies.map(comp => {
@@ -924,7 +924,7 @@ export default function CompetencyProfilesPage() {
                 {formData.competencies.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Selected Competencies Summary
+                      Compétences sélectionnées
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {formData.competencies.map(fc => {
@@ -959,14 +959,14 @@ export default function CompetencyProfilesPage() {
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                       <GraduationCap className="w-4 h-4 text-green-600" />
-                      Training Modules <span className="text-gray-400">({formData.training_modules.length} selected)</span>
+                      Formations <span className="text-gray-400">({formData.training_modules.length} selected)</span>
                     </label>
                   </div>
 
                   <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
                     {trainingModules.length === 0 ? (
                       <div className="p-4 text-center text-gray-500 text-sm">
-                        No training modules available
+                        Aucune formation disponible
                       </div>
                     ) : (
                       trainingModules.map(module => {
@@ -1005,7 +1005,7 @@ export default function CompetencyProfilesPage() {
                 {formData.training_modules.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Selected Training Modules
+                      Formations sélectionnées
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {formData.training_modules.map(moduleId => {
@@ -1039,7 +1039,7 @@ export default function CompetencyProfilesPage() {
                   onClick={() => setShowModal(false)}
                   className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -1063,10 +1063,10 @@ export default function CompetencyProfilesPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Delete Profile?
+                Supprimer le profil ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to delete <strong>{profileToDelete.name}</strong>? 
+                Voulez-vous vraiment supprimer <strong>{profileToDelete.name}</strong>? 
                 This will not affect users who already have these competencies assigned.
               </p>
               <div className="flex gap-3">
@@ -1077,13 +1077,13 @@ export default function CompetencyProfilesPage() {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Delete
+                  Supprimer
                 </button>
               </div>
             </div>
@@ -1101,7 +1101,7 @@ export default function CompetencyProfilesPage() {
                   <UserPlus className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Assign Profile to Users</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Assigner le profil à des personnes</h2>
                   <p className="text-sm text-gray-500">{profileToAssign.name}</p>
                 </div>
               </div>
@@ -1127,7 +1127,7 @@ export default function CompetencyProfilesPage() {
               {/* Profile Info */}
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  This will assign <strong>{profileToAssign.profile_competencies?.length || 0} competencies</strong> to the selected users:
+                  Cette action assignera <strong>{profileToAssign.profile_competencies?.length || 0} competencies</strong> to the selected users:
                 </p>
                 <div className="flex flex-wrap gap-1 mt-2">
                   {profileToAssign.profile_competencies?.map(pc => (
@@ -1145,7 +1145,7 @@ export default function CompetencyProfilesPage() {
                 </label>
                 <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
                   {trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').length === 0 ? (
-                    <p className="p-4 text-sm text-gray-500 text-center">No users available</p>
+                    <p className="p-4 text-sm text-gray-500 text-center">Aucune personne disponible</p>
                   ) : (
                     trainees.filter(t => t.role === 'trainee' || t.role === 'team_lead').map(user => (
                       <label
@@ -1188,7 +1188,7 @@ export default function CompetencyProfilesPage() {
               {/* Coach Override */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Coach (Optional)
+                  Coach (facultatif)
                 </label>
                 <select
                   value={assignFormData.coach_id}
@@ -1205,7 +1205,7 @@ export default function CompetencyProfilesPage() {
               {/* Target Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target Completion Date (Optional)
+                  Date cible (facultatif)
                 </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1228,7 +1228,7 @@ export default function CompetencyProfilesPage() {
                 }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleAssignProfile}

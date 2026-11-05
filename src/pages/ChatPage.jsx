@@ -283,7 +283,7 @@ export default function ChatPage() {
     setShowNewModal(false);
   };
 
-  const getChName = (ch) => ch.type === 'ai_assistant' ? (profile.role === 'super_admin' ? ch.name : 'AI Assistant') : ch.type === 'group' ? (ch.name || 'Group') : 'Direct Message';
+  const getChName = (ch) => ch.type === 'ai_assistant' ? (profile.role === 'super_admin' ? ch.name : 'Assistant IA') : ch.type === 'group' ? (ch.name || 'Group') : 'Direct Message';
   const getChIcon = (type) => type === 'ai_assistant' ? <Bot className="w-5 h-5 text-purple-500" /> : type === 'group' ? <Users className="w-5 h-5 text-blue-500" /> : <MessageSquare className="w-5 h-5 text-green-500" />;
   const formatTime = (ts) => { const d = new Date(ts); const now = new Date(); const diff = Math.floor((now - d) / 86400000); return diff === 0 ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : diff < 7 ? d.toLocaleDateString([], { weekday: 'short' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
 
@@ -305,13 +305,13 @@ export default function ChatPage() {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search..." className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-sm" />
+            <input type="text" placeholder="Rechercher…" className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg text-sm" />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {grouped.ai.length > 0 && <div className="py-2"><div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">AI Assistant</div>{grouped.ai.map(ch => <ChItem key={ch.id} ch={ch} active={activeChannel?.id === ch.id} unread={unreadCounts[ch.id] || 0} onClick={() => setActiveChannel(ch)} getIcon={getChIcon} getName={getChName} />)}</div>}
-          {grouped.dm.length > 0 && <div className="py-2"><div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Direct Messages</div>{grouped.dm.map(ch => <ChItem key={ch.id} ch={ch} active={activeChannel?.id === ch.id} unread={unreadCounts[ch.id] || 0} onClick={() => setActiveChannel(ch)} getIcon={getChIcon} getName={getChName} />)}</div>}
-          {grouped.grp.length > 0 && <div className="py-2"><div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Groups</div>{grouped.grp.map(ch => <ChItem key={ch.id} ch={ch} active={activeChannel?.id === ch.id} unread={unreadCounts[ch.id] || 0} onClick={() => setActiveChannel(ch)} getIcon={getChIcon} getName={getChName} />)}</div>}
+          {grouped.ai.length > 0 && <div className="py-2"><div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Assistant IA</div>{grouped.ai.map(ch => <ChItem key={ch.id} ch={ch} active={activeChannel?.id === ch.id} unread={unreadCounts[ch.id] || 0} onClick={() => setActiveChannel(ch)} getIcon={getChIcon} getName={getChName} />)}</div>}
+          {grouped.dm.length > 0 && <div className="py-2"><div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Messages directs</div>{grouped.dm.map(ch => <ChItem key={ch.id} ch={ch} active={activeChannel?.id === ch.id} unread={unreadCounts[ch.id] || 0} onClick={() => setActiveChannel(ch)} getIcon={getChIcon} getName={getChName} />)}</div>}
+          {grouped.grp.length > 0 && <div className="py-2"><div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Groupes</div>{grouped.grp.map(ch => <ChItem key={ch.id} ch={ch} active={activeChannel?.id === ch.id} unread={unreadCounts[ch.id] || 0} onClick={() => setActiveChannel(ch)} getIcon={getChIcon} getName={getChName} />)}</div>}
         </div>
       </div>
 
@@ -323,7 +323,7 @@ export default function ChatPage() {
               {getChIcon(activeChannel.type)}
               <div>
                 <h3 className="font-semibold">{getChName(activeChannel)}</h3>
-                {activeChannel.type === 'ai_assistant' && <p className="text-xs text-gray-500">Powered by Claude AI</p>}
+                {activeChannel.type === 'ai_assistant' && <p className="text-xs text-gray-500">Propulsé par Claude</p>}
               </div>
             </div>
             <button className="p-2 hover:bg-gray-100 rounded-lg"><MoreVertical className="w-5 h-5 text-gray-500" /></button>
@@ -346,7 +346,7 @@ export default function ChatPage() {
                 </div>
               );
             })}
-            {aiThinking && <div className="flex"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center"><Bot className="w-4 h-4 text-purple-600" /></div><div className="rounded-2xl px-4 py-3 bg-purple-50 border border-purple-100"><div className="flex items-center gap-2 text-purple-600"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Thinking...</span></div></div></div></div>}
+            {aiThinking && <div className="flex"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center"><Bot className="w-4 h-4 text-purple-600" /></div><div className="rounded-2xl px-4 py-3 bg-purple-50 border border-purple-100"><div className="flex items-center gap-2 text-purple-600"><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Réflexion…</span></div></div></div></div>}
             <div ref={messagesEndRef} />
           </div>
           <div className="p-4 bg-white border-t">
@@ -355,16 +355,16 @@ export default function ChatPage() {
               <button type="submit" disabled={!newMessage.trim() || sendingMessage || aiThinking} className={`p-3 rounded-full ${newMessage.trim() && !sendingMessage && !aiThinking ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}><Send className="w-5 h-5" /></button>
             </form>
           </div>
-        </>) : <div className="flex-1 flex items-center justify-center"><div className="text-center"><MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" /><p className="text-gray-600">Select a conversation</p></div></div>}
+        </>) : <div className="flex-1 flex items-center justify-center"><div className="text-center"><MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" /><p className="text-gray-600">Choisissez une conversation</p></div></div>}
       </div>
 
       {/* New Chat Modal */}
       {showNewModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="flex justify-between p-4 border-b"><h3 className="text-lg font-semibold">New Conversation</h3><button onClick={() => setShowNewModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button></div>
+            <div className="flex justify-between p-4 border-b"><h3 className="text-lg font-semibold">Nouvelle conversation</h3><button onClick={() => setShowNewModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button></div>
             <div className="p-4">
-              <div className="relative mb-4"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search users..." className="w-full pl-10 pr-4 py-2 border rounded-lg" autoFocus /></div>
+              <div className="relative mb-4"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher une personne…" className="w-full pl-10 pr-4 py-2 border rounded-lg" autoFocus /></div>
               <div className="max-h-64 overflow-y-auto space-y-1">
                 {filtered.map(u => <button key={u.id} onClick={() => createDM(u)} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg text-left"><div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"><span className="font-medium">{(u.full_name || u.email)[0]}</span></div><div className="flex-1"><p className="font-medium">{u.full_name}</p><p className="text-sm text-gray-500">{u.email}</p></div></button>)}
               </div>

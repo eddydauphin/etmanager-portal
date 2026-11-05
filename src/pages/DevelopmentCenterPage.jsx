@@ -843,7 +843,7 @@ export default function DevelopmentCenterPage() {
             body: JSON.stringify({
               user_id: assignment.user_id,
               type: 'training_assigned',
-              title: 'Training Assigned',
+              title: 'Formation assignée',
               message: `${currentProfile?.full_name || 'Your manager'} has assigned you a training module to complete.`,
               link: '/my-training',
               related_id: linkedModuleId,
@@ -1004,7 +1004,7 @@ export default function DevelopmentCenterPage() {
             body: JSON.stringify({
               user_id: trainingDeveloperId,
               type: 'training_development_assigned',
-              title: 'Training Development Assigned',
+              title: 'Conception de formation assignée',
               message: `${currentProfile?.full_name || 'Someone'} has assigned you to develop training materials for "${wizardData.name}". Please create the training content.`,
               link: '/training',
               related_id: competencyId,
@@ -1101,7 +1101,7 @@ export default function DevelopmentCenterPage() {
                 body: JSON.stringify({
                   user_id: approver.id,
                   type: 'training_material_created',
-                  title: 'New Training Material Created',
+                  title: 'Nouveau support de formation créé',
                   message: `${currentProfile?.full_name || 'Someone'} has created "${wizardData.generateTitle || wizardData.name}" training material with ${generatedSlides.length} slides and ${generatedQuiz.length} quiz questions. Review and approve to make it available.`,
                   link: '/training',
                   related_id: moduleId,
@@ -1207,7 +1207,7 @@ export default function DevelopmentCenterPage() {
               body: JSON.stringify({
                 user_id: wizardData.coach_id,
                 type: 'coach_assigned',
-                title: 'You are Assigned as Coach',
+                title: 'Vous êtes le coach',
                 message: `${currentProfile?.full_name || 'Someone'} has assigned you as coach for ${traineeName}: "${activityTitle}"`,
                 link: '/development-center',
                 related_id: activityId,
@@ -1280,8 +1280,8 @@ export default function DevelopmentCenterPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Development Center</h1>
-        <p className="text-gray-600 mt-1">Create competencies, assign development activities, and track progress</p>
+        <h1 className="text-2xl font-bold text-gray-900">Coaching</h1>
+        <p className="text-gray-600 mt-1">Assigner des actions de développement et suivre les progrès</p>
       </div>
 
       {/* 4 Action Buttons */}
@@ -1295,8 +1295,8 @@ export default function DevelopmentCenterPage() {
             <Target className="w-6 h-6 text-emerald-600" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">New Competency</p>
-            <p className="text-sm text-gray-500 mt-0.5">Create formal skill definition</p>
+            <p className="font-semibold text-gray-900">Nouvelle compétence</p>
+            <p className="text-sm text-gray-500 mt-0.5">Définir formellement une compétence</p>
           </div>
         </button>
 
@@ -1309,7 +1309,7 @@ export default function DevelopmentCenterPage() {
             <BookOpen className="w-6 h-6 text-amber-600" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Formal Education</p>
+            <p className="font-semibold text-gray-900">Formation</p>
             <p className="text-sm text-gray-500 mt-0.5">Assign e-learning modules →</p>
           </div>
         </button>
@@ -1323,8 +1323,8 @@ export default function DevelopmentCenterPage() {
             <Briefcase className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Learn by Doing</p>
-            <p className="text-sm text-gray-500 mt-0.5">Assign project or initiative</p>
+            <p className="font-semibold text-gray-900">Mise en pratique</p>
+            <p className="text-sm text-gray-500 mt-0.5">Assigner un projet ou une initiative</p>
           </div>
         </button>
 
@@ -1337,8 +1337,8 @@ export default function DevelopmentCenterPage() {
             <Users className="w-6 h-6 text-purple-600" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Learn through Others</p>
-            <p className="text-sm text-gray-500 mt-0.5">Assign coaching or mentoring</p>
+            <p className="font-semibold text-gray-900">Apprendre par les autres</p>
+            <p className="text-sm text-gray-500 mt-0.5">Assigner un coaching ou un mentorat</p>
           </div>
         </button>
       </div>
@@ -1356,7 +1356,7 @@ export default function DevelopmentCenterPage() {
           >
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4" />
-              Competencies
+              Compétences
               <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{competencies.length}</span>
             </div>
           </button>
@@ -1370,7 +1370,7 @@ export default function DevelopmentCenterPage() {
           >
             <div className="flex items-center gap-2">
               <Briefcase className="w-4 h-4" />
-              Activities
+              Actions
               <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{activities.length}</span>
               {activityStats.overdue > 0 && (
                 <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">{activityStats.overdue} overdue</span>
@@ -1390,7 +1390,7 @@ export default function DevelopmentCenterPage() {
             <div className="p-2 bg-blue-50 rounded-lg"><Target className="w-5 h-5 text-blue-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalCompetencies}</p>
-              <p className="text-sm text-gray-500">Competencies</p>
+              <p className="text-sm text-gray-500">Compétences</p>
             </div>
           </div>
         </div>
@@ -1399,7 +1399,7 @@ export default function DevelopmentCenterPage() {
             <div className="p-2 bg-purple-50 rounded-lg"><Users className="w-5 h-5 text-purple-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalAssignments}</p>
-              <p className="text-sm text-gray-500">Assignments</p>
+              <p className="text-sm text-gray-500">Assignations</p>
             </div>
           </div>
         </div>
@@ -1408,7 +1408,7 @@ export default function DevelopmentCenterPage() {
             <div className="p-2 bg-red-50 rounded-lg"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalGaps}</p>
-              <p className="text-sm text-gray-500">Gaps to Close</p>
+              <p className="text-sm text-gray-500">Écarts à combler</p>
             </div>
           </div>
         </div>
@@ -1417,7 +1417,7 @@ export default function DevelopmentCenterPage() {
             <div className="p-2 bg-green-50 rounded-lg"><CheckCircle className="w-5 h-5 text-green-600" /></div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalAchieved}</p>
-              <p className="text-sm text-gray-500">Achieved</p>
+              <p className="text-sm text-gray-500">Atteint</p>
             </div>
           </div>
         </div>
@@ -1431,7 +1431,7 @@ export default function DevelopmentCenterPage() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search competencies..."
+            placeholder="Rechercher une compétence…"
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg"
           />
         </div>
@@ -1442,10 +1442,10 @@ export default function DevelopmentCenterPage() {
         {filteredCompetencies.length === 0 ? (
           <div className="p-12 text-center">
             <Target className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No competencies yet</h3>
-            <p className="text-gray-500 mb-4">Get started by creating your first competency</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune compétence pour l’instant</h3>
+            <p className="text-gray-500 mb-4">Commencez par créer une première compétence</p>
             <button onClick={() => openWizard()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              Create Competency
+              Créer une compétence
             </button>
           </div>
         ) : (
@@ -1475,37 +1475,37 @@ export default function DevelopmentCenterPage() {
                     <div className="flex items-center gap-4 text-sm">
                       <div className="text-center px-3">
                         <p className="font-bold text-gray-900">{comp.totalAssigned}</p>
-                        <p className="text-xs text-gray-500">Assigned</p>
+                        <p className="text-xs text-gray-500">Assigné</p>
                       </div>
                       <div className="text-center px-3">
                         <p className="font-bold text-green-600">{comp.achieved}</p>
-                        <p className="text-xs text-gray-500">Achieved</p>
+                        <p className="text-xs text-gray-500">Atteint</p>
                       </div>
                       <div className="text-center px-3">
                         <p className={`font-bold ${comp.gapCount > 0 ? 'text-red-600' : 'text-gray-400'}`}>{comp.gapCount}</p>
-                        <p className="text-xs text-gray-500">Gaps</p>
+                        <p className="text-xs text-gray-500">Écarts</p>
                       </div>
                     </div>
                     
                     {comp.hasTraining ? (
                       <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
-                        <BookOpen className="w-3 h-3" />Training
+                        <BookOpen className="w-3 h-3" />Formation
                       </span>
                     ) : comp.training_developer_id ? (
                       <span className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
-                        <Users className="w-3 h-3" />In Development
+                        <Users className="w-3 h-3" />En conception
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs font-medium">
-                        <BookOpen className="w-3 h-3" />No Training
+                        <BookOpen className="w-3 h-3" />Aucune formation
                       </span>
                     )}
                     
                     <div className="flex items-center gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); openWizard(comp); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                      <button onClick={(e) => { e.stopPropagation(); openWizard(comp); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Modifier">
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(comp); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(comp); }} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Supprimer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -1517,16 +1517,16 @@ export default function DevelopmentCenterPage() {
                   <div className="border-t border-gray-100 p-4 bg-gray-50 mt-4 rounded-lg">
                     {comp.assignments?.length > 0 ? (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase mb-3">Assigned Users</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-3">Personnes assignées</p>
                         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                           <table className="w-full text-sm">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">User</th>
-                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Current</th>
-                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Target</th>
-                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Gap</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Personne</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Actuel</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Cible</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Écart</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Échéance</th>
                                 <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Actions</th>
                               </tr>
                             </thead>
@@ -1577,9 +1577,9 @@ export default function DevelopmentCenterPage() {
                                           ✓ Validate Level
                                         </button>
                                       ) : trainingStatus?.status === 'in_progress' ? (
-                                        <span className="text-xs text-blue-600">In Progress...</span>
+                                        <span className="text-xs text-blue-600">En cours…</span>
                                       ) : trainingStatus?.status === 'pending' ? (
-                                        <span className="text-xs text-gray-500">Training Assigned</span>
+                                        <span className="text-xs text-gray-500">Formation assignée</span>
                                       ) : publishedModule ? (
                                         <button
                                           onClick={async () => {
@@ -1602,7 +1602,7 @@ export default function DevelopmentCenterPage() {
                                           }}
                                           className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
                                         >
-                                          Assign Training
+                                          Assigner une formation
                                         </button>
                                       ) : (
                                         <span className="text-xs text-gray-400">—</span>
@@ -1618,7 +1618,7 @@ export default function DevelopmentCenterPage() {
                     ) : (
                       <div className="text-center py-6">
                         <Users className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                        <p className="text-gray-500 text-sm">No users assigned yet</p>
+                        <p className="text-gray-500 text-sm">Personne n’est encore assigné</p>
                         <button onClick={() => openWizard(comp)} className="mt-2 text-blue-600 hover:underline text-sm">
                           Edit & Assign Users →
                         </button>
@@ -1653,7 +1653,7 @@ export default function DevelopmentCenterPage() {
                 <div className="p-2 bg-amber-100 rounded-lg"><Clock className="w-5 h-5 text-amber-600" /></div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{activityStats.pending}</p>
-                  <p className="text-sm text-gray-500">Pending</p>
+                  <p className="text-sm text-gray-500">En attente</p>
                 </div>
               </div>
             </div>
@@ -1662,7 +1662,7 @@ export default function DevelopmentCenterPage() {
                 <div className="p-2 bg-blue-100 rounded-lg"><TrendingUp className="w-5 h-5 text-blue-600" /></div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{activityStats.inProgress}</p>
-                  <p className="text-sm text-gray-500">In Progress</p>
+                  <p className="text-sm text-gray-500">En cours</p>
                 </div>
               </div>
             </div>
@@ -1671,7 +1671,7 @@ export default function DevelopmentCenterPage() {
                 <div className="p-2 bg-green-100 rounded-lg"><CheckCircle className="w-5 h-5 text-green-600" /></div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{activityStats.completed}</p>
-                  <p className="text-sm text-gray-500">Completed</p>
+                  <p className="text-sm text-gray-500">Terminé</p>
                 </div>
               </div>
             </div>
@@ -1680,7 +1680,7 @@ export default function DevelopmentCenterPage() {
                 <div className="p-2 bg-red-100 rounded-lg"><AlertCircle className="w-5 h-5 text-red-600" /></div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{activityStats.overdue}</p>
-                  <p className="text-sm text-gray-500">Overdue</p>
+                  <p className="text-sm text-gray-500">En retard</p>
                 </div>
               </div>
             </div>
@@ -1694,12 +1694,12 @@ export default function DevelopmentCenterPage() {
                 onChange={(e) => setActivityFilter(e.target.value)}
                 className="px-4 py-2 border border-gray-200 rounded-lg"
               >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="validated">Validated</option>
-                <option value="overdue">Overdue</option>
+                <option value="all">Tous les statuts</option>
+                <option value="pending">En attente</option>
+                <option value="in_progress">En cours</option>
+                <option value="completed">Terminé</option>
+                <option value="validated">Validé</option>
+                <option value="overdue">En retard</option>
               </select>
             </div>
           </div>
@@ -1708,7 +1708,7 @@ export default function DevelopmentCenterPage() {
           {filteredActivities.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
               <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Activities Found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune action trouvée</h3>
               <p className="text-gray-500 mb-4">
                 {activities.length === 0 
                   ? "Create a competency and assign it to team members to see activities here"
@@ -1719,7 +1719,7 @@ export default function DevelopmentCenterPage() {
                   onClick={() => { setActiveTab('competencies'); openWizard(); }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  Create First Competency
+                  Créer une première compétence
                 </button>
               )}
             </div>
@@ -1787,7 +1787,7 @@ export default function DevelopmentCenterPage() {
                             onClick={(e) => { e.stopPropagation(); handleStatusChange(activity.id, 'in_progress'); }}
                             className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                           >
-                            Start
+                            Démarrer
                           </button>
                         )}
                         {activity.status === 'in_progress' && (
@@ -1795,7 +1795,7 @@ export default function DevelopmentCenterPage() {
                             onClick={(e) => { e.stopPropagation(); handleStatusChange(activity.id, 'completed'); }}
                             className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
                           >
-                            Complete
+                            Terminer
                           </button>
                         )}
                         {activity.status === 'completed' && (
@@ -1803,7 +1803,7 @@ export default function DevelopmentCenterPage() {
                             onClick={(e) => { e.stopPropagation(); handleStatusChange(activity.id, 'validated'); }}
                             className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                           >
-                            Validate
+                            Valider
                           </button>
                         )}
                         <Eye className="w-5 h-5 text-gray-400" />
@@ -1931,12 +1931,12 @@ export default function DevelopmentCenterPage() {
                       ))}
                     </select>
                     {trainingModules.filter(m => m.status === 'published').length === 0 && (
-                      <p className="text-sm text-amber-600 mt-2">No published training modules available. Create one in the Training page first.</p>
+                      <p className="text-sm text-amber-600 mt-2">Aucune formation publiée. Créez-en une d’abord dans Formations.</p>
                     )}
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date d’échéance (facultatif)</label>
                     <input
                       type="date"
                       value={wizardData.dueDate || ''}
@@ -1966,7 +1966,7 @@ export default function DevelopmentCenterPage() {
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      This activity will help develop this competency
+                      Cette action aidera à développer cette compétence
                     </p>
                   </div>
 
@@ -2012,7 +2012,7 @@ export default function DevelopmentCenterPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
                       <input
                         type="date"
                         value={wizardData.startDate || new Date().toISOString().split('T')[0]}
@@ -2021,7 +2021,7 @@ export default function DevelopmentCenterPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (Optional)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date d’échéance (facultatif)</label>
                       <input
                         type="date"
                         value={wizardData.dueDate || ''}
@@ -2043,7 +2043,7 @@ export default function DevelopmentCenterPage() {
                       value={wizardData.name}
                       onChange={(e) => setWizardData({ ...wizardData, name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                      placeholder="e.g., 5S Management"
+                      placeholder="ex. Management 5S"
                     />
                   </div>
                   
@@ -2054,12 +2054,12 @@ export default function DevelopmentCenterPage() {
                       onChange={(e) => setWizardData({ ...wizardData, description: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                       rows={3}
-                      placeholder="What does this competency cover?"
+                      placeholder="Que couvre cette compétence ?"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Étiquettes</label>
                     {wizardData.tag_ids.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-2">
                         {wizardData.tag_ids.map(tagId => {
@@ -2094,7 +2094,7 @@ export default function DevelopmentCenterPage() {
                         type="text"
                         value={wizardData.newTagName}
                         onChange={(e) => setWizardData({ ...wizardData, newTagName: e.target.value })}
-                        placeholder="New tag name"
+                        placeholder="Nom de la nouvelle étiquette"
                         className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded"
                       />
                       <div className="flex gap-1">
@@ -2112,7 +2112,7 @@ export default function DevelopmentCenterPage() {
                         disabled={!wizardData.newTagName.trim()}
                         className="px-3 py-1 bg-gray-800 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50"
                       >
-                        Add
+                        Ajouter
                       </button>
                     </div>
                   </div>
@@ -2132,7 +2132,7 @@ export default function DevelopmentCenterPage() {
                   {trainees.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                      <p>No team members found</p>
+                      <p>Aucun membre d’équipe trouvé</p>
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -2182,12 +2182,12 @@ export default function DevelopmentCenterPage() {
               {/* FULL WIZARD STEP 2: Development Method */}
               {wizardStep === 2 && !wizardData.quickAction && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-4">How will users develop this competency?</p>
+                  <p className="text-sm text-gray-600 mb-4">Comment cette compétence sera-t-elle développée ?</p>
                   
                   {/* Use Template */}
                   {templates.length > 0 && (
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Use Template (Optional)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Utiliser un modèle (facultatif)</label>
                       <select
                         value={wizardData.template_id}
                         onChange={(e) => handleTemplateSelect(e.target.value)}
@@ -2205,8 +2205,8 @@ export default function DevelopmentCenterPage() {
                   <div className="flex gap-4">
                     {[
                       { value: 'coaching', label: 'Coaching', icon: Users, desc: 'Learn from others' },
-                      { value: 'task', label: 'Task', icon: Briefcase, desc: 'Learn by doing' },
-                      { value: 'training', label: 'Training', icon: BookOpen, desc: 'Formal learning' }
+                      { value: 'task', label: 'Tâche', icon: Briefcase, desc: 'Learn by doing' },
+                      { value: 'training', label: 'Formation', icon: BookOpen, desc: 'Formal learning' }
                     ].map(type => {
                       const Icon = type.icon;
                       return (
@@ -2256,20 +2256,20 @@ export default function DevelopmentCenterPage() {
                           value={wizardData.activityTitle}
                           onChange={(e) => setWizardData({ ...wizardData, activityTitle: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                          placeholder="e.g., Safety Observation Coaching"
+                          placeholder="ex. Coaching observation sécurité"
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <textarea value={wizardData.activityDescription} onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What is this activity about?" />
+                        <textarea value={wizardData.activityDescription} onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="De quoi s’agit-il ?" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Objectives</label>
-                        <textarea value={wizardData.activityObjectives} onChange={(e) => setWizardData({ ...wizardData, activityObjectives: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What should the trainee achieve?" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Objectifs</label>
+                        <textarea value={wizardData.activityObjectives} onChange={(e) => setWizardData({ ...wizardData, activityObjectives: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="Que doit atteindre l’apprenant ?" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Success Criteria</label>
-                        <textarea value={wizardData.activitySuccessCriteria} onChange={(e) => setWizardData({ ...wizardData, activitySuccessCriteria: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="How will success be measured?" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Critères de réussite</label>
+                        <textarea value={wizardData.activitySuccessCriteria} onChange={(e) => setWizardData({ ...wizardData, activitySuccessCriteria: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="Comment la réussite sera-t-elle mesurée ?" />
                       </div>
                     </div>
                   )}
@@ -2284,20 +2284,20 @@ export default function DevelopmentCenterPage() {
                           value={wizardData.activityTitle}
                           onChange={(e) => setWizardData({ ...wizardData, activityTitle: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                          placeholder="e.g., Complete SOP Review"
+                          placeholder="ex. Relire la procédure"
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <textarea value={wizardData.activityDescription} onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What is this task about?" />
+                        <textarea value={wizardData.activityDescription} onChange={(e) => setWizardData({ ...wizardData, activityDescription: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="En quoi consiste cette tâche ?" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Objectives</label>
-                        <textarea value={wizardData.activityObjectives} onChange={(e) => setWizardData({ ...wizardData, activityObjectives: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="What should the trainee achieve?" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Objectifs</label>
+                        <textarea value={wizardData.activityObjectives} onChange={(e) => setWizardData({ ...wizardData, activityObjectives: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="Que doit atteindre l’apprenant ?" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Success Criteria</label>
-                        <textarea value={wizardData.activitySuccessCriteria} onChange={(e) => setWizardData({ ...wizardData, activitySuccessCriteria: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="How will success be measured?" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Critères de réussite</label>
+                        <textarea value={wizardData.activitySuccessCriteria} onChange={(e) => setWizardData({ ...wizardData, activitySuccessCriteria: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg" rows={2} placeholder="Comment la réussite sera-t-elle mesurée ?" />
                       </div>
                     </div>
                   )}
@@ -2308,8 +2308,8 @@ export default function DevelopmentCenterPage() {
                       <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'none' ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                         <input type="radio" checked={wizardData.trainingOption === 'none'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'none' })} className="mt-1" />
                         <div>
-                          <p className="font-medium text-gray-900">No training module yet</p>
-                          <p className="text-sm text-gray-500">Will assign training later</p>
+                          <p className="font-medium text-gray-900">Aucune formation pour l’instant</p>
+                          <p className="text-sm text-gray-500">Assigner la formation plus tard</p>
                           {!wizardData.template_id && (
                             <p className="text-sm text-red-600 mt-1 font-medium">
                               ⚠️ A template must be selected above if choosing this option
@@ -2321,15 +2321,15 @@ export default function DevelopmentCenterPage() {
                       <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'assign_developer' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                         <input type="radio" checked={wizardData.trainingOption === 'assign_developer'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'assign_developer' })} className="mt-1" />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" />Assign to developer</p>
-                          <p className="text-sm text-gray-500">Delegate training creation to a team member</p>
+                          <p className="font-medium text-gray-900 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" />Confier à un concepteur</p>
+                          <p className="text-sm text-gray-500">Confier la création de la formation à un membre de l’équipe</p>
                         </div>
                       </label>
                       
                       {wizardData.trainingOption === 'assign_developer' && (
                         <div className="ml-7 p-3 bg-purple-50 rounded-lg">
                           <select value={wizardData.training_developer_id} onChange={(e) => setWizardData({ ...wizardData, training_developer_id: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
-                            <option value="">Select developer...</option>
+                            <option value="">Choisir un concepteur…</option>
                             {users.filter(u => u.id !== currentProfile?.id).map(user => (
                               <option key={user.id} value={user.id}>{user.full_name} ({user.role})</option>
                             ))}
@@ -2340,8 +2340,8 @@ export default function DevelopmentCenterPage() {
                       <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'generate' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                         <input type="radio" checked={wizardData.trainingOption === 'generate'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'generate' })} className="mt-1" />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" />Generate with AI</p>
-                          <p className="text-sm text-gray-500">Create slides and quiz automatically</p>
+                          <p className="font-medium text-gray-900 flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" />Générer avec l’IA</p>
+                          <p className="text-sm text-gray-500">Créer diapositives et quiz automatiquement</p>
                         </div>
                       </label>
                       
@@ -2350,14 +2350,14 @@ export default function DevelopmentCenterPage() {
                           {generatedSlides.length === 0 ? (
                             <div className="text-center">
                               <button onClick={handleGenerateContent} disabled={generating || !wizardData.name} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 inline-flex items-center gap-2">
-                                {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Sparkles className="w-4 h-4" />Generate Content</>}
+                                {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Génération…</> : <><Sparkles className="w-4 h-4" />Générer le contenu</>}
                               </button>
-                              <p className="text-xs text-amber-700 mt-2">Will create 5-7 slides and quiz questions</p>
+                              <p className="text-xs text-amber-700 mt-2">Créera 5 à 7 diapositives et des questions de quiz</p>
                             </div>
                           ) : (
                             <div className="space-y-4">
                               <div className="flex items-center justify-between">
-                                <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Content Generated!</p>
+                                <p className="font-medium text-green-700 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Contenu généré !</p>
                                 <button onClick={handleGenerateContent} disabled={generating} className="text-sm text-amber-700 hover:underline flex items-center gap-1">
                                   {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                                   Regenerate
@@ -2370,7 +2370,7 @@ export default function DevelopmentCenterPage() {
                                   <h4 className="font-medium text-gray-900 text-sm">Slides ({generatedSlides.length})</h4>
                                   <button
                                     onClick={() => setGeneratedSlides([...generatedSlides, {
-                                      title: 'New Slide',
+                                      title: 'Nouvelle diapositive',
                                       key_points: ['Point 1', 'Point 2', 'Point 3'],
                                       audio_script: 'Audio script for this slide.'
                                     }])}
@@ -2407,7 +2407,7 @@ export default function DevelopmentCenterPage() {
                                       </div>
                                       
                                       <div className="mb-2">
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Key Points</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Points clés</label>
                                         {slide.key_points?.map((point, i) => (
                                           <div key={i} className="flex items-center gap-2 mb-1">
                                             <span className="text-gray-400 text-xs">•</span>
@@ -2450,7 +2450,7 @@ export default function DevelopmentCenterPage() {
                                       </div>
                                       
                                       <div className="bg-gray-50 rounded p-2">
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">Audio Script</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Script audio</label>
                                         <textarea
                                           value={slide.audio_script}
                                           onChange={(e) => {
@@ -2563,15 +2563,15 @@ export default function DevelopmentCenterPage() {
                       <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer ${wizardData.trainingOption === 'link' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                         <input type="radio" checked={wizardData.trainingOption === 'link'} onChange={() => setWizardData({ ...wizardData, trainingOption: 'link' })} className="mt-1" />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 flex items-center gap-2"><Link className="w-4 h-4 text-blue-500" />Link existing training</p>
-                          <p className="text-sm text-gray-500">Connect to an existing module</p>
+                          <p className="font-medium text-gray-900 flex items-center gap-2"><Link className="w-4 h-4 text-blue-500" />Relier une formation existante</p>
+                          <p className="text-sm text-gray-500">Relier à une formation existante</p>
                         </div>
                       </label>
                       
                       {wizardData.trainingOption === 'link' && (
                         <div className="ml-7">
                           <select value={wizardData.linkedModuleId} onChange={(e) => setWizardData({ ...wizardData, linkedModuleId: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg">
-                            <option value="">Select training module...</option>
+                            <option value="">Choisir une formation…</option>
                             {trainingModules.map(tm => (
                               <option key={tm.id} value={tm.id}>{tm.title} {tm.status === 'published' ? '✓' : '(draft)'}</option>
                             ))}
@@ -2586,12 +2586,12 @@ export default function DevelopmentCenterPage() {
               {/* STEP 3: Assign Users */}
               {wizardStep === 3 && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-4">Assign this competency to team members</p>
+                  <p className="text-sm text-gray-600 mb-4">Assigner cette compétence à des membres de l’équipe</p>
                   
                   {trainees.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                      <p>No trainees found</p>
+                      <p>Aucun apprenant trouvé</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -2609,19 +2609,19 @@ export default function DevelopmentCenterPage() {
                               {isSelected && (
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <div>
-                                    <label className="text-xs text-gray-500">Current</label>
+                                    <label className="text-xs text-gray-500">Actuel</label>
                                     <select value={assignment.current_level || 0} onChange={(e) => updateAssignment(user.id, 'current_level', parseInt(e.target.value))} className="block w-16 px-2 py-1 text-sm border border-gray-200 rounded">
                                       {[0, 1, 2, 3, 4].map(l => <option key={l} value={l}>{l}</option>)}
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="text-xs text-gray-500">Target</label>
+                                    <label className="text-xs text-gray-500">Cible</label>
                                     <select value={assignment.target_level} onChange={(e) => updateAssignment(user.id, 'target_level', parseInt(e.target.value))} className="block w-16 px-2 py-1 text-sm border border-gray-200 rounded">
                                       {[1, 2, 3, 4, 5].map(l => <option key={l} value={l}>{l}</option>)}
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="text-xs text-gray-500">Due</label>
+                                    <label className="text-xs text-gray-500">Échéance</label>
                                     <input type="date" value={assignment.due_date} onChange={(e) => updateAssignment(user.id, 'due_date', e.target.value)} className="block w-32 px-2 py-1 text-sm border border-gray-200 rounded" />
                                   </div>
                                 </div>
@@ -2639,7 +2639,7 @@ export default function DevelopmentCenterPage() {
                   <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-xs text-amber-700 flex items-center gap-2">
                       <Award className="w-4 h-4" />
-                      <span><strong>Level 5 (Expert)</strong> requires nomination through the Expert Network.</span>
+                      <span><strong>Niveau 5 (expert)</strong> passe par une nomination au réseau d’experts.</span>
                     </p>
                   </div>
                 </div>
@@ -2659,7 +2659,7 @@ export default function DevelopmentCenterPage() {
                   <>
                     {wizardStep === 2 && (
                       <button onClick={handleQuickActionSubmit} disabled={submitting} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                        Skip & Save
+                        Passer et enregistrer
                       </button>
                     )}
                     
@@ -2685,7 +2685,7 @@ export default function DevelopmentCenterPage() {
                         setFormError('');
                         setWizardStep(2);
                       }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                        Next <ChevronRight className="w-4 h-4" />
+                        Suivant <ChevronRight className="w-4 h-4" />
                       </button>
                     ) : (
                       <button onClick={handleQuickActionSubmit} disabled={submitting || wizardData.assignments.length === 0} className={`px-4 py-2 text-white rounded-lg flex items-center gap-2 disabled:opacity-50 ${
@@ -2693,7 +2693,7 @@ export default function DevelopmentCenterPage() {
                         wizardData.quickAction === 'task' ? 'bg-blue-600 hover:bg-blue-700' :
                         'bg-purple-600 hover:bg-purple-700'
                       }`}>
-                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Assigning...</> : <><Check className="w-4 h-4" />Assign {wizardData.assignments.length} User{wizardData.assignments.length !== 1 ? 's' : ''}</>}
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Assignation…</> : <><Check className="w-4 h-4" />Assign {wizardData.assignments.length} User{wizardData.assignments.length !== 1 ? 's' : ''}</>}
                       </button>
                     )}
                   </>
@@ -2702,7 +2702,7 @@ export default function DevelopmentCenterPage() {
                   <>
                     {wizardStep === 3 && (
                       <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                        Skip & Save
+                        Passer et enregistrer
                       </button>
                     )}
                     
@@ -2729,11 +2729,11 @@ export default function DevelopmentCenterPage() {
                         setFormError('');
                         setWizardStep(wizardStep + 1);
                       }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                        Next <ChevronRight className="w-4 h-4" />
+                        Suivant <ChevronRight className="w-4 h-4" />
                       </button>
                     ) : (
                       <button onClick={handleSubmitWizard} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50">
-                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Update' : 'Create'} Competency</>}
+                        {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement…</> : <><Check className="w-4 h-4" />{editingCompetency ? 'Update' : 'Create'} Competency</>}
                       </button>
                     )}
                   </>
@@ -2750,13 +2750,13 @@ export default function DevelopmentCenterPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-red-100 rounded-full"><Trash2 className="w-6 h-6 text-red-600" /></div>
-              <h3 className="text-lg font-semibold text-gray-900">Delete Competency</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Supprimer la compétence</h3>
             </div>
-            <p className="text-gray-600 mb-2">Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?</p>
-            <p className="text-sm text-gray-500 mb-6">This will also remove all user assignments. This action cannot be undone.</p>
+            <p className="text-gray-600 mb-2">Voulez-vous vraiment supprimer <strong>{deleteConfirm.name}</strong>?</p>
+            <p className="text-sm text-gray-500 mb-6">Toutes les assignations seront aussi supprimées. Cette action est irréversible.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={() => handleDeleteCompetency(deleteConfirm)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Annuler</button>
+              <button onClick={() => handleDeleteCompetency(deleteConfirm)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Supprimer</button>
             </div>
           </div>
         </div>
@@ -2768,7 +2768,7 @@ export default function DevelopmentCenterPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-amber-100 rounded-full"><Award className="w-6 h-6 text-amber-600" /></div>
-              <h3 className="text-lg font-semibold text-gray-900">Validate Competency Level</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Valider le niveau de compétence</h3>
             </div>
             
             <div className="space-y-4">
@@ -2788,13 +2788,13 @@ export default function DevelopmentCenterPage() {
                   ))}
                 </select>
                 {currentProfile?.role !== 'super_admin' && currentProfile?.role !== 'client_admin' && (
-                  <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Award className="w-3 h-3" />Level 5 (Expert) requires nomination to Expert Network</p>
+                  <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Award className="w-3 h-3" />Le niveau 5 (expert) passe par une nomination au réseau d’experts</p>
                 )}
               </div>
             </div>
             
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setValidateModal(null)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setValidateModal(null)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Annuler</button>
               <button
                 onClick={async () => {
                   try {
@@ -2816,7 +2816,7 @@ export default function DevelopmentCenterPage() {
                 }}
                 className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
               >
-                Validate Level
+                Valider le niveau
               </button>
             </div>
           </div>
@@ -2857,7 +2857,7 @@ export default function DevelopmentCenterPage() {
                       onClick={() => handleStatusChange(selectedActivity.id, 'in_progress')}
                       className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                     >
-                      Start
+                      Démarrer
                     </button>
                   )}
                   {selectedActivity.status === 'in_progress' && (
@@ -2865,7 +2865,7 @@ export default function DevelopmentCenterPage() {
                       onClick={() => handleStatusChange(selectedActivity.id, 'completed')}
                       className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
                     >
-                      Mark Complete
+                      Marquer comme terminé
                     </button>
                   )}
                   {selectedActivity.status === 'completed' && (
@@ -2873,7 +2873,7 @@ export default function DevelopmentCenterPage() {
                       onClick={() => handleStatusChange(selectedActivity.id, 'validated')}
                       className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                     >
-                      Validate & Close
+                      Valider et clore
                     </button>
                   )}
                 </div>
@@ -2882,7 +2882,7 @@ export default function DevelopmentCenterPage() {
               {/* Details */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Trainee</p>
+                  <p className="text-sm text-gray-500">Apprenant</p>
                   <p className="font-medium">{getUserName(selectedActivity.trainee_id)}</p>
                 </div>
                 {selectedActivity.coach_id && (
@@ -2892,11 +2892,11 @@ export default function DevelopmentCenterPage() {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-gray-500">Assigned By</p>
+                  <p className="text-sm text-gray-500">Assigné par</p>
                   <p className="font-medium">{getUserName(selectedActivity.assigned_by)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Due Date</p>
+                  <p className="text-sm text-gray-500">Date d’échéance</p>
                   <p className="font-medium">
                     {selectedActivity.due_date 
                       ? new Date(selectedActivity.due_date).toLocaleDateString() 
@@ -2905,7 +2905,7 @@ export default function DevelopmentCenterPage() {
                 </div>
                 {selectedActivity.competency_id && (
                   <div>
-                    <p className="text-sm text-gray-500">Linked Competency</p>
+                    <p className="text-sm text-gray-500">Compétence liée</p>
                     <p className="font-medium">
                       {getCompetencyName(selectedActivity.competency_id)} → Level {selectedActivity.target_level}
                     </p>
@@ -2922,14 +2922,14 @@ export default function DevelopmentCenterPage() {
               
               {selectedActivity.objectives && (
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Objectives</p>
+                  <p className="text-sm text-gray-500 mb-1">Objectifs</p>
                   <p className="text-gray-700">{selectedActivity.objectives}</p>
                 </div>
               )}
               
               {selectedActivity.success_criteria && (
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Success Criteria</p>
+                  <p className="text-sm text-gray-500 mb-1">Critères de réussite</p>
                   <p className="text-gray-700">{selectedActivity.success_criteria}</p>
                 </div>
               )}
@@ -2949,10 +2949,10 @@ export default function DevelopmentCenterPage() {
                       onChange={(e) => setFeedbackType(e.target.value)}
                       className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
                     >
-                      <option value="progress">Progress Update</option>
-                      <option value="milestone">Milestone</option>
-                      <option value="challenge">Challenge</option>
-                      <option value="support">Need Support</option>
+                      <option value="progress">Point d’avancement</option>
+                      <option value="milestone">Jalon</option>
+                      <option value="challenge">Défi</option>
+                      <option value="support">Besoin d’aide</option>
                     </select>
                   </div>
                   <div className="flex gap-2">
@@ -2960,7 +2960,7 @@ export default function DevelopmentCenterPage() {
                       type="text"
                       value={newFeedback}
                       onChange={(e) => setNewFeedback(e.target.value)}
-                      placeholder="Add a comment or update..."
+                      placeholder="Ajouter un commentaire ou une mise à jour…"
                       className="flex-1 px-3 py-2 border border-gray-200 rounded-lg"
                       onKeyDown={(e) => e.key === 'Enter' && handleAddFeedback()}
                     />
@@ -2976,7 +2976,7 @@ export default function DevelopmentCenterPage() {
                 
                 {/* Feedback List */}
                 {feedback.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No feedback yet</p>
+                  <p className="text-sm text-gray-500 text-center py-4">Aucun retour pour l’instant</p>
                 ) : (
                   <div className="space-y-3">
                     {feedback.map(fb => (

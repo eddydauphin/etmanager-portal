@@ -425,17 +425,17 @@ export default function UsersPage() {
   const getRoleInfo = (role) => {
     switch (role) {
       case 'super_admin':
-        return { label: 'Super Admin', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck };
+        return { label: 'Super admin', color: 'bg-purple-100 text-purple-700', icon: ShieldCheck };
       case 'client_admin':
-        return { label: 'Client Admin', color: 'bg-blue-100 text-blue-700', icon: Shield };
+        return { label: 'Admin client', color: 'bg-blue-100 text-blue-700', icon: Shield };
       case 'category_admin':
-        return { label: 'Category Admin', color: 'bg-indigo-100 text-indigo-700', icon: Briefcase };
+        return { label: 'Admin catégorie', color: 'bg-indigo-100 text-indigo-700', icon: Briefcase };
       case 'site_admin':
-        return { label: 'Site Admin', color: 'bg-cyan-100 text-cyan-700', icon: Building2 };
+        return { label: 'Admin site', color: 'bg-cyan-100 text-cyan-700', icon: Building2 };
       case 'team_lead':
-        return { label: 'Team Lead', color: 'bg-orange-100 text-orange-700', icon: Users };
+        return { label: 'Chef d’équipe', color: 'bg-orange-100 text-orange-700', icon: Users };
       default:
-        return { label: 'Trainee', color: 'bg-green-100 text-green-700', icon: UserCheck };
+        return { label: 'Apprenant', color: 'bg-green-100 text-green-700', icon: UserCheck };
     }
   };
 
@@ -454,15 +454,15 @@ export default function UsersPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="text-gray-500 mt-1">Manage system users and their access</p>
+            <h1 className="text-2xl font-bold text-gray-900">Personnes</h1>
+            <p className="text-gray-500 mt-1">Gérer les utilisateurs et leurs accès</p>
           </div>
           <button
             onClick={handleCreateUser}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
           >
             <Plus className="w-5 h-5" />
-            Add User
+            Ajouter une personne
           </button>
         </div>
 
@@ -475,7 +475,7 @@ export default function UsersPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{users.length}</p>
-                <p className="text-sm text-gray-500">Total Users</p>
+                <p className="text-sm text-gray-500">Personnes</p>
               </div>
             </div>
           </div>
@@ -489,7 +489,7 @@ export default function UsersPage() {
                   <p className="text-2xl font-bold text-gray-900">
                     {users.filter(u => u.role === 'super_admin').length}
                   </p>
-                  <p className="text-sm text-gray-500">Super Admins</p>
+                  <p className="text-sm text-gray-500">Super admins</p>
                 </div>
               </div>
             </div>
@@ -503,7 +503,7 @@ export default function UsersPage() {
                   <p className="text-2xl font-bold text-gray-900">
                     {users.filter(u => u.role === 'team_lead').length}
                   </p>
-                  <p className="text-sm text-gray-500">Team Leads</p>
+                  <p className="text-sm text-gray-500">Chefs d’équipe</p>
                 </div>
               </div>
             </div>
@@ -517,7 +517,7 @@ export default function UsersPage() {
                 <p className="text-2xl font-bold text-gray-900">
                   {users.filter(u => u.role === 'client_admin').length}
                 </p>
-                <p className="text-sm text-gray-500">Client Admins</p>
+                <p className="text-sm text-gray-500">Admins client</p>
               </div>
             </div>
           </div>
@@ -530,7 +530,7 @@ export default function UsersPage() {
                 <p className="text-2xl font-bold text-gray-900">
                   {users.filter(u => u.role === 'trainee').length}
                 </p>
-                <p className="text-sm text-gray-500">Trainees</p>
+                <p className="text-sm text-gray-500">Apprenants</p>
               </div>
             </div>
           </div>
@@ -544,7 +544,7 @@ export default function UsersPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name, email, or employee #..."
+                placeholder="Rechercher par nom, e-mail ou matricule…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -559,15 +559,15 @@ export default function UsersPage() {
                 onChange={(e) => setRoleFilter(e.target.value)}
                 className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[150px]"
               >
-                <option value="all">All Roles</option>
+                <option value="all">Tous les rôles</option>
                 {currentProfile?.role === 'super_admin' && (
-                  <option value="super_admin">Super Admin</option>
+                  <option value="super_admin">Super admin</option>
                 )}
-                <option value="client_admin">Client Admin</option>
-                <option value="category_admin">Category Admin</option>
-                <option value="site_admin">Site Admin</option>
-                <option value="team_lead">Team Lead</option>
-                <option value="trainee">Trainee</option>
+                <option value="client_admin">Admin client</option>
+                <option value="category_admin">Admin catégorie</option>
+                <option value="site_admin">Admin site</option>
+                <option value="team_lead">Chef d’équipe</option>
+                <option value="trainee">Apprenant</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
@@ -581,7 +581,7 @@ export default function UsersPage() {
                   onChange={(e) => setClientFilter(e.target.value)}
                   className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[180px]"
                 >
-                  <option value="all">All Organizations</option>
+                  <option value="all">Toutes les organisations</option>
                   {clients.map(client => (
                     <option key={client.id} value={client.id}>
                       {client.name}
@@ -600,9 +600,9 @@ export default function UsersPage() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[140px]"
               >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="all">Tous les statuts</option>
+                <option value="active">Actif</option>
+                <option value="inactive">Inactif</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
@@ -611,7 +611,7 @@ export default function UsersPage() {
             <button
               onClick={loadData}
               className="p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              title="Refresh"
+              title="Actualiser"
             >
               <RefreshCw className="w-5 h-5 text-gray-500" />
             </button>
@@ -623,7 +623,7 @@ export default function UsersPage() {
           {filteredUsers.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No users found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Aucune personne trouvée</h3>
               <p className="text-gray-500">
                 {searchTerm || roleFilter !== 'all' || clientFilter !== 'all' || statusFilter !== 'all'
                   ? 'Try adjusting your filters'
@@ -636,19 +636,19 @@ export default function UsersPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      User
+                      Personne
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Role
+                      Rôle
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Organization
+                      Organisation
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Department / Line
+                      Service / Ligne
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Status
+                      Statut
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Actions
@@ -709,12 +709,12 @@ export default function UsersPage() {
                           {user.is_active !== false ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-green-100 text-green-700">
                               <Check className="w-3.5 h-3.5" />
-                              Active
+                              Actif
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-600">
                               <X className="w-3.5 h-3.5" />
-                              Inactive
+                              Inactif
                             </span>
                           )}
                         </td>
@@ -737,14 +737,14 @@ export default function UsersPage() {
                                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                                 >
                                   <Edit2 className="w-4 h-4" />
-                                  Edit User
+                                  Modifier la personne
                                 </button>
                                 <button
                                   onClick={() => handleResetPasswordClick(user)}
                                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                                 >
                                   <Key className="w-4 h-4" />
-                                  Reset Password
+                                  Réinitialiser le mot de passe
                                 </button>
                                 {user.id !== currentUser?.id && (
                                   <button
@@ -752,7 +752,7 @@ export default function UsersPage() {
                                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                                   >
                                     <Trash2 className="w-4 h-4" />
-                                    Deactivate
+                                    Désactiver
                                   </button>
                                 )}
                               </div>
@@ -834,7 +834,7 @@ export default function UsersPage() {
                   />
                 </div>
                 {editingUser && (
-                  <p className="mt-1 text-xs text-gray-500">Email cannot be changed after creation</p>
+                  <p className="mt-1 text-xs text-gray-500">L’e-mail ne peut plus être modifié après la création</p>
                 )}
               </div>
 
@@ -872,8 +872,8 @@ export default function UsersPage() {
                       />
                       <ShieldCheck className={`w-5 h-5 ${formData.role === 'super_admin' ? 'text-purple-600' : 'text-gray-400'}`} />
                       <div>
-                        <div className="font-medium text-gray-900">Super Admin</div>
-                        <div className="text-xs text-gray-500">Full system access, all clients</div>
+                        <div className="font-medium text-gray-900">Super admin</div>
+                        <div className="text-xs text-gray-500">Accès complet, tous les clients</div>
                       </div>
                     </label>
                   )}
@@ -891,8 +891,8 @@ export default function UsersPage() {
                       />
                       <Shield className={`w-5 h-5 ${formData.role === 'client_admin' ? 'text-blue-600' : 'text-gray-400'}`} />
                       <div>
-                        <div className="font-medium text-gray-900">Client Admin</div>
-                        <div className="text-xs text-gray-500">Manage entire organization</div>
+                        <div className="font-medium text-gray-900">Admin client</div>
+                        <div className="text-xs text-gray-500">Gère toute l’organisation</div>
                       </div>
                     </label>
                   )}
@@ -910,8 +910,8 @@ export default function UsersPage() {
                       />
                       <Briefcase className={`w-5 h-5 ${formData.role === 'category_admin' ? 'text-indigo-600' : 'text-gray-400'}`} />
                       <div>
-                        <div className="font-medium text-gray-900">Category Admin</div>
-                        <div className="text-xs text-gray-500">Manage category/division within organization</div>
+                        <div className="font-medium text-gray-900">Admin catégorie</div>
+                        <div className="text-xs text-gray-500">Gère une catégorie ou division</div>
                       </div>
                     </label>
                   )}
@@ -929,8 +929,8 @@ export default function UsersPage() {
                       />
                       <Building2 className={`w-5 h-5 ${formData.role === 'site_admin' ? 'text-cyan-600' : 'text-gray-400'}`} />
                       <div>
-                        <div className="font-medium text-gray-900">Site Admin</div>
-                        <div className="text-xs text-gray-500">Manage site/location within organization</div>
+                        <div className="font-medium text-gray-900">Admin site</div>
+                        <div className="text-xs text-gray-500">Gère un site</div>
                       </div>
                     </label>
                   )}
@@ -948,8 +948,8 @@ export default function UsersPage() {
                       />
                       <Users className={`w-5 h-5 ${formData.role === 'team_lead' ? 'text-orange-600' : 'text-gray-400'}`} />
                       <div>
-                        <div className="font-medium text-gray-900">Team Lead</div>
-                        <div className="text-xs text-gray-500">Manage assigned team members, assess & train</div>
+                        <div className="font-medium text-gray-900">Chef d’équipe</div>
+                        <div className="text-xs text-gray-500">Suit, évalue et forme son équipe</div>
                       </div>
                     </label>
                   )}
@@ -965,8 +965,8 @@ export default function UsersPage() {
                     />
                     <UserCheck className={`w-5 h-5 ${formData.role === 'trainee' ? 'text-green-600' : 'text-gray-400'}`} />
                     <div>
-                      <div className="font-medium text-gray-900">Trainee</div>
-                      <div className="text-xs text-gray-500">Access training & track progress</div>
+                      <div className="font-medium text-gray-900">Apprenant</div>
+                      <div className="text-xs text-gray-500">Suit ses formations et sa progression</div>
                     </div>
                   </label>
                 </div>
@@ -986,7 +986,7 @@ export default function UsersPage() {
                       disabled={currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead'}
                       className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${(currentProfile?.role === 'client_admin' || currentProfile?.role === 'team_lead') ? 'bg-gray-50' : ''}`}
                     >
-                      <option value="">Select organization...</option>
+                      <option value="">Choisir une organisation…</option>
                       {clients.map(client => (
                         <option key={client.id} value={client.id}>
                           {client.name} ({client.code})
@@ -1003,23 +1003,23 @@ export default function UsersPage() {
                 <div className="space-y-4 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
                   <h3 className="text-sm font-medium text-cyan-800 flex items-center gap-2">
                     <Building2 className="w-4 h-4" />
-                    Site Admin Settings
+                    Réglages admin site
                   </h3>
                   
                   {/* Site/Location */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Site / Location
+                      Site
                     </label>
                     <input
                       type="text"
                       value={formData.site}
                       onChange={(e) => setFormData({ ...formData, site: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                      placeholder="e.g., Factory A, Building 1, Paris Site"
+                      placeholder="ex. Usine A, Bâtiment 1, Site de Paris"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      The site or location this admin will manage
+                      Le site géré par cet admin
                     </p>
                   </div>
                 </div>
@@ -1029,7 +1029,7 @@ export default function UsersPage() {
               {formData.role === 'trainee' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Reports To (Team Lead)
+                    Rattaché à (chef d’équipe)
                   </label>
                   <div className="relative">
                     <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1039,7 +1039,7 @@ export default function UsersPage() {
                       disabled={currentProfile?.role === 'team_lead'}
                       className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${currentProfile?.role === 'team_lead' ? 'bg-gray-50' : ''}`}
                     >
-                      <option value="">No team lead (reports to Client Admin)</option>
+                      <option value="">Aucun chef d’équipe (rattaché à l’admin client)</option>
                       {teamLeads
                         .filter(tl => !formData.client_id || tl.client_id === formData.client_id)
                         .map(lead => (
@@ -1051,7 +1051,7 @@ export default function UsersPage() {
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Assign this trainee to a team lead who will manage their training and assessments
+                    Rattachez cet apprenant à un chef d’équipe qui suivra ses formations et évaluations
                   </p>
                 </div>
               )}
@@ -1060,7 +1060,7 @@ export default function UsersPage() {
               {formData.role === 'trainee' && (
                 <>
                   <div className="border-t border-gray-200 pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Employee Details</h3>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Informations salarié</h3>
                     
                     <div className="grid grid-cols-2 gap-4">
                       {/* Employee Number */}
@@ -1083,7 +1083,7 @@ export default function UsersPage() {
                       {/* Hire Date */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Hire Date
+                          Date d’embauche
                         </label>
                         <div className="relative">
                           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1101,7 +1101,7 @@ export default function UsersPage() {
                       {/* Department */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Department
+                          Service
                         </label>
                         <div className="relative">
                           <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1118,7 +1118,7 @@ export default function UsersPage() {
                       {/* Line */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          Line / Area
+                          Ligne / Zone
                         </label>
                         <input
                           type="text"
@@ -1143,7 +1143,7 @@ export default function UsersPage() {
                   >
                     <div className="flex items-center gap-2">
                       <Settings2 className="w-5 h-5 text-purple-600" />
-                      <span className="font-medium text-gray-900">Capabilities & Permissions</span>
+                      <span className="font-medium text-gray-900">Accès et permissions</span>
                     </div>
                     <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showCapabilities ? 'rotate-180' : ''}`} />
                   </button>
@@ -1153,7 +1153,7 @@ export default function UsersPage() {
                       <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                         <p className="text-sm text-blue-700">
-                          Enable or disable specific features for this user. These settings override role-based defaults.
+                          Activez ou désactivez des fonctions pour cette personne. Ces réglages priment sur ceux du rôle.
                         </p>
                       </div>
                       
@@ -1212,7 +1212,7 @@ export default function UsersPage() {
                           })}
                           className="text-sm text-purple-600 hover:text-purple-700 font-medium"
                         >
-                          Reset to defaults
+                          Rétablir les valeurs par défaut
                         </button>
                       </div>
                     </div>
@@ -1244,8 +1244,8 @@ export default function UsersPage() {
                   <div className="flex items-start gap-2">
                     <Key className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-700">
-                      <p className="font-medium">Temporary Password</p>
-                      <p className="mt-0.5">A secure temporary password will be generated. You'll be shown the credentials after creation.</p>
+                      <p className="font-medium">Mot de passe temporaire</p>
+                      <p className="mt-0.5">Un mot de passe temporaire sécurisé sera généré. Les identifiants s’afficheront après la création.</p>
                     </div>
                   </div>
                 </div>
@@ -1258,7 +1258,7 @@ export default function UsersPage() {
                   onClick={() => setShowModal(false)}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -1293,20 +1293,20 @@ export default function UsersPage() {
               </div>
               
               <h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
-                User Created Successfully!
+                Personne créée !
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Save these credentials - they won't be shown again.
+                Conservez ces identifiants : ils ne seront plus affichés.
               </p>
 
               <div className="space-y-3 mb-6">
                 <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 mb-1">Name</div>
+                  <div className="text-xs text-gray-500 mb-1">Nom</div>
                   <div className="font-medium text-gray-900">{newUserCredentials.fullName}</div>
                 </div>
 
                 <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 mb-1">Email</div>
+                  <div className="text-xs text-gray-500 mb-1">E-mail</div>
                   <div className="flex items-center justify-between gap-2">
                     <code className="font-mono text-gray-900 break-all">{newUserCredentials.email}</code>
                     <button
@@ -1319,7 +1319,7 @@ export default function UsersPage() {
                 </div>
 
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="text-xs text-amber-700 mb-1 font-medium">Temporary Password</div>
+                  <div className="text-xs text-amber-700 mb-1 font-medium">Mot de passe temporaire</div>
                   <div className="flex items-center justify-between gap-2">
                     <code className="font-mono text-lg text-amber-900 font-semibold">{newUserCredentials.password}</code>
                     <button
@@ -1336,16 +1336,16 @@ export default function UsersPage() {
                   className="w-full py-2.5 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 flex items-center justify-center gap-2"
                 >
                   {copiedField === 'both' ? (
-                    <><Check className="w-4 h-4 text-green-600" /> Copied!</>
+                    <><Check className="w-4 h-4 text-green-600" /> Copié !</>
                   ) : (
-                    <><Copy className="w-4 h-4" /> Copy Both</>
+                    <><Copy className="w-4 h-4" /> Tout copier</>
                   )}
                 </button>
               </div>
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-6">
                 <p className="text-sm text-blue-700">
-                  <strong>Note:</strong> The user will be required to change their password on first login.
+                  <strong>Note:</strong> La personne devra changer son mot de passe à la première connexion.
                 </p>
               </div>
 
@@ -1356,7 +1356,7 @@ export default function UsersPage() {
                 }}
                 className="w-full py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
-                Done
+                Terminé
               </button>
             </div>
           </div>
@@ -1372,10 +1372,10 @@ export default function UsersPage() {
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Deactivate User?
+                Désactiver cette personne ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to deactivate <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
+                Voulez-vous vraiment désactiver <strong>{userToDelete.full_name || userToDelete.email}</strong>? 
                 They will no longer be able to log in.
               </p>
               <div className="flex gap-3">
@@ -1386,13 +1386,13 @@ export default function UsersPage() {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Deactivate
+                  Désactiver
                 </button>
               </div>
             </div>
@@ -1409,10 +1409,10 @@ export default function UsersPage() {
                 <Key className="w-6 h-6 text-amber-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-                Reset Password?
+                Réinitialiser le mot de passe ?
               </h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                Send a password reset email to <strong>{userToResetPassword.email}</strong>?
+                Envoyer un e-mail de réinitialisation à <strong>{userToResetPassword.email}</strong>?
               </p>
               <div className="flex gap-3">
                 <button
@@ -1422,13 +1422,13 @@ export default function UsersPage() {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   onClick={handleResetPasswordConfirm}
                   className="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium"
                 >
-                  Send Reset Email
+                  Envoyer l’e-mail
                 </button>
               </div>
             </div>

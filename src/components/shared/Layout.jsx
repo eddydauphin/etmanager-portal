@@ -203,7 +203,7 @@ function Layout() {
     // 'skills' regroupe le référentiel et les profils de poste sur une page.
     const menuOrder = role === 'trainee'
       ? ['dashboard', 'chat', 'my_training', 'my_progress', 'sops', 'settings']
-      : ['dashboard', 'chat', 'users', 'skills', 'training', 'development_center', 'expert_network', 'sops', 'reports', 'settings'];
+      : ['dashboard', 'chat', 'users', 'skills', 'training', 'expert_network', 'sops', 'reports', 'settings'];
 
     // Le super admin gère aussi les clients
     if (role === 'super_admin') {

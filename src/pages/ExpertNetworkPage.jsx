@@ -728,7 +728,7 @@ export default function ExpertNetworkPage() {
   const getRoleInfo = (role) => {
     switch (role) {
       case 'network_leader':
-        return { label: 'Network Leader', color: 'bg-purple-100 text-purple-700', icon: Crown };
+        return { label: 'Référent du réseau', color: 'bg-purple-100 text-purple-700', icon: Crown };
       case 'gsme':
         return { label: 'GSME', color: 'bg-blue-100 text-blue-700', icon: Star };
       case 'fsme':
@@ -742,15 +742,15 @@ export default function ExpertNetworkPage() {
   const getStatusInfo = (status) => {
     switch (status) {
       case 'completed':
-        return { label: 'Completed', color: 'bg-green-100 text-green-700', icon: CheckCircle2 };
+        return { label: 'Terminé', color: 'bg-green-100 text-green-700', icon: CheckCircle2 };
       case 'in_progress':
-        return { label: 'In Progress', color: 'bg-blue-100 text-blue-700', icon: Clock };
+        return { label: 'En cours', color: 'bg-blue-100 text-blue-700', icon: Clock };
       case 'overdue':
-        return { label: 'Overdue', color: 'bg-red-100 text-red-700', icon: AlertTriangle };
+        return { label: 'En retard', color: 'bg-red-100 text-red-700', icon: AlertTriangle };
       case 'cancelled':
-        return { label: 'Cancelled', color: 'bg-gray-100 text-gray-500', icon: X };
+        return { label: 'Annulé', color: 'bg-gray-100 text-gray-500', icon: X };
       default:
-        return { label: 'Planned', color: 'bg-yellow-100 text-yellow-700', icon: Calendar };
+        return { label: 'Planifié', color: 'bg-yellow-100 text-yellow-700', icon: Calendar };
     }
   };
 
@@ -805,7 +805,7 @@ export default function ExpertNetworkPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Expert Network</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Réseau d’experts</h1>
             <p className="text-gray-500 mt-1">
               {isViewOnly 
                 ? 'View knowledge networks and subject matter experts' 
@@ -818,7 +818,7 @@ export default function ExpertNetworkPage() {
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
             >
               <Plus className="w-5 h-5" />
-              Create Network
+              Créer un réseau
             </button>
           )}
         </div>
@@ -837,7 +837,7 @@ export default function ExpertNetworkPage() {
               >
                 <div className="flex items-center gap-2">
                   <Network className="w-4 h-4" />
-                  Networks
+                  Réseaux
                 </div>
               </button>
               {canApproveNominations && (
@@ -871,7 +871,7 @@ export default function ExpertNetworkPage() {
                 >
                   <div className="flex items-center gap-2">
                     <Send className="w-4 h-4" />
-                    My Nominations
+                    Mes nominations
                   </div>
                 </button>
               )}
@@ -884,8 +884,8 @@ export default function ExpertNetworkPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
             <Eye className="w-5 h-5 text-blue-600" />
             <div>
-              <p className="font-medium text-blue-900">View Only Mode</p>
-              <p className="text-sm text-blue-700">You can view networks and nominate team members with Level 3+ competencies for the Expert Network.</p>
+              <p className="font-medium text-blue-900">Lecture seule</p>
+              <p className="text-sm text-blue-700">Vous pouvez consulter les réseaux et nommer des membres de niveau 3 ou plus au réseau d’experts.</p>
             </div>
           </div>
         )}
@@ -893,12 +893,12 @@ export default function ExpertNetworkPage() {
         {/* Nominations Tab Content */}
         {activeTab === 'nominations' && canApproveNominations && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">Pending Nominations</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Nominations en attente</h2>
             {nominations.filter(n => n.status === 'pending').length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
                 <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-1">No pending nominations</h3>
-                <p className="text-gray-500">Nominations from team leads will appear here for review</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-1">Aucune nomination en attente</h3>
+                <p className="text-gray-500">Les nominations des chefs d’équipe apparaîtront ici</p>
               </div>
             ) : (
               <div className="grid gap-4">
@@ -931,14 +931,14 @@ export default function ExpertNetworkPage() {
                           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >
                           <ThumbsUp className="w-4 h-4" />
-                          Approve
+                          Approuver
                         </button>
                         <button
                           onClick={() => handleRejectNomination(nomination)}
                           className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                         >
                           <ThumbsDown className="w-4 h-4" />
-                          Reject
+                          Refuser
                         </button>
                       </div>
                     </div>
@@ -950,16 +950,16 @@ export default function ExpertNetworkPage() {
             {/* Past Nominations */}
             {nominations.filter(n => n.status !== 'pending').length > 0 && (
               <div className="mt-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Past Nominations</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Nominations passées</h2>
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Candidate</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competency</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reviewed By</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Candidat</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compétence</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Niveau</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Examiné par</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                       </tr>
                     </thead>
@@ -993,23 +993,23 @@ export default function ExpertNetworkPage() {
         {/* My Nominations Tab (for Team Lead / Site Admin) */}
         {activeTab === 'my-nominations' && isViewOnly && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">My Submitted Nominations</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Nominations que j’ai soumises</h2>
             {nominations.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
                 <Send className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-1">No nominations submitted</h3>
-                <p className="text-gray-500">Nominate team members with Level 3+ competencies from the Competencies page</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-1">Aucune nomination soumise</h3>
+                <p className="text-gray-500">Nommez des membres de niveau 3 ou plus depuis la page Compétences</p>
               </div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Candidate</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competency</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Candidat</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compétence</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Niveau</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Soumis</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -1051,7 +1051,7 @@ export default function ExpertNetworkPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{kpis.totalNetworks}</p>
-                <p className="text-sm text-gray-500">Networks</p>
+                <p className="text-sm text-gray-500">Réseaux</p>
               </div>
             </div>
           </div>
@@ -1075,7 +1075,7 @@ export default function ExpertNetworkPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{kpis.coverage}%</p>
-                <p className="text-sm text-gray-500">Coverage</p>
+                <p className="text-sm text-gray-500">Couverture</p>
               </div>
             </div>
           </div>
@@ -1087,7 +1087,7 @@ export default function ExpertNetworkPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{kpis.avgMaturity}</p>
-                <p className="text-sm text-gray-500">Avg Maturity</p>
+                <p className="text-sm text-gray-500">Maturité moyenne</p>
               </div>
             </div>
           </div>
@@ -1099,7 +1099,7 @@ export default function ExpertNetworkPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{kpis.overdueActions}</p>
-                <p className="text-sm text-gray-500">Overdue</p>
+                <p className="text-sm text-gray-500">En retard</p>
               </div>
             </div>
           </div>
@@ -1111,7 +1111,7 @@ export default function ExpertNetworkPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{kpis.upcomingActions}</p>
-                <p className="text-sm text-gray-500">Due 30d</p>
+                <p className="text-sm text-gray-500">Échéance 30 j</p>
               </div>
             </div>
           </div>
@@ -1132,7 +1132,7 @@ export default function ExpertNetworkPage() {
                   }}
                   className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 appearance-none bg-white min-w-[200px]"
                 >
-                  <option value="all">All Organizations</option>
+                  <option value="all">Toutes les organisations</option>
                   {clients.map(client => (
                     <option key={client.id} value={client.id}>{client.name}</option>
                   ))}
@@ -1150,7 +1150,7 @@ export default function ExpertNetworkPage() {
                   onChange={(e) => setFactoryFilter(e.target.value)}
                   className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 appearance-none bg-white min-w-[180px]"
                 >
-                  <option value="all">All Factories</option>
+                  <option value="all">Toutes les usines</option>
                   {factories.map(factory => (
                     <option key={factory} value={factory}>{factory}</option>
                   ))}
@@ -1173,7 +1173,7 @@ export default function ExpertNetworkPage() {
         {filteredNetworks.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <Network className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No networks found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">Aucun réseau trouvé</h3>
             <p className="text-gray-500 mb-4">
               {canCreateNetwork 
                 ? 'Create your first expert network to get started'
@@ -1185,7 +1185,7 @@ export default function ExpertNetworkPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <Plus className="w-4 h-4" />
-                Create Network
+                Créer un réseau
               </button>
             )}
           </div>
@@ -1218,7 +1218,7 @@ export default function ExpertNetworkPage() {
                         <button
                           onClick={() => handleViewNetwork(network)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                          title="View details"
+                          title="Voir le détail"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1227,14 +1227,14 @@ export default function ExpertNetworkPage() {
                             <button
                               onClick={() => handleEditNetwork(network)}
                               className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                              title="Edit network"
+                              title="Modifier le réseau"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteNetwork(network)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                              title="Delete network"
+                              title="Supprimer le réseau"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1264,7 +1264,7 @@ export default function ExpertNetworkPage() {
                     ) : (
                       <div className="flex items-center gap-2 text-purple-600">
                         <Crown className="w-4 h-4" />
-                        <span className="italic">No Network Leader assigned</span>
+                        <span className="italic">Aucun référent</span>
                       </div>
                     )}
                   </div>
@@ -1273,7 +1273,7 @@ export default function ExpertNetworkPage() {
                   <div className="p-4 grid grid-cols-4 gap-2 text-center border-b border-gray-100">
                     <div>
                       <p className="text-lg font-bold text-purple-600">{stats.leaders}</p>
-                      <p className="text-xs text-gray-500">Leaders</p>
+                      <p className="text-xs text-gray-500">Référents</p>
                     </div>
                     <div>
                       <p className="text-lg font-bold text-blue-600">{stats.gsmes}</p>
@@ -1292,7 +1292,7 @@ export default function ExpertNetworkPage() {
                   {/* Maturity */}
                   <div className="p-4 border-b border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Avg Maturity</span>
+                      <span className="text-sm text-gray-600">Maturité moyenne</span>
                       <span className="text-sm text-gray-500">Target: {network.target_maturity}</span>
                     </div>
                     <MaturityBar level={parseFloat(stats.avgMaturity)} target={network.target_maturity} />
@@ -1301,7 +1301,7 @@ export default function ExpertNetworkPage() {
                   {/* Action Plan Summary */}
                   <div className="p-4 border-b border-gray-100">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Action Plans</span>
+                      <span className="text-sm text-gray-600">Plans d’action</span>
                       <div className="flex items-center gap-2">
                         {stats.overdueActions > 0 && (
                           <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
@@ -1323,14 +1323,14 @@ export default function ExpertNetworkPage() {
                         className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-1"
                       >
                         <Users className="w-4 h-4" />
-                        Add Member
+                        Ajouter un membre
                       </button>
                       <button
                         onClick={() => handleAddAction(network)}
                         className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-1"
                       >
                         <ClipboardList className="w-4 h-4" />
-                        Add Action
+                        Ajouter une action
                       </button>
                     </div>
                   )}
@@ -1374,7 +1374,7 @@ export default function ExpertNetworkPage() {
                   value={networkForm.name}
                   onChange={(e) => setNetworkForm({ ...networkForm, name: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Aseptic Technology"
+                  placeholder="ex. Technologie aseptique"
                   required
                 />
               </div>
@@ -1386,7 +1386,7 @@ export default function ExpertNetworkPage() {
                   onChange={(e) => setNetworkForm({ ...networkForm, description: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows={2}
-                  placeholder="Brief description of this network"
+                  placeholder="Brève description de ce réseau"
                 />
               </div>
 
@@ -1399,7 +1399,7 @@ export default function ExpertNetworkPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   >
-                    <option value="">Select organization...</option>
+                    <option value="">Choisir une organisation…</option>
                     {clients.map(client => (
                       <option key={client.id} value={client.id}>{client.name}</option>
                     ))}
@@ -1415,7 +1415,7 @@ export default function ExpertNetworkPage() {
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   required
                 >
-                  <option value="">Select competency...</option>
+                  <option value="">Choisir une compétence…</option>
                   {competencies
                     .filter(c => {
                       // Filter out competencies already linked to a network (unless editing this network)
@@ -1426,34 +1426,34 @@ export default function ExpertNetworkPage() {
                       <option key={comp.id} value={comp.id}>{comp.name}</option>
                     ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Each network must be linked to one competency</p>
+                <p className="text-xs text-gray-500 mt-1">Chaque réseau est lié à une compétence</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Factory</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Usine</label>
                   <input
                     type="text"
                     value={networkForm.factory}
                     onChange={(e) => setNetworkForm({ ...networkForm, factory: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Plant A"
+                    placeholder="ex. Usine A"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Line</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Ligne</label>
                   <input
                     type="text"
                     value={networkForm.line}
                     onChange={(e) => setNetworkForm({ ...networkForm, line: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Line 1"
+                    placeholder="ex. Ligne 1"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Target Maturity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Maturité cible</label>
                 <input
                   type="number"
                   min="1"
@@ -1471,7 +1471,7 @@ export default function ExpertNetworkPage() {
                   onClick={() => setShowNetworkModal(false)}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -1522,7 +1522,7 @@ export default function ExpertNetworkPage() {
                   required
                   disabled={editingMember}
                 >
-                  <option value="">Select person...</option>
+                  <option value="">Choisir une personne…</option>
                   {users
                     .filter(u => u.client_id === selectedNetwork.client_id || currentProfile?.role === 'super_admin')
                     .map(user => (
@@ -1547,8 +1547,8 @@ export default function ExpertNetworkPage() {
                     />
                     <Crown className={`w-5 h-5 ${memberForm.role === 'network_leader' ? 'text-purple-600' : 'text-gray-400'}`} />
                     <div>
-                      <div className="font-medium">Network Leader</div>
-                      <div className="text-xs text-gray-500">Leads this technology network</div>
+                      <div className="font-medium">Référent du réseau</div>
+                      <div className="text-xs text-gray-500">Anime ce réseau</div>
                     </div>
                   </label>
                   
@@ -1564,7 +1564,7 @@ export default function ExpertNetworkPage() {
                     <Star className={`w-5 h-5 ${memberForm.role === 'gsme' ? 'text-blue-600' : 'text-gray-400'}`} />
                     <div>
                       <div className="font-medium">GSME</div>
-                      <div className="text-xs text-gray-500">Global Subject Matter Expert</div>
+                      <div className="text-xs text-gray-500">Expert métier groupe</div>
                     </div>
                   </label>
                   
@@ -1580,43 +1580,43 @@ export default function ExpertNetworkPage() {
                     <Award className={`w-5 h-5 ${memberForm.role === 'fsme' ? 'text-green-600' : 'text-gray-400'}`} />
                     <div>
                       <div className="font-medium">FSME</div>
-                      <div className="text-xs text-gray-500">Factory Subject Matter Expert</div>
+                      <div className="text-xs text-gray-500">Expert métier usine</div>
                     </div>
                   </label>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Specialty</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Spécialité</label>
                 <input
                   type="text"
                   value={memberForm.specialty}
                   onChange={(e) => setMemberForm({ ...memberForm, specialty: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Filling, Sterilization"
+                  placeholder="ex. Remplissage, Stérilisation"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Site Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom du site</label>
                 <input
                   type="text"
                   value={memberForm.site_name}
                   onChange={(e) => setMemberForm({ ...memberForm, site_name: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Lyon, Singapore, Chicago"
+                  placeholder="ex. Lyon, Singapour, Chicago"
                 />
               </div>
 
               {memberForm.role !== 'network_leader' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Reports To</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Rattaché à</label>
                   <select
                     value={memberForm.reports_to_id}
                     onChange={(e) => setMemberForm({ ...memberForm, reports_to_id: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select supervisor...</option>
+                    <option value="">Choisir un responsable…</option>
                     {getNetworkMembers(selectedNetwork.id)
                       .filter(m => memberForm.role === 'fsme' ? (m.role === 'gsme' || m.role === 'network_leader') : m.role === 'network_leader')
                       .map(m => (
@@ -1629,7 +1629,7 @@ export default function ExpertNetworkPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Maturity Level (1-5)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Niveau de maturité (1-5)</label>
                 <div className="flex items-center gap-4">
                   <input
                     type="range"
@@ -1642,10 +1642,10 @@ export default function ExpertNetworkPage() {
                   <span className="text-lg font-bold text-gray-900 w-8 text-center">{memberForm.maturity_level}</span>
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>Awareness</span>
-                  <span>Knowledge</span>
-                  <span>Practitioner</span>
-                  <span>Proficient</span>
+                  <span>Sensibilisation</span>
+                  <span>Connaissance</span>
+                  <span>Praticien</span>
+                  <span>Confirmé</span>
                   <span>Expert</span>
                 </div>
               </div>
@@ -1656,7 +1656,7 @@ export default function ExpertNetworkPage() {
                   onClick={() => setShowMemberModal(false)}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -1705,7 +1705,7 @@ export default function ExpertNetworkPage() {
                   value={actionForm.title}
                   onChange={(e) => setActionForm({ ...actionForm, title: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., GMP Level 1 Training"
+                  placeholder="ex. Formation BPF niveau 1"
                   required
                 />
               </div>
@@ -1721,13 +1721,13 @@ export default function ExpertNetworkPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Assigned To</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Assigné à</label>
                 <select
                   value={actionForm.assigned_to}
                   onChange={(e) => setActionForm({ ...actionForm, assigned_to: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Unassigned</option>
+                  <option value="">Non assigné</option>
                   {getNetworkMembers(selectedNetwork.id).map(m => (
                     <option key={m.id} value={m.user_id}>
                       {m.user?.full_name} ({getRoleInfo(m.role).label})
@@ -1738,36 +1738,36 @@ export default function ExpertNetworkPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Statut</label>
                   <select
                     value={actionForm.status}
                     onChange={(e) => setActionForm({ ...actionForm, status: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="planned">Planned</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="overdue">Overdue</option>
-                    <option value="cancelled">Cancelled</option>
+                    <option value="planned">Planifié</option>
+                    <option value="in_progress">En cours</option>
+                    <option value="completed">Terminé</option>
+                    <option value="overdue">En retard</option>
+                    <option value="cancelled">Annulé</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Priority</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Priorité</label>
                   <select
                     value={actionForm.priority}
                     onChange={(e) => setActionForm({ ...actionForm, priority: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
+                    <option value="low">Faible</option>
+                    <option value="medium">Moyen</option>
+                    <option value="high">Élevé</option>
+                    <option value="critical">Critique</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Due Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Date d’échéance</label>
                 <input
                   type="date"
                   value={actionForm.due_date}
@@ -1782,7 +1782,7 @@ export default function ExpertNetworkPage() {
                   onClick={() => setShowActionModal(false)}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   type="submit"
@@ -1822,7 +1822,7 @@ export default function ExpertNetworkPage() {
                 {/* Members List */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-900">Network Members</h3>
+                    <h3 className="font-semibold text-gray-900">Membres du réseau</h3>
                     <button
                       onClick={() => {
                         setShowDetailModal(false);
@@ -1836,7 +1836,7 @@ export default function ExpertNetworkPage() {
                   
                   <div className="space-y-3">
                     {getNetworkMembers(selectedNetwork.id).length === 0 ? (
-                      <p className="text-gray-500 text-sm">No members assigned yet</p>
+                      <p className="text-gray-500 text-sm">Aucun membre</p>
                     ) : (
                       getNetworkMembers(selectedNetwork.id)
                         .sort((a, b) => {
@@ -1862,7 +1862,7 @@ export default function ExpertNetworkPage() {
                               </div>
                               <div className="text-center">
                                 <div className="text-lg font-bold text-gray-900">L{member.maturity_level}</div>
-                                <div className="text-xs text-gray-500">Maturity</div>
+                                <div className="text-xs text-gray-500">Maturité</div>
                               </div>
                               <div className="flex gap-1">
                                 <button
@@ -1891,7 +1891,7 @@ export default function ExpertNetworkPage() {
                 {/* Action Plans */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-900">Action Plans</h3>
+                    <h3 className="font-semibold text-gray-900">Plans d’action</h3>
                     <button
                       onClick={() => {
                         setShowDetailModal(false);
@@ -1905,7 +1905,7 @@ export default function ExpertNetworkPage() {
                   
                   <div className="space-y-3">
                     {getNetworkActions(selectedNetwork.id).length === 0 ? (
-                      <p className="text-gray-500 text-sm">No action plans yet</p>
+                      <p className="text-gray-500 text-sm">Aucun plan d’action</p>
                     ) : (
                       getNetworkActions(selectedNetwork.id).map(action => {
                         const statusInfo = getStatusInfo(action.status);
@@ -1953,7 +1953,7 @@ export default function ExpertNetworkPage() {
                 onClick={() => setShowDetailModal(false)}
                 className="w-full px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
-                Close
+                Fermer
               </button>
             </div>
           </div>

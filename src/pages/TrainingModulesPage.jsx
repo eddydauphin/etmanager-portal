@@ -110,10 +110,10 @@ export default function TrainingModulesPage() {
   const [audioProgress, setAudioProgress] = useState({ current: 0, total: 0, status: '' });
 
   const languages = [
-    { code: 'en', label: 'English' },
-    { code: 'fr', label: 'French' },
-    { code: 'es', label: 'Spanish' },
-    { code: 'et', label: 'Estonian' }
+    { code: 'en', label: 'Anglais' },
+    { code: 'fr', label: 'Français' },
+    { code: 'es', label: 'Espagnol' },
+    { code: 'et', label: 'Estonien' }
   ];
 
   useEffect(() => {
@@ -1802,15 +1802,15 @@ export default function TrainingModulesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Training Modules</h1>
-          <p className="text-sm text-gray-500 mt-1">Create and manage AI-powered training content</p>
+          <h1 className="text-2xl font-bold text-gray-900">Formations</h1>
+          <p className="text-sm text-gray-500 mt-1">Créer, générer et assigner les supports de formation</p>
         </div>
         <button
           onClick={handleOpenCreate}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Create Module
+          Créer une formation
         </button>
       </div>
 
@@ -1820,7 +1820,7 @@ export default function TrainingModulesPage() {
           <div className="flex items-center gap-3">
             <Loader2 className="w-5 h-5 text-orange-600 animate-spin" />
             <div className="flex-1">
-              <p className="font-medium text-orange-800">Generating Audio...</p>
+              <p className="font-medium text-orange-800">Génération audio…</p>
               <p className="text-sm text-orange-600">{audioProgress.status}</p>
               {audioProgress.total > 0 && (
                 <div className="mt-2">
@@ -1849,7 +1849,7 @@ export default function TrainingModulesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-              <p className="text-sm text-gray-500">Total Modules</p>
+              <p className="text-sm text-gray-500">Formations</p>
             </div>
           </div>
         </div>
@@ -1860,7 +1860,7 @@ export default function TrainingModulesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.published}</p>
-              <p className="text-sm text-gray-500">Published</p>
+              <p className="text-sm text-gray-500">Publié</p>
             </div>
           </div>
         </div>
@@ -1871,7 +1871,7 @@ export default function TrainingModulesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.draft}</p>
-              <p className="text-sm text-gray-500">Draft</p>
+              <p className="text-sm text-gray-500">Brouillon</p>
             </div>
           </div>
         </div>
@@ -1882,7 +1882,7 @@ export default function TrainingModulesPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
-              <p className="text-sm text-gray-500">Quiz Pending</p>
+              <p className="text-sm text-gray-500">Quiz à valider</p>
             </div>
           </div>
         </div>
@@ -1895,7 +1895,7 @@ export default function TrainingModulesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search modules..."
+              placeholder="Rechercher une formation…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1907,13 +1907,13 @@ export default function TrainingModulesPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All Status</option>
-            <option value="published">Published</option>
-            <option value="submitted">Pending Review</option>
-            <option value="returned">Needs Revision</option>
-            <option value="content_approved">Quiz Pending</option>
-            <option value="draft">Draft</option>
-            <option value="archived">Archived</option>
+            <option value="all">Tous les statuts</option>
+            <option value="published">Publié</option>
+            <option value="submitted">En relecture</option>
+            <option value="returned">À revoir</option>
+            <option value="content_approved">Quiz à valider</option>
+            <option value="draft">Brouillon</option>
+            <option value="archived">Archivé</option>
           </select>
 
           {isSuperAdmin && (
@@ -1922,7 +1922,7 @@ export default function TrainingModulesPage() {
               onChange={(e) => setClientFilter(e.target.value)}
               className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Clients</option>
+              <option value="all">Tous les clients</option>
               {clients.map(client => (
                 <option key={client.id} value={client.id}>{client.name}</option>
               ))}
@@ -1935,14 +1935,14 @@ export default function TrainingModulesPage() {
       {filteredModules.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Training Modules</h3>
-          <p className="text-gray-500 mb-4">Create AI-powered training content for your team.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune formation</h3>
+          <p className="text-gray-500 mb-4">Créez des supports de formation avec l’IA pour votre équipe.</p>
           <button
             onClick={handleOpenCreate}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Sparkles className="w-4 h-4" />
-            Create with AI
+            Créer avec l’IA
           </button>
         </div>
       ) : (
@@ -1974,7 +1974,7 @@ export default function TrainingModulesPage() {
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Eye className="w-4 h-4" />
-                        Preview
+                        Aperçu
                       </button>
                       
                       <button
@@ -1998,7 +1998,7 @@ export default function TrainingModulesPage() {
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Edit2 className="w-4 h-4" />
-                        Edit
+                        Modifier
                       </button>
                       
                       {module.status === 'draft' && (
@@ -2008,7 +2008,7 @@ export default function TrainingModulesPage() {
                             className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
                           >
                             <Check className="w-4 h-4" />
-                            Approve Content
+                            Approuver le contenu
                           </button>
                         </>
                       )}
@@ -2021,7 +2021,7 @@ export default function TrainingModulesPage() {
                               className="w-full px-4 py-2 text-left text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2"
                             >
                               <Send className="w-4 h-4" />
-                              Submit for Review
+                              Soumettre pour relecture
                             </button>
                           ) : (
                             <button
@@ -2029,7 +2029,7 @@ export default function TrainingModulesPage() {
                               className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
                             >
                               <Send className="w-4 h-4" />
-                              Approve Quiz & Publish
+                              Approuver le quiz et publier
                             </button>
                           )}
                         </>
@@ -2042,7 +2042,7 @@ export default function TrainingModulesPage() {
                             className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
                           >
                             <CheckCircle className="w-4 h-4" />
-                            Approve & Publish
+                            Approuver et publier
                           </button>
                           <button
                             onClick={() => {
@@ -2052,7 +2052,7 @@ export default function TrainingModulesPage() {
                             className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                           >
                             <RotateCcw className="w-4 h-4" />
-                            Return for Revision
+                            Renvoyer pour révision
                           </button>
                         </>
                       )}
@@ -2069,7 +2069,7 @@ export default function TrainingModulesPage() {
                           className="w-full px-4 py-2 text-left text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2"
                         >
                           <Archive className="w-4 h-4" />
-                          Archive
+                          Archiver
                         </button>
                       )}
                       
@@ -2092,7 +2092,7 @@ export default function TrainingModulesPage() {
                           className="w-full px-4 py-2 text-left text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2"
                         >
                           <Users className="w-4 h-4" />
-                          Assign Users
+                          Assigner à des personnes
                         </button>
                       )}
                       
@@ -2118,7 +2118,7 @@ export default function TrainingModulesPage() {
                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Delete
+                        Supprimer
                       </button>
                     </div>
                   )}
@@ -2159,7 +2159,7 @@ export default function TrainingModulesPage() {
                   {module.content_type === 'uploaded' && (
                     <div className="flex items-center gap-1">
                       <Upload className="w-4 h-4 text-green-600" />
-                      <span className="text-green-600">Uploaded</span>
+                      <span className="text-green-600">Importé</span>
                     </div>
                   )}
                 </div>
@@ -2259,7 +2259,7 @@ export default function TrainingModulesPage() {
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Spray Drying Fundamentals"
+                      placeholder="ex. Fondamentaux du séchage par atomisation"
                     />
                   </div>
 
@@ -2270,7 +2270,7 @@ export default function TrainingModulesPage() {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={2}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Brief description of the training..."
+                      placeholder="Brève description de la formation…"
                     />
                   </div>
 
@@ -2318,7 +2318,7 @@ export default function TrainingModulesPage() {
                                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                            Select existing
+                            Choisir une existante
                           </button>
                           <button
                             type="button"
@@ -2339,7 +2339,7 @@ export default function TrainingModulesPage() {
                             onChange={(e) => setFormData({ ...formData, competency_id: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                           >
-                            <option value="">Select competency</option>
+                            <option value="">Choisir une compétence</option>
                             {competencies.map(comp => (
                               <option key={comp.id} value={comp.id}>{comp.name}</option>
                             ))}
@@ -2357,7 +2357,7 @@ export default function TrainingModulesPage() {
                               });
                             }}
                             className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-green-50"
-                            placeholder="New competency name"
+                            placeholder="Nom de la nouvelle compétence"
                           />
                         )}
                       </div>
@@ -2367,7 +2367,7 @@ export default function TrainingModulesPage() {
                   {/* New competency additional fields */}
                   {competencyMode === 'new' && (
                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
-                      <p className="text-sm font-medium text-green-800">New Competency Details</p>
+                      <p className="text-sm font-medium text-green-800">Nouvelle compétence</p>
                       
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
@@ -2376,13 +2376,13 @@ export default function TrainingModulesPage() {
                           onChange={(e) => setFormData({ ...formData, new_competency_description: e.target.value })}
                           rows={2}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          placeholder="What does this competency cover..."
+                          placeholder="Que couvre cette compétence…"
                         />
                       </div>
                       
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Tags</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Étiquettes</label>
                           <div className="flex flex-wrap gap-1 p-2 border border-gray-200 rounded-lg bg-white min-h-[38px]">
                             {formData.new_competency_tag_ids.length > 0 ? (
                               formData.new_competency_tag_ids.map(tagId => {
@@ -2408,7 +2408,7 @@ export default function TrainingModulesPage() {
                                 ) : null;
                               })
                             ) : (
-                              <span className="text-gray-400 text-xs">Click to add...</span>
+                              <span className="text-gray-400 text-xs">Cliquez pour ajouter…</span>
                             )}
                           </div>
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -2430,13 +2430,13 @@ export default function TrainingModulesPage() {
                         </div>
                         
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Owner (Expert)</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Responsable (expert)</label>
                           <select
                             value={formData.new_competency_owner_id}
                             onChange={(e) => setFormData({ ...formData, new_competency_owner_id: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                           >
-                            <option value="">Select owner...</option>
+                            <option value="">Choisir un responsable…</option>
                             {users.map(user => (
                               <option key={user.id} value={user.id}>{user.full_name}</option>
                             ))}
@@ -2448,17 +2448,17 @@ export default function TrainingModulesPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Target Level</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Niveau cible</label>
                       <select
                         value={formData.target_level}
                         onChange={(e) => setFormData({ ...formData, target_level: parseInt(e.target.value) })}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value={1}>Level 1 - Awareness</option>
-                        <option value={2}>Level 2 - Knowledge</option>
-                        <option value={3}>Level 3 - Practitioner</option>
-                        <option value={4}>Level 4 - Proficient</option>
-                        <option value={5}>Level 5 - Expert</option>
+                        <option value={1}>Niveau 1 – Sensibilisation</option>
+                        <option value={2}>Niveau 2 – Connaissance</option>
+                        <option value={3}>Niveau 3 – Praticien</option>
+                        <option value={4}>Niveau 4 – Confirmé</option>
+                        <option value={5}>Niveau 5 – Expert</option>
                       </select>
                     </div>
 
@@ -2488,7 +2488,7 @@ export default function TrainingModulesPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Pass Score (%)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Score de réussite (%)</label>
                       <input
                         type="number"
                         value={formData.pass_score}
@@ -2500,7 +2500,7 @@ export default function TrainingModulesPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Max Attempts</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tentatives max.</label>
                       <input
                         type="number"
                         value={formData.max_attempts}
@@ -2521,13 +2521,13 @@ export default function TrainingModulesPage() {
                       className="w-4 h-4 text-blue-600 rounded"
                     />
                     <label htmlFor="has_audio" className="text-sm text-gray-700">
-                      Enable audio narration (ElevenLabs)
+                      Activer la narration audio (ElevenLabs)
                     </label>
                   </div>
 
                   {/* Content Source Selection */}
                   <div className="pt-4 border-t border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Content Source</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Source du contenu</label>
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         type="button"
@@ -2539,8 +2539,8 @@ export default function TrainingModulesPage() {
                         }`}
                       >
                         <Sparkles className="w-8 h-8 text-blue-500 mb-2" />
-                        <p className="font-medium text-gray-900">Generate with AI</p>
-                        <p className="text-sm text-gray-500">AI creates slides and quiz</p>
+                        <p className="font-medium text-gray-900">Générer avec l’IA</p>
+                        <p className="text-sm text-gray-500">L’IA crée les diapositives et le quiz</p>
                       </button>
                       
                       <button
@@ -2553,8 +2553,8 @@ export default function TrainingModulesPage() {
                         }`}
                       >
                         <Upload className="w-8 h-8 text-green-500 mb-2" />
-                        <p className="font-medium text-gray-900">Upload Presentation</p>
-                        <p className="text-sm text-gray-500">Upload existing PPT/PDF</p>
+                        <p className="font-medium text-gray-900">Importer une présentation</p>
+                        <p className="text-sm text-gray-500">Importer un PPT/PDF existant</p>
                       </button>
                     </div>
 
@@ -2563,7 +2563,7 @@ export default function TrainingModulesPage() {
                       <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
                         {/* Import Mode Selection */}
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Import Mode
+                          Mode d’import
                         </label>
                         <div className="grid grid-cols-2 gap-3 mb-4">
                           <button
@@ -2577,10 +2577,10 @@ export default function TrainingModulesPage() {
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <Sparkles className="w-5 h-5 text-purple-500" />
-                              <span className="font-medium text-gray-900">Smart Transform</span>
+                              <span className="font-medium text-gray-900">Transformation intelligente</span>
                             </div>
                             <p className="text-xs text-gray-500">
-                              AI restructures content into optimized training slides with narration
+                              L’IA restructure le contenu en diapositives de formation avec narration
                             </p>
                           </button>
                           
@@ -2595,16 +2595,16 @@ export default function TrainingModulesPage() {
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <FileText className="w-5 h-5 text-green-500" />
-                              <span className="font-medium text-gray-900">Direct Import</span>
+                              <span className="font-medium text-gray-900">Import direct</span>
                             </div>
                             <p className="text-xs text-gray-500">
-                              Preserves original content as-is, adds audio scripts & quiz
+                              Conserve le contenu d’origine, ajoute scripts audio et quiz
                             </p>
                           </button>
                         </div>
 
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Upload Presentation File
+                          Importer un fichier de présentation
                         </label>
                         
                         <div className="flex items-center gap-3">
@@ -2625,8 +2625,8 @@ export default function TrainingModulesPage() {
                               ) : (
                                 <div>
                                   <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                  <p className="text-sm text-gray-600">Click to select a file</p>
-                                  <p className="text-xs text-gray-400">PDF only (max 10MB)</p>
+                                  <p className="text-sm text-gray-600">Cliquez pour choisir un fichier</p>
+                                  <p className="text-xs text-gray-400">PDF uniquement (10 Mo max.)</p>
                                 </div>
                               )}
                             </div>
@@ -2674,9 +2674,9 @@ export default function TrainingModulesPage() {
 
                         <p className="text-xs text-gray-500 mt-3">
                           {importMode === 'smart' ? (
-                            <><strong>Smart Transform:</strong> AI analyzes your document and creates restructured training slides optimized for learning, with narration scripts and quiz questions.</>
+                            <><strong>Smart Transform:</strong> L’IA analyse votre document et crée des diapositives restructurées pour l’apprentissage, avec scripts de narration et questions de quiz.</>
                           ) : (
-                            <><strong>Direct Import:</strong> Your original content is preserved exactly as written. AI adds audio narration scripts and generates quiz questions based on the content.</>
+                            <><strong>Direct Import:</strong> Votre contenu est conservé tel quel. L’IA ajoute des scripts de narration et génère des questions de quiz à partir du contenu.</>
                           )}
                         </p>
                       </div>
@@ -2691,7 +2691,7 @@ export default function TrainingModulesPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-semibold text-gray-900">Review & Edit Slides ({generatedSlides.length})</h3>
-                      <p className="text-sm text-gray-500">Click on any field to edit</p>
+                      <p className="text-sm text-gray-500">Cliquez sur un champ pour le modifier</p>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -2704,7 +2704,7 @@ export default function TrainingModulesPage() {
                         onClick={() => {
                           setGeneratedSlides([...generatedSlides, {
                             slide_number: generatedSlides.length + 1,
-                            title: 'New Slide',
+                            title: 'Nouvelle diapositive',
                             key_points: ['Point 1', 'Point 2', 'Point 3'],
                             audio_script: 'Audio script for this slide.'
                           }]);
@@ -2795,7 +2795,7 @@ export default function TrainingModulesPage() {
                                 {uploadingNewSlideImage === index ? (
                                   <div className="flex items-center gap-2 text-blue-600">
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span className="text-sm">Uploading...</span>
+                                    <span className="text-sm">Import…</span>
                                   </div>
                                 ) : (
                                   <>
@@ -2817,14 +2817,14 @@ export default function TrainingModulesPage() {
                                   }}
                                 />
                                 <Upload className="w-3 h-3" />
-                                Upload
+                                Importer
                               </label>
                             </div>
                           )}
                         </div>
                         
                         <div className="mb-3">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Key Points</label>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Points clés</label>
                           {slide.key_points?.map((point, i) => (
                             <div key={i} className="flex items-center gap-2 mb-1">
                               <span className="text-gray-400">•</span>
@@ -2869,7 +2869,7 @@ export default function TrainingModulesPage() {
                         <div className="bg-gray-50 rounded-lg p-3">
                           <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
                             <Volume2 className="w-3 h-3" />
-                            Audio Script
+                            Script audio
                           </label>
                           <textarea
                             value={slide.audio_script}
@@ -2901,7 +2901,7 @@ export default function TrainingModulesPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-semibold text-gray-900">Review & Edit Quiz ({generatedQuiz.length} questions)</h3>
-                      <p className="text-sm text-gray-500">Click on any field to edit. Green = correct answer.</p>
+                      <p className="text-sm text-gray-500">Cliquez sur un champ pour le modifier. Vert = bonne réponse.</p>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -3010,7 +3010,7 @@ export default function TrainingModulesPage() {
                 onClick={() => setShowCreateModal(false)}
                 className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100"
               >
-                Cancel
+                Annuler
               </button>
 
               {createStep === 1 && createMethod === 'generate' && (
@@ -3034,7 +3034,7 @@ export default function TrainingModulesPage() {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      Generate Content
+                      Générer le contenu
                     </>
                   )}
                 </button>
@@ -3049,12 +3049,12 @@ export default function TrainingModulesPage() {
                   {processingFile ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Processing...
+                      Traitement…
                     </>
                   ) : (
                     <>
                       <Upload className="w-4 h-4" />
-                      Process Presentation
+                      Traiter la présentation
                     </>
                   )}
                 </button>
@@ -3065,7 +3065,7 @@ export default function TrainingModulesPage() {
                   disabled
                   className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
                 >
-                  Select a method above
+                  Choisissez une méthode ci-dessus
                 </button>
               )}
 
@@ -3095,7 +3095,7 @@ export default function TrainingModulesPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">{selectedModule.title}</h2>
-                <p className="text-sm text-gray-500">Preview Mode</p>
+                <p className="text-sm text-gray-500">Mode aperçu</p>
               </div>
               <button
                 onClick={() => setShowPreviewModal(false)}
@@ -3172,7 +3172,7 @@ export default function TrainingModulesPage() {
                 onClick={() => setShowPreviewModal(false)}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
-                Close
+                Fermer
               </button>
             </div>
           </div>
@@ -3187,9 +3187,9 @@ export default function TrainingModulesPage() {
               <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Delete Module?</h3>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Supprimer la formation ?</h3>
               <p className="text-sm text-gray-500 text-center mb-6">
-                This will permanently delete <strong>{moduleToDelete.title}</strong> and all associated slides and questions.
+                Cette action supprimera définitivement <strong>{moduleToDelete.title}</strong> ainsi que toutes les diapositives et questions associées.
               </p>
               <div className="flex gap-3">
                 <button
@@ -3199,13 +3199,13 @@ export default function TrainingModulesPage() {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  Annuler
                 </button>
                 <button
                   onClick={handleDelete}
                   className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
-                  Delete
+                  Supprimer
                 </button>
               </div>
             </div>
@@ -3219,7 +3219,7 @@ export default function TrainingModulesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Assign Users</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Assigner à des personnes</h2>
                 <p className="text-sm text-gray-500">{selectedModule.title}</p>
               </div>
               <button
@@ -3277,7 +3277,7 @@ export default function TrainingModulesPage() {
 
               {/* Select users with maturity levels */}
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Select Users to Assign</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Choisir les personnes à assigner</h4>
                 <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
                   {users
                     .filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
@@ -3330,7 +3330,7 @@ export default function TrainingModulesPage() {
                     })}
                   {users.filter(u => selectedModule.client_id ? u.client_id === selectedModule.client_id : true)
                     .filter(u => !assignedUsers.some(au => au.user_id === u.id)).length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">No users available to assign</p>
+                    <p className="text-sm text-gray-500 text-center py-4">Aucune personne à assigner</p>
                   )}
                 </div>
               </div>
@@ -3362,7 +3362,7 @@ export default function TrainingModulesPage() {
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs text-gray-600 mb-1">Current Level</label>
+                              <label className="block text-xs text-gray-600 mb-1">Niveau actuel</label>
                               <select
                                 value={levels.current_level}
                                 onChange={(e) => {
@@ -3379,7 +3379,7 @@ export default function TrainingModulesPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs text-gray-600 mb-1">Target Level</label>
+                              <label className="block text-xs text-gray-600 mb-1">Niveau cible</label>
                               <select
                                 value={levels.target_level}
                                 onChange={(e) => {
@@ -3414,7 +3414,7 @@ export default function TrainingModulesPage() {
                   <Award className="w-4 h-4" />
                   Select Validator/Coach *
                 </label>
-                <p className="text-xs text-gray-500 mb-2">This person will be notified when training is completed and will validate the competency level.</p>
+                <p className="text-xs text-gray-500 mb-2">Cette personne sera prévenue à la fin de la formation et validera le niveau de compétence.</p>
                 <select
                   value={assignValidatorId}
                   onChange={(e) => setAssignValidatorId(e.target.value)}
@@ -3464,7 +3464,7 @@ export default function TrainingModulesPage() {
                 }}
                 className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100"
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={async () => {
@@ -3556,7 +3556,7 @@ export default function TrainingModulesPage() {
                           body: JSON.stringify({
                             user_id: assignValidatorId,
                             type: 'training_auto_passed',
-                            title: 'Training Auto-Passed',
+                            title: 'Formation validée automatiquement',
                             message: `${traineeInfo?.full_name || 'A user'} was assigned "${selectedModule.title}" but already meets the target level (L${targetLevel}). No action required.`,
                             link: '/dashboard'
                           })
@@ -3596,7 +3596,7 @@ export default function TrainingModulesPage() {
                   <Edit2 className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Edit Module</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Modifier la formation</h2>
                   <p className="text-sm text-gray-500">{selectedModule.title}</p>
                 </div>
               </div>
@@ -3618,7 +3618,7 @@ export default function TrainingModulesPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Details
+                Détails
               </button>
               <button
                 onClick={() => setEditTab('slides')}
@@ -3653,7 +3653,7 @@ export default function TrainingModulesPage() {
                   {editTab === 'details' && (
                     <div className="space-y-4 max-w-lg">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Titre</label>
                         <input
                           type="text"
                           value={editFormData.title}
@@ -3673,7 +3673,7 @@ export default function TrainingModulesPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Pass Score (%)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Score de réussite (%)</label>
                         <input
                           type="number"
                           value={editFormData.pass_score}
@@ -3685,13 +3685,13 @@ export default function TrainingModulesPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Responsable</label>
                         <select
                           value={editFormData.owner_id}
                           onChange={(e) => setEditFormData({ ...editFormData, owner_id: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="">Select owner...</option>
+                          <option value="">Choisir un responsable…</option>
                           {users.map(user => (
                             <option key={user.id} value={user.id}>{user.full_name}</option>
                           ))}
@@ -3708,7 +3708,7 @@ export default function TrainingModulesPage() {
                           <span>Last reviewed:</span>
                           <span>{selectedModule.last_reviewed_at ? new Date(selectedModule.last_reviewed_at).toLocaleDateString() : 'Never'}</span>
                         </div>
-                        <p className="text-gray-400 italic mt-2">Saving will update the "Last reviewed" date</p>
+                        <p className="text-gray-400 italic mt-2">L’enregistrement met à jour la date de dernière relecture</p>
                       </div>
                     </div>
                   )}
@@ -3719,7 +3719,7 @@ export default function TrainingModulesPage() {
                       {editSlides.length === 0 ? (
                         <div className="text-center py-8">
                           <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                          <p className="text-gray-500 mb-4">No slides in this module</p>
+                          <p className="text-gray-500 mb-4">Aucune diapositive dans cette formation</p>
                           <button
                             onClick={handleGenerateForExistingModule}
                             disabled={generatingForEdit}
@@ -3728,12 +3728,12 @@ export default function TrainingModulesPage() {
                             {generatingForEdit ? (
                               <>
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                Generating content...
+                                Génération du contenu…
                               </>
                             ) : (
                               <>
                                 <Sparkles className="w-4 h-4" />
-                                Generate with AI
+                                Générer avec l’IA
                               </>
                             )}
                           </button>
@@ -3764,7 +3764,7 @@ export default function TrainingModulesPage() {
                               <div className="p-4 space-y-3">
                                 {/* Slide Image Upload */}
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">Slide Image</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">Image de la diapositive</label>
                                   {slide.image_url ? (
                                     <div className="relative inline-block">
                                       <img 
@@ -3801,7 +3801,7 @@ export default function TrainingModulesPage() {
                                         {uploadingSlideImage === slide.id ? (
                                           <div className="flex items-center gap-2 text-blue-600">
                                             <Loader2 className="w-5 h-5 animate-spin" />
-                                            <span className="text-sm">Uploading...</span>
+                                            <span className="text-sm">Import…</span>
                                           </div>
                                         ) : (
                                           <>
@@ -3819,14 +3819,14 @@ export default function TrainingModulesPage() {
                                           onChange={(e) => handleSlideImageUpload(slide.id, e.target.files?.[0])}
                                         />
                                         <Upload className="w-4 h-4" />
-                                        Upload
+                                        Importer
                                       </label>
                                     </div>
                                   )}
                                 </div>
 
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Titre</label>
                                   <input
                                     type="text"
                                     defaultValue={slide.title}
@@ -3839,7 +3839,7 @@ export default function TrainingModulesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Key Points (one per line)</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Points clés (un par ligne)</label>
                                   <textarea
                                     defaultValue={slide.content?.key_points?.join('\n') || ''}
                                     rows={8}
@@ -3850,7 +3850,7 @@ export default function TrainingModulesPage() {
                                       });
                                     }}
                                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                                    placeholder="Enter key points, one per line"
+                                    placeholder="Saisissez les points clés, un par ligne"
                                   />
                                 </div>
                               </div>
@@ -3871,7 +3871,7 @@ export default function TrainingModulesPage() {
                                     ))}
                                   </ul>
                                 ) : (
-                                  <p className="text-sm text-gray-400 italic">No content</p>
+                                  <p className="text-sm text-gray-400 italic">Aucun contenu</p>
                                 )}
                               </div>
                             )}
@@ -3887,7 +3887,7 @@ export default function TrainingModulesPage() {
                       {editQuestions.length === 0 ? (
                         <div className="text-center py-8">
                           <ClipboardList className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                          <p className="text-gray-500 mb-4">No quiz questions in this module</p>
+                          <p className="text-gray-500 mb-4">Aucune question de quiz dans cette formation</p>
                           {editSlides.length === 0 && (
                             <button
                               onClick={handleGenerateForExistingModule}
@@ -3897,18 +3897,18 @@ export default function TrainingModulesPage() {
                               {generatingForEdit ? (
                                 <>
                                   <Loader2 className="w-4 h-4 animate-spin" />
-                                  Generating content...
+                                  Génération du contenu…
                                 </>
                               ) : (
                                 <>
                                   <Sparkles className="w-4 h-4" />
-                                  Generate with AI
+                                  Générer avec l’IA
                                 </>
                               )}
                             </button>
                           )}
                           {editSlides.length > 0 && (
-                            <p className="text-sm text-gray-400">Slides exist but no quiz. You can add questions manually.</p>
+                            <p className="text-sm text-gray-400">Des diapositives existent mais pas de quiz. Vous pouvez ajouter des questions à la main.</p>
                           )}
                           {editGenerateError && (
                             <p className="text-red-500 text-sm mt-2">{editGenerateError}</p>
@@ -3944,7 +3944,7 @@ export default function TrainingModulesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Options (one per line, e.g., "A) Option text")</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Options (une par ligne, ex. « A) Texte »)</label>
                                   <textarea
                                     defaultValue={Array.isArray(question.options) ? question.options.join('\n') : ''}
                                     rows={4}
@@ -3956,7 +3956,7 @@ export default function TrainingModulesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Correct Answer (e.g., "A", "B", "C", or "D")</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Bonne réponse (ex. « A », « B », « C » ou « D »)</label>
                                   <input
                                     type="text"
                                     defaultValue={question.correct_answer}
@@ -3970,7 +3970,7 @@ export default function TrainingModulesPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Explication</label>
                                   <textarea
                                     defaultValue={question.explanation || ''}
                                     rows={2}
@@ -4019,7 +4019,7 @@ export default function TrainingModulesPage() {
                 onClick={() => setShowEditModal(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                Close
+                Fermer
               </button>
               {editTab === 'details' && (
                 <button

@@ -16,11 +16,11 @@ const ROLE_LABELS = {
 };
 
 const SOP_STATUS = {
-  draft: { label: 'Draft', cls: 'bg-gray-100 text-gray-700' },
+  draft: { label: 'Brouillon', cls: 'bg-gray-100 text-gray-700' },
   pending_review: { label: 'Pending review', cls: 'bg-amber-100 text-amber-700' },
   approved: { label: 'Approved', cls: 'bg-blue-100 text-blue-700' },
-  published: { label: 'Published', cls: 'bg-green-100 text-green-700' },
-  archived: { label: 'Archived', cls: 'bg-gray-100 text-gray-500' }
+  published: { label: 'Publié', cls: 'bg-green-100 text-green-700' },
+  archived: { label: 'Archivé', cls: 'bg-gray-100 text-gray-500' }
 };
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
@@ -104,7 +104,7 @@ export default function UserDetailPage() {
   if (error) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
-        <Link to="/users" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"><ArrowLeft className="w-4 h-4" /> Users</Link>
+        <Link to="/users" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"><ArrowLeft className="w-4 h-4" /> Personnes</Link>
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700"><AlertCircle className="w-5 h-5" />{error}</div>
       </div>
     );
@@ -115,7 +115,7 @@ export default function UserDetailPage() {
 
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-6">
-      <Link to="/users" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"><ArrowLeft className="w-4 h-4" /> Users</Link>
+      <Link to="/users" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"><ArrowLeft className="w-4 h-4" /> Personnes</Link>
 
       {/* Identity */}
       <header className="bg-white rounded-xl border border-gray-200 p-6 flex items-start gap-5">
@@ -124,14 +124,14 @@ export default function UserDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900">{person.full_name || 'No name'}</h1>
             <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{ROLE_LABELS[person.role] || person.role}</span>
-            {person.is_active === false && <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">Inactive</span>}
+            {person.is_active === false && <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">Inactif</span>}
           </div>
           <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 text-sm text-gray-600">
             <div className="flex items-center gap-2 min-w-0"><Mail className="w-4 h-4 text-gray-400" /><span className="truncate">{person.email}</span></div>
             {person.employee_number && <div className="flex items-center gap-2"><Hash className="w-4 h-4 text-gray-400" />{person.employee_number}</div>}
             {client && <div className="flex items-center gap-2"><Building2 className="w-4 h-4 text-gray-400" />{client.name}{person.site ? ` — ${person.site}` : ''}</div>}
             {(person.department || person.line) && <div className="flex items-center gap-2"><Users className="w-4 h-4 text-gray-400" />{[person.department, person.line].filter(Boolean).join(' / ')}</div>}
-            {manager && <div className="flex items-center gap-2"><Users className="w-4 h-4 text-gray-400" />Reports to <Link to={`/users/${manager.id}`} className="text-blue-600 hover:underline">{manager.full_name}</Link></div>}
+            {manager && <div className="flex items-center gap-2"><Users className="w-4 h-4 text-gray-400" />Rattaché à <Link to={`/users/${manager.id}`} className="text-blue-600 hover:underline">{manager.full_name}</Link></div>}
             {person.hire_date && <div className="text-gray-500">Hired {fmtDate(person.hire_date)}</div>}
           </dl>
         </div>
@@ -153,9 +153,9 @@ export default function UserDetailPage() {
       </div>
 
       {/* SOPs */}
-      <Section icon={ClipboardCheck} title="SOPs" count={sopsToWrite.length + executions.length}>
-        <h3 className="text-sm font-medium text-gray-700 mb-2">Assigned to write</h3>
-        {sopsToWrite.length === 0 ? <Empty>No SOP has been assigned to this person to write. Assign one from SOPs → Create SOP → Assign To.</Empty> : (
+      <Section icon={ClipboardCheck} title="Procédures" count={sopsToWrite.length + executions.length}>
+        <h3 className="text-sm font-medium text-gray-700 mb-2">À rédiger</h3>
+        {sopsToWrite.length === 0 ? <Empty>Aucune procédure à rédiger n’est assignée à cette personne.</Empty> : (
           <ul className="divide-y divide-gray-100 border-y border-gray-100 mb-5">
             {sopsToWrite.map(s => {
               const st = SOP_STATUS[s.status] || SOP_STATUS.draft;
@@ -172,8 +172,8 @@ export default function UserDetailPage() {
           </ul>
         )}
 
-        <h3 className="text-sm font-medium text-gray-700 mb-2 mt-4">Executions</h3>
-        {executions.length === 0 ? <Empty>No SOP executed yet. Only published SOPs can be executed, and the person needs the SOPs capability.</Empty> : (
+        <h3 className="text-sm font-medium text-gray-700 mb-2 mt-4">Exécutions</h3>
+        {executions.length === 0 ? <Empty>Aucune procédure exécutée.</Empty> : (
           <ul className="divide-y divide-gray-100 border-y border-gray-100">
             {executions.map(e => (
               <li key={e.id} className="py-2.5 flex items-center gap-3 text-sm">
@@ -193,8 +193,8 @@ export default function UserDetailPage() {
       </Section>
 
       {/* Competencies */}
-      <Section icon={Target} title="Competencies" count={competencies.length}>
-        {competencies.length === 0 ? <Empty>No competency assigned.</Empty> : (
+      <Section icon={Target} title="Compétences" count={competencies.length}>
+        {competencies.length === 0 ? <Empty>Aucune compétence assignée.</Empty> : (
           <ul className="divide-y divide-gray-100 border-y border-gray-100">
             {competencies.map(c => {
               const cur = Number(c.current_level) || 0;
@@ -215,8 +215,8 @@ export default function UserDetailPage() {
       </Section>
 
       {/* Training */}
-      <Section icon={GraduationCap} title="Training" count={training.length}>
-        {training.length === 0 ? <Empty>No training assigned.</Empty> : (
+      <Section icon={GraduationCap} title="Formation" count={training.length}>
+        {training.length === 0 ? <Empty>Aucune formation assignée.</Empty> : (
           <ul className="divide-y divide-gray-100 border-y border-gray-100">
             {training.map(t => (
               <li key={t.id} className="py-2.5 flex items-center gap-3 text-sm">

@@ -79,28 +79,28 @@ function TrainingCard({ training, onStart, onContinue }) {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
             <CheckCircle className="w-3.5 h-3.5" />
-            Completed
+            Terminé
           </span>
         );
       case 'failed':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
             <XCircle className="w-3.5 h-3.5" />
-            Failed
+            Échoué
           </span>
         );
       case 'in_progress':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
             <PlayCircle className="w-3.5 h-3.5" />
-            In Progress
+            En cours
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
             <Clock className="w-3.5 h-3.5" />
-            Not Started
+            Pas commencé
           </span>
         );
     }
@@ -186,17 +186,17 @@ function TrainingCard({ training, onStart, onContinue }) {
           {status === 'passed' ? (
             <>
               <RotateCcw className="w-4 h-4" />
-              Review
+              Revoir
             </>
           ) : status === 'in_progress' ? (
             <>
               <Play className="w-4 h-4" />
-              Continue
+              Continuer
             </>
           ) : (
             <>
               <PlayCircle className="w-4 h-4" />
-              Start Training
+              Commencer la formation
             </>
           )}
         </button>
@@ -311,7 +311,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
                   ) : (
                     <>
                       <Play className="w-5 h-5" />
-                      <span className="text-sm font-medium">Play Audio</span>
+                      <span className="text-sm font-medium">Lire l’audio</span>
                     </>
                   )}
                 </button>
@@ -319,7 +319,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
               
               {/* No audio for this slide indicator */}
               {audioEnabled && !slide?.audio_url && (
-                <span className="text-xs text-blue-200 italic">No audio for this slide</span>
+                <span className="text-xs text-blue-200 italic">Pas d’audio pour cette diapositive</span>
               )}
             </div>
           )}
@@ -361,7 +361,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
         {slide?.audio_script && (
           <details className="mt-6 p-4 bg-gray-50 rounded-lg">
             <summary className="text-sm font-medium text-gray-600 cursor-pointer">
-              View narration script
+              Voir le script de narration
             </summary>
             <p className="mt-2 text-gray-600 text-sm leading-relaxed">
               {slide.audio_script}
@@ -378,7 +378,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
           className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ChevronLeft className="w-5 h-5" />
-          Previous
+          Précédent
         </button>
 
         {/* Slide dots */}
@@ -403,7 +403,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
             onClick={onComplete}
             className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
           >
-            Start Quiz
+            Commencer le quiz
             <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
@@ -411,7 +411,7 @@ function SlideViewer({ slides, currentSlide, setCurrentSlide, onComplete }) {
             onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Next
+            Suivant
             <ChevronRight className="w-5 h-5" />
           </button>
         )}
@@ -517,17 +517,17 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
                 />
                 <span className="absolute text-3xl font-bold text-gray-900">{score}%</span>
               </div>
-              <p className="mt-2 text-gray-500">Your Score</p>
+              <p className="mt-2 text-gray-500">Votre score</p>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-gray-300">{passScore}%</div>
-              <p className="text-gray-500">Pass Score</p>
+              <p className="text-gray-500">Score de réussite</p>
             </div>
           </div>
 
           {/* Question breakdown */}
           <div className="border-t border-gray-100 pt-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Question Review</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Revue des questions</h3>
             <div className="space-y-3">
               {questions.map((q, index) => {
                 const userAnswer = answers[q.id];
@@ -569,7 +569,7 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
         <div className="flex items-center justify-between text-white">
           <div>
             <p className="text-purple-100 text-sm">Question {currentQuestion + 1} of {questions.length}</p>
-            <h2 className="text-xl font-semibold">Quiz Time!</h2>
+            <h2 className="text-xl font-semibold">Place au quiz !</h2>
           </div>
           <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full">
             <Target className="w-4 h-4" />
@@ -634,7 +634,7 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
           className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ChevronLeft className="w-5 h-5" />
-          Previous
+          Précédent
         </button>
 
         {/* Question dots */}
@@ -672,7 +672,7 @@ function QuizTaker({ questions, passScore, onComplete, maxAttempts, currentAttem
             onClick={() => setCurrentQuestion(Math.min(questions.length - 1, currentQuestion + 1))}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
-            Next
+            Suivant
             <ChevronRight className="w-5 h-5" />
           </button>
         )}
@@ -890,7 +890,7 @@ export default function MyTrainingPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-3" />
-          <p className="text-gray-500">Loading your training...</p>
+          <p className="text-gray-500">Chargement de vos formations…</p>
         </div>
       </div>
     );
@@ -907,7 +907,7 @@ export default function MyTrainingPage() {
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft className="w-5 h-5" />
-            Back to My Training
+            Retour à mes formations
           </button>
           <h1 className="text-2xl font-bold text-gray-900">{selectedTraining.training_modules?.title}</h1>
           <p className="text-gray-500 mt-1">{selectedTraining.training_modules?.description}</p>
@@ -917,7 +917,7 @@ export default function MyTrainingPage() {
           <div className="flex items-center justify-center min-h-[400px] bg-white rounded-xl shadow-sm">
             <div className="text-center">
               <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-3" />
-              <p className="text-gray-500">Loading content...</p>
+              <p className="text-gray-500">Chargement du contenu…</p>
             </div>
           </div>
         ) : mode === 'slides' ? (
@@ -960,7 +960,7 @@ export default function MyTrainingPage() {
                 onClick={handleBackToList}
                 className="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50"
               >
-                Back to Training List
+                Retour à la liste
               </button>
               
               {selectedTraining.status !== 'passed' && 
@@ -985,8 +985,8 @@ export default function MyTrainingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Training</h1>
-        <p className="text-gray-500 mt-1">Complete your assigned training modules</p>
+        <h1 className="text-2xl font-bold text-gray-900">Mes formations</h1>
+        <p className="text-gray-500 mt-1">Suivez les formations qui vous sont assignées</p>
       </div>
 
       {/* Stats */}
@@ -1009,7 +1009,7 @@ export default function MyTrainingPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
-              <p className="text-sm text-gray-500">Completed</p>
+              <p className="text-sm text-gray-500">Terminé</p>
             </div>
           </div>
         </div>
@@ -1020,7 +1020,7 @@ export default function MyTrainingPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
-              <p className="text-sm text-gray-500">In Progress</p>
+              <p className="text-sm text-gray-500">En cours</p>
             </div>
           </div>
         </div>
@@ -1031,7 +1031,7 @@ export default function MyTrainingPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
-              <p className="text-sm text-gray-500">Not Started</p>
+              <p className="text-sm text-gray-500">Pas commencé</p>
             </div>
           </div>
         </div>
@@ -1043,8 +1043,8 @@ export default function MyTrainingPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
             <BookOpen className="w-8 h-8 text-gray-400" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Training Assigned</h3>
-          <p className="text-gray-500">You don't have any training modules assigned yet.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune formation assignée</h3>
+          <p className="text-gray-500">Aucune formation ne vous est assignée pour l’instant.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

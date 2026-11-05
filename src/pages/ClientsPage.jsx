@@ -119,14 +119,14 @@ function ClientsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
-          <p className="text-gray-600">Manage client organizations</p>
+          <p className="text-gray-600">Gérer les organisations clientes</p>
         </div>
         <button
           onClick={openCreateModal}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-5 h-5" />
-          Add Client
+          Ajouter un client
         </button>
       </div>
 
@@ -135,7 +135,7 @@ function ClientsPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Search clients..."
+            placeholder="Rechercher un client…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -150,11 +150,11 @@ function ClientsPage() {
       ) : filteredClients.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border">
           <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No clients yet</h3>
-          <p className="text-gray-600 mb-4">Create your first client organization</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun client pour l’instant</h3>
+          <p className="text-gray-600 mb-4">Créez votre première organisation cliente</p>
           <button onClick={openCreateModal} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <Plus className="w-5 h-5 inline mr-2" />
-            Add Client
+            Ajouter un client
           </button>
         </div>
       ) : (
@@ -201,7 +201,7 @@ function ClientsPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Nordic Milk Ltd"
+                  placeholder="ex. Laiterie du Nord"
                 />
               </div>
               <div>
@@ -216,17 +216,17 @@ function ClientsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pays</label>
                 <input
                   type="text"
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Estonia"
+                  placeholder="ex. France"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-mail de contact</label>
                 <input
                   type="email"
                   value={formData.contact_email}
@@ -246,7 +246,7 @@ function ClientsPage() {
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
-                  Cancel
+                  Annuler
                 </button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                   {editingClient ? 'Save' : 'Create'}
