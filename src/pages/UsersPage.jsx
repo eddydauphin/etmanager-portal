@@ -158,6 +158,8 @@ export default function UsersPage() {
 
   // Get unique departments for filter
   const departments = [...new Set(users.map(u => u.department).filter(Boolean))].sort();
+  const sites = [...new Set(users.map(u => u.site).filter(Boolean))].sort();
+  const [siteFilter, setSiteFilter] = useState('all');
 
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
@@ -168,11 +170,12 @@ export default function UsersPage() {
     
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesClient = clientFilter === 'all' || user.client_id === clientFilter;
+    const matchesSite = siteFilter === 'all' || user.site === siteFilter;
     const matchesStatus = statusFilter === 'all' || 
       (statusFilter === 'active' && user.is_active !== false) ||
       (statusFilter === 'inactive' && user.is_active === false);
 
-    return matchesSearch && matchesRole && matchesClient && matchesStatus;
+    return matchesSearch && matchesRole && matchesClient && matchesSite && matchesStatus;
   });
 
   // Open modal for creating new user
@@ -574,6 +577,22 @@ export default function UsersPage() {
             </div>
 
             {/* Client Filter - Only for Super Admin */}
+            {SINGLE_CLIENT && (
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={siteFilter}
+                  onChange={(e) => setSiteFilter(e.target.value)}
+                  className="pl-10 pr-8 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white min-w-[180px]"
+                >
+                  <option value="all">Tous les sites</option>
+                  {sites.map(site => (
+                    <option key={site} value={site}>{site}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+            )}
             {currentProfile?.role === 'super_admin' && !SINGLE_CLIENT && (
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -642,9 +661,7 @@ export default function UsersPage() {
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Rôle
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Organisation
-                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{SINGLE_CLIENT ? 'Site' : 'Organisation'}</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Service / Ligne
                     </th>
@@ -687,7 +704,16 @@ export default function UsersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {user.client_id ? (
+                          {SINGLE_CLIENT ? (
+                            user.site ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-700">
+                                <Building2 className="w-3.5 h-3.5" />
+                                {user.site}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )
+                          ) : user.client_id ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm bg-gray-100 text-gray-700">
                               <Building2 className="w-3.5 h-3.5" />
                               {clients.find(c => c.id === user.client_id)?.name || 'Inconnu'}
@@ -1000,29 +1026,25 @@ export default function UsersPage() {
               )}
 
               {/* Site Admin Specific Fields */}
-              {formData.role === 'site_admin' && (
-                <div className="space-y-4 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
-                  <h3 className="text-sm font-medium text-cyan-800 flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    Réglages admin site
-                  </h3>
-                  
-                  {/* Site/Location */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Site
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.site}
-                      onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                      placeholder="ex. Usine A, Bâtiment 1, Site de Paris"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Le site géré par cet admin
-                    </p>
-                  </div>
+              {formData.role !== 'super_admin' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Site{formData.role === 'site_admin' ? ' *' : ''}
+                  </label>
+                  <input
+                    type="text"
+                    list="etm-sites"
+                    value={formData.site}
+                    onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="ex. Pontmain"
+                  />
+                  <datalist id="etm-sites">
+                    {sites.map(site => <option key={site} value={site} />)}
+                  </datalist>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.role === 'site_admin' ? 'Le site géré par cet admin.' : 'Site de rattachement. Une même organisation peut avoir plusieurs sites.'}
+                  </p>
                 </div>
               )}
 
