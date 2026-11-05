@@ -126,7 +126,7 @@ function ManagerHome({ profile }) {
           safe(dbFetch(`profiles?select=id,full_name,role,client_id,is_active&is_active=eq.true&role=neq.super_admin${scope}${teamScope}`)),
           safe(dbFetch(`user_training?select=id,status,due_date,completed_at,user_id,person:user_id!inner(full_name,client_id,reports_to_id),training_modules:module_id(title)&order=due_date.asc.nullslast${clientId ? `&person.client_id=eq.${clientId}` : ''}${profile.role === 'team_lead' ? `&person.reports_to_id=eq.${profile.id}` : ''}`)),
           safe(dbFetch(`development_activities?select=id,title,type,status,due_date,trainee_id,coach_id,trainee:trainee_id!inner(full_name,client_id,reports_to_id),coach:coach_id(full_name),competencies(name)&status=neq.cancelled&order=due_date.asc.nullslast${clientId ? `&trainee.client_id=eq.${clientId}` : ''}${profile.role === 'team_lead' ? `&trainee.reports_to_id=eq.${profile.id}` : ''}`)),
-          safe(dbFetch(`training_modules?select=id,title,status,client_id${scope}`)
+          safe(dbFetch(`training_modules?select=id,title,status,client_id${scope}`))
         ]);
         if (cancelled) return;
         setData({ people: people || [], trainings: trainings || [], activities: activities || [], modules: modules || [] });

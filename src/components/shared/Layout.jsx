@@ -205,10 +205,7 @@ function Layout() {
       ? ['dashboard', 'chat', 'my_training', 'my_progress', 'sops', 'settings']
       : ['dashboard', 'chat', 'users', 'skills', 'training', 'expert_network', 'sops', 'reports', 'settings'];
 
-    // Le super admin gère aussi les clients
-    if (role === 'super_admin') {
-      menuOrder.splice(2, 0, 'clients');
-    }
+    // Clients n'est plus dans le menu : accessible depuis Paramètres (super admin)
 
     menuOrder.forEach(capKey => {
       if (capKey === 'skills') {

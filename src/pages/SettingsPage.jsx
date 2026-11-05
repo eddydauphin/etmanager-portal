@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { KeyRound, Boxes } from 'lucide-react';
+import { KeyRound, Boxes, Building2 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { PARKED_MODULES, setFeature, useFeatures } from '../lib/features';
 
@@ -38,6 +38,18 @@ export default function SettingsPage() {
           </Link>
         </div>
       </section>
+
+      {isSuperAdmin && (
+        <section className="bg-white rounded-xl border border-gray-200">
+          <div className="px-5 py-3 border-b border-gray-100 font-semibold text-gray-900">Administration</div>
+          <div className="px-5 py-4">
+            <Link to="/clients" className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+              <Building2 className="w-4 h-4" /> Organisations clientes
+            </Link>
+            <p className="mt-2 text-xs text-gray-500">Créer ou modifier les organisations. Retiré du menu principal.</p>
+          </div>
+        </section>
+      )}
 
       {isSuperAdmin && (
         <section className="bg-white rounded-xl border border-gray-200">
